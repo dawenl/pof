@@ -116,7 +116,7 @@ class SF_Dict:
         self.EA[:,l], self.EA2[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
         return True
 
-    def vb_m(self, verbose):
+    def vb_m(self, verbose=True):
         if verbose:
             print 'Updating U...'
         for l in xrange(self.L):
