@@ -29,7 +29,7 @@ A = np.empty((L, N))
 for n in xrange(N):
     A[:,n] = np.random.gamma(alpha, scale=1./alpha)
 V = np.dot(U, A) + np.random.normal(scale=np.sqrt(1./gamma)).reshape(F,1)
-W = np.exp(W)
+W = np.exp(V)
 
 # <codecell>
 
@@ -46,12 +46,17 @@ colorbar()
 # <codecell>
 
 reload(dict_prior)
-sfd = dict_prior.SF_Dict(W, L=10)
+sfd = dict_prior.SF_Dict(W, L=L)
 sfd.vb_e()
 
 # <codecell>
 
-gamma
+subplot(211)
+specshow(sfd.EA)
+colorbar()
+subplot(212)
+specshow(A)
+colorbar()
 
 # <codecell>
 
@@ -64,7 +69,4 @@ amax(U)
 # <codecell>
 
 amax(dot(U, A))
-
-# <codecell>
-
 

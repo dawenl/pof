@@ -2,6 +2,8 @@
 CREATED: 2013-05-23 10:58:16 by Dawen Liang <daliang@adobe.com>
 '''
 
+import sys
+
 import numpy as np
 import scipy.optimize as optimize
 
@@ -35,38 +37,44 @@ class SF_Dict:
         self.r = np.random.gamma(smoothness, 1./smoothness, size=(self.L,
             self.N))
         self.EA, self.EA2 = self._comp_expect(self.mu, self.r)
-        self.old_mu, self.old_r = None, None
+        self.old_mu = np.inf
+        self.old_r = np.inf
 
     def _comp_expect(self, mu, r):
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r))
          
-    #def update(self, e_converge=True, smoothness=100, fmin='LBFGS', verbose=True):
-    #    self.vb_e(e_converge, smoothness, fmin, verbose)
-    #    self.vb_m(fmin, verbose)
+    #def update(self, e_converge=True, smoothness=100, verbose=True):
+    #    self.vb_e(e_converge, smoothness, verbose)
+    #    self.vb_m()
     #    self._objective()
 
-    def vb_e(self, e_converge=True, smoothness=100, fmin='LBFGS', verbose=True):
+    def vb_e(self, e_converge=True, smoothness=100, verbose=True):
         if e_converge:
             # do e-step until variational inference converges
             self._init_variational(smoothness)
+            if verbose:
+                print 'Variational E-step...'
             while True:
                 for l in xrange(self.L):
-                    if not self.update_phi(l, fmin):
+                    if not self.update_phi(l):
                         return False
-                if self.old_mu is None:
-                    self.old_mu = self.mu.copy()
-                    self.old_r = self.r.copy()
-                else:
-                    if np.sum(np.abs(self.old_mu - self.mu)) <= 1e-4 and np.sum(np.abs(self.old_r - self.r)) <= 1e-4:
-                        break
+                    if verbose and not l % 5:
+                        sys.stdout.write('.')
+                if verbose:
+                    sys.stdout.write('\n')
+                    print 'mu increment: {}; r increment: {}'.format(np.mean(np.abs(self.old_mu - self.mu)), np.mean(np.abs(self.old_r - self.r)))
+                if np.mean(np.abs(self.old_mu - self.mu)) <= 1e-3 and np.mean(np.abs(self.old_r - self.r)) <= 1e-3:
+                    break
+                self.old_mu = self.mu.copy()
+                self.old_r = self.r.copy()
         else:
             # do e-step for one iteration
             for l in xrange(self.L):
-                if not self.update_phi(l, fmin):
+                if not self.update_phi(l):
                     return False
         return True
 
-    def update_phi(self, l, fmin):                
+    def update_phi(self, l):                
         def f_stub(phi):
             lcoef = np.sum(self.gamma.reshape(-1, 1) * np.outer(self.U[:,l], np.exp(phi)) * Eres, axis=0) 
             qcoef = -1./2 * np.sum(self.gamma.reshape(-1, 1) * np.outer(self.U[:,l]**2, np.exp(2*phi)), axis=0) 
@@ -90,46 +98,38 @@ class SF_Dict:
         Eres = self.V - np.dot(self.U, self.EA) + np.outer(self.U[:,l],
                 self.EA[l,:])
         phi0 = self.mu[l,:]
-        if fmin == 'LBFGS':
-            mu_hat, _, d = optimize.fmin_l_bfgs_b(f, phi0, fprime=df, disp=0)
-        elif fmin == 'NCG':
-            def _fhess(phi):
-                return np.diag(df2(phi))
-            mu_hat = optimize.fmin_ncg(f, phi0, df, fhess=_fhess)
-        else:
-            raise ValueError('fmin is either LBFGS or NCG')
+        mu_hat, _, d = optimize.fmin_l_bfgs_b(f, phi0, fprime=df, disp=0)
 
         self.mu[l,:], self.r[l,:] = mu_hat, df2(mu_hat)
         if np.any(self.r[l,:] <= 0):
-            if fmin == 'LBFGS':
-                if d['warnflag'] == 2:
-                    print 'A[{}, :]: {}, f={}'.format(l, d['task'], f(mu_hat))
-                else:
-                    print 'A[{}, :]: {}, f={}'.format(l, d['warnflag'], f(mu_hat))
+            if d['warnflag'] == 2:
+                print 'A[{}, :]: {}, f={}'.format(l, d['task'], f(mu_hat))
+                print f_stub(mu_hat)
+            else:
+                print 'A[{}, :]: {}, f={}'.format(l, d['warnflag'], f(mu_hat))
             return False 
 
-        self.EA[l,:], self.EA2[l,:] = self._comp_expect(self.mu[l,:],
-                self.r[l,:])
+        self.EA[l,:], self.EA2[l,:] = self._comp_expect(self.mu[l,:], self.r[l,:])
         return True
 
-    def vb_m(self, fmin, verbose):
+    def vb_m(self, verbose):
         if verbose:
             print 'Updating U...'
         for l in xrange(self.L):
-            self.update_u(l, fmin)
+            self.update_u(l)
         if verbose:
             print 'Updating gamma and alpha'
-        self.update_gamma(fmin)
-        self.update_alpha(fmin)
+        self.update_gamma()
+        self.update_alpha()
         pass
 
-    def update_u(self, l, fmin):
+    def update_u(self, l):
         pass
 
-    def update_gamma(self, fmin):
+    def update_gamma(self):
         pass
 
-    def update_alpha(self, fmin):
+    def update_alpha(self):
         pass
 
     def _objective(self):
