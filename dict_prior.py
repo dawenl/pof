@@ -6,11 +6,12 @@ import sys
 
 import numpy as np
 import scipy.optimize as optimize
+import scipy.special as special
 
 class SF_Dict:
     def __init__(self, W, L=10, smoothness=100, seed=None, **kwargs):
         self.V = np.log(W)
-        self.F, self.N = W.shape
+        self.N, self.F = W.shape
         self.L = L
         if seed is None:
             print 'Using random seed'
@@ -23,19 +24,20 @@ class SF_Dict:
 
     def _init(self, smoothness=100):
         # model parameters
-        self.U = np.random.randn(self.F, self.L)
+        self.U = np.random.randn(self.L, self.F)
         self.alpha = np.random.gamma(smoothness, 1./smoothness, size=(self.L,))
         self.gamma = np.random.gamma(smoothness, 1./smoothness, size=(self.F,))
+
+        self.obj = -np.inf
 
         # variational parameters and expectations
         self._init_variational(smoothness)
 
     def _init_variational(self, smoothness):
-        # just in case seed was fixed previously
+        # just in case seed was previously fixed
         np.random.seed()
-        self.mu = np.random.randn(self.L, self.N)
-        self.r = np.random.gamma(smoothness, 1./smoothness, size=(self.L,
-            self.N))
+        self.mu = np.random.randn(self.N, self.L)
+        self.r = np.random.gamma(smoothness, 1./smoothness, size=(self.N, self.L))
         self.EA, self.EA2 = self._comp_expect(self.mu, self.r)
         self.old_mu = np.inf
         self.old_r = np.inf
@@ -49,11 +51,11 @@ class SF_Dict:
     #    self._objective()
 
     def vb_e(self, e_converge=True, smoothness=100, verbose=True):
+        if verbose:
+            print 'Variational E-step...'
         if e_converge:
             # do e-step until variational inference converges
             self._init_variational(smoothness)
-            if verbose:
-                print 'Variational E-step...'
             while True:
                 for l in xrange(self.L):
                     if not self.update_phi(l):
@@ -72,12 +74,16 @@ class SF_Dict:
             for l in xrange(self.L):
                 if not self.update_phi(l):
                     return False
+                if verbose and not l % 5:
+                    sys.stdout.write('.')
+            if verbose:
+                sys.stdout.write('\n')
         return True
 
     def update_phi(self, l):                
         def f_stub(phi):
-            lcoef = np.sum(self.gamma.reshape(-1, 1) * np.outer(self.U[:,l], np.exp(phi)) * Eres, axis=0) 
-            qcoef = -1./2 * np.sum(self.gamma.reshape(-1, 1) * np.outer(self.U[:,l]**2, np.exp(2*phi)), axis=0) 
+            lcoef = np.sum(np.outer(np.exp(phi), self.U[l,:]) * Eres * self.gamma, axis=1)
+            qcoef = -1./2 * np.sum(np.outer(np.exp(2*phi), self.U[l,:]**2) * self.gamma, axis=1)
             return (lcoef, qcoef)
 
         def f(phi):
@@ -95,21 +101,19 @@ class SF_Dict:
             lcoef, qcoef = f_stub(phi)
             return -(const + lcoef + 4*qcoef)
 
-        Eres = self.V - np.dot(self.U, self.EA) + np.outer(self.U[:,l],
-                self.EA[l,:])
-        phi0 = self.mu[l,:]
+        Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
+        phi0 = self.mu[:,l]
         mu_hat, _, d = optimize.fmin_l_bfgs_b(f, phi0, fprime=df, disp=0)
 
-        self.mu[l,:], self.r[l,:] = mu_hat, df2(mu_hat)
-        if np.any(self.r[l,:] <= 0):
+        self.mu[:,l], self.r[:,l] = mu_hat, df2(mu_hat)
+        if np.any(self.r[:,l] <= 0):
             if d['warnflag'] == 2:
-                print 'A[{}, :]: {}, f={}'.format(l, d['task'], f(mu_hat))
-                print f_stub(mu_hat)
+                print 'A[:, {}]: {}, f={}'.format(l, d['task'], f(mu_hat))
             else:
-                print 'A[{}, :]: {}, f={}'.format(l, d['warnflag'], f(mu_hat))
+                print 'A[:, {}]: {}, f={}'.format(l, d['warnflag'], f(mu_hat))
             return False 
 
-        self.EA[l,:], self.EA2[l,:] = self._comp_expect(self.mu[l,:], self.r[l,:])
+        self.EA[:,l], self.EA2[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
         return True
 
     def vb_m(self, verbose):
@@ -118,19 +122,47 @@ class SF_Dict:
         for l in xrange(self.L):
             self.update_u(l)
         if verbose:
-            print 'Updating gamma and alpha'
+            print 'Updating gamma and alpha...'
         self.update_gamma()
         self.update_alpha()
         pass
 
     def update_u(self, l):
+        def f(u):
+            pass
+        def df(u):
+            pass
         pass
 
     def update_gamma(self):
-        pass
+        #def f(gamma):
+        #    tmp = np.sum(self.V**2 - 2 * self.V * EV + EV2, axis=0) * gamma
+        #    return -(self.N * np.sum(np.log(gamma)) - np.sum(tmp))
+        #def df(gamma):
+        #    return -(self.N / gamma - np.sum(self.V**2 - 2 * self.V * EV + EV2, axis=0))
+        #        
+        #EV = np.dot(self.EA, self.U)
+        #EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
+        #gamma0 = self.gamma
+        #self.gamma, _, d = optimize.fmin_l_bfgs_b(f, gamma0, fprime=df, disp=0)
+        #if d['warnflag']:
+        #    print 'Warning: gamma is not optimal'
+        EV = np.dot(self.EA, self.U)
+        EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
+        self.gamma = 1./np.mean(self.V**2 - 2 * self.V * EV + EV2, axis=0)
 
     def update_alpha(self):
-        pass
+        def f(alpha):
+            tmp1 = alpha * np.log(alpha) - special.gammaln(alpha)
+            tmp2 = self.mu * (alpha - 1) - self.EA * alpha
+            return -(self.N * tmp1.sum() + tmp2.sum())
+        def df(alpha):
+            return -(self.N * (np.log(alpha) + 1 - special.psi(alpha)) + np.sum(self.mu - self.EA, axis=0))
+
+        alpha0 = self.alpha        
+        self.alpha, _, d = optimize.fmin_l_bfgs_b(f, alpha0, fprime=df, disp=0)
+        if d['warnflag']:
+            print 'Warning: alpha is not optimal'
 
     def _objective(self):
         pass

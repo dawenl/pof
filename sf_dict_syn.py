@@ -22,13 +22,13 @@ L = 20
 N = 500
 seed = 357
 np.random.seed(seed)
-U = np.random.randn(F, L)
+U = np.random.randn(L, F)
 alpha = np.random.gamma(2, size=(L,))
 gamma = np.random.gamma(100, 1./10, size=(F,))
-A = np.empty((L, N))
+A = np.empty((N, L))
 for n in xrange(N):
-    A[:,n] = np.random.gamma(alpha, scale=1./alpha)
-V = np.dot(U, A) + np.random.normal(scale=np.sqrt(1./gamma)).reshape(F,1)
+    A[n,:] = np.random.gamma(alpha, scale=1./alpha)
+V = np.dot(A, U) + np.random.normal(scale=np.sqrt(1./gamma)).reshape(F,1)
 W = np.exp(V)
 
 # <codecell>
