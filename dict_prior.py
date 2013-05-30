@@ -44,8 +44,7 @@ class SF_Dict:
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r))
          
     def vb_e(self, e_converge=True, smoothness=100, maxiter=500, verbose=True):
-        if verbose:
-            print 'Variational E-step...'
+        print 'Variational E-step...'
         if e_converge:
             # do e-step until variational inference converges
             self._init_variational(smoothness)
@@ -107,16 +106,14 @@ class SF_Dict:
                 
             app_grad = approx_grad(f, mu_hat)
             for n in xrange(self.N):
-                print '|Approximated - True grad[{}]|: {}'.format(n,
-                        np.abs(app_grad[n] - df(mu_hat)[n]))
+                print '|Approximated - True grad[{}]|: {:.3f}'.format(n, np.abs(app_grad[n] - df(mu_hat)[n]))
             return False 
 
         self.EA[:,l], self.EA2[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
         return True
 
     def vb_m(self, verbose=True):
-        if verbose:
-            print 'Variational M-step...'
+        print 'Variational M-step...'
         for l in xrange(self.L):
             self.update_u(l)
         self.update_gamma()
@@ -125,6 +122,9 @@ class SF_Dict:
 
     def update_u(self, l):
         def f(u):
+            '''TODO:
+            CHECK MATH
+            '''
             return np.sum(np.outer(self.EA2[:,l], u**2) - 2*np.outer(self.EA[:,l], u) * Eres)
         
         def df(u):
@@ -139,6 +139,11 @@ class SF_Dict:
                 print 'U[{}, :]: {}, f={}'.format(l, d['task'], f(self.U[l,:]))
             else:
                 print 'U[{}, :]: {}, f={}'.format(l, d['warnflag'], f(self.U[l,:]))
+
+            app_grad = approx_grad(f, self.U[l,:])
+            for idx in xrange(self.F):
+                print '|Approximated - True grad[{}]|: {:.3f}'.format(idx, np.abs(app_grad[idx] - df(self.U[l,:])[idx]))
+
 
     def update_gamma(self):
         # closed form update is available for gamma
@@ -157,20 +162,20 @@ class SF_Dict:
         alpha0 = self.alpha        
         self.alpha, _, d = optimize.fmin_l_bfgs_b(f, alpha0, fprime=df, disp=0)
         if d['warnflag']:
-            print 'Warning: alpha is not optimal (Warning type:{})'.format(d['warnflag'])
-
+            if d['warnflag'] == 2:
+                print 'f={}, {}'.format(f(self.alpha), d['task'])
+            else:
+                print 'f={}, {}'.format(f(self.alpha), d['warnflag'])
             app_grad = approx_grad(f, self.alpha)
             for l in xrange(self.L):
-                print '|Approximated - True grad[{}]|: {}'.format(l,
-                        np.abs(app_grad[l] - df(self.alpha)[l]))
+                print '|Approximated - True grad[{}]|: {:.3f}'.format(l, np.abs(app_grad[l] - df(self.alpha)[l]))
 
     def _objective(self):
         self.obj = 1./2 * self.N * np.sum(np.log(self.gamma))
         EV = np.dot(self.EA, self.U)
         EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
-        self.obj -= np.sum((self.V**2 - 2 * self.V * EV + EV2) * self.gamma)
-        self.obj += self.N * np.sum(self.alpha * np.log(self.alpha) -
-                special.gammaln(self.alpha))
+        self.obj -= 1./2 * np.sum((self.V**2 - 2 * self.V * EV + EV2) * self.gamma)
+        self.obj += self.N * np.sum(self.alpha * np.log(self.alpha) - special.gammaln(self.alpha))
         self.obj += np.sum(self.mu * (self.alpha - 1) - self.EA * self.alpha)
 
 

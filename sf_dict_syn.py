@@ -51,7 +51,7 @@ sfd = dict_prior.SF_Dict(W, L=L)
 
 # <codecell>
 
-#obj = []
+obj = []
 for i in xrange(5):
     while not sfd.vb_e():
         print 'Bad initialization, restart'
