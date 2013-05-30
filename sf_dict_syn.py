@@ -17,9 +17,9 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # <codecell>
 
 # Synthetic data
-F = 128
+F = 32
 L = 20
-N = 500
+N = 100
 seed = 3579
 np.random.seed(seed)
 U = np.random.randn(L, F)
@@ -42,6 +42,7 @@ colorbar()
 subplot(313)
 specshow(V.T)
 colorbar()
+pass
 
 # <codecell>
 
@@ -50,16 +51,64 @@ sfd = dict_prior.SF_Dict(W, L=L)
 
 # <codecell>
 
+#obj = []
 for i in xrange(5):
-    sfd.vb_e()
+    while not sfd.vb_e():
+        print 'Bad initialization, restart'
     sfd.vb_m()
+    obj.append(sfd.obj)
 
 # <codecell>
 
-subplot(211)
-specshow(sfd.EA.T)
+plot(obj)
+
+# <codecell>
+
+def normalize_and_plot(A, U):
+    tmpA = A / np.max(A, axis=0, keepdims=True)
+    tmpU = U * np.max(A, axis=0, keepdims=True).T
+    
+    figure()
+    subplot(211)
+    specshow(tmpA.T)
+    title('A')
+    colorbar()
+    subplot(212)
+    specshow(tmpU.T)
+    title('U')
+    colorbar()
+    
+normalize_and_plot(sfd.EA, sfd.U)
+normalize_and_plot(A, U)
+
+# <codecell>
+
+tmpU = U / np.sqrt(np.sum(U**2, axis=1, keepdims=True))
+tmpLU = sfd.U / np.sqrt(np.sum(sfd.U**2, axis=1, keepdims=True))
+dp = np.dot(tmpU, tmpLU.T)
+print float(np.sum(dp < 0))/dp.size
+specshow(dp)
 colorbar()
-subplot(212)
-specshow(A.T)
+
+# <codecell>
+
+plot(sort(sfd.alpha), '-o')
+plot(sort(alpha), '-*')
+
+# <codecell>
+
+V_rec = np.dot(sfd.EA, sfd.U)
+subplot(311)
+specshow(V.T)
 colorbar()
+subplot(312)
+specshow(V_rec.T)
+colorbar()
+subplot(313)
+specshow((V - V_rec).T)
+colorbar()
+pass
+
+# <codecell>
+
 

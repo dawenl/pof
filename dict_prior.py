@@ -26,9 +26,7 @@ class SF_Dict:
         # model parameters
         self.U = np.random.randn(self.L, self.F)
         self.alpha = np.random.gamma(smoothness, 1./smoothness, size=(self.L,))
-        self.gamma = np.random.gamma(smoothness, 1./smoothness, size=(self.F,))
-
-        self.obj = -np.inf
+        self.gamma = np.random.gamma(smoothness, 1./(2*smoothness), size=(self.F,))
 
         # variational parameters and expectations
         self._init_variational(smoothness)
@@ -45,18 +43,13 @@ class SF_Dict:
     def _comp_expect(self, mu, r):
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r))
          
-    #def update(self, e_converge=True, smoothness=100, verbose=True):
-    #    self.vb_e(e_converge, smoothness, verbose)
-    #    self.vb_m()
-    #    self._objective()
-
-    def vb_e(self, e_converge=True, smoothness=100, verbose=True):
+    def vb_e(self, e_converge=True, smoothness=100, maxiter=500, verbose=True):
         if verbose:
             print 'Variational E-step...'
         if e_converge:
             # do e-step until variational inference converges
             self._init_variational(smoothness)
-            while True:
+            for _ in xrange(maxiter):
                 for l in xrange(self.L):
                     if not self.update_phi(l):
                         return False
@@ -65,7 +58,7 @@ class SF_Dict:
                 if verbose:
                     sys.stdout.write('\n')
                     print 'mu increment: {}; r increment: {}'.format(np.mean(np.abs(self.old_mu - self.mu)), np.mean(np.abs(self.old_r - self.r)))
-                if np.mean(np.abs(self.old_mu - self.mu)) <= 1e-3 and np.mean(np.abs(self.old_r - self.r)) <= 1e-3:
+                if np.mean(np.abs(self.old_mu - self.mu)) <= 1e-3 and np.mean(np.abs(self.old_r - self.r)) <= 5 * 1e-3:
                     break
                 self.old_mu = self.mu.copy()
                 self.old_r = self.r.copy()
@@ -80,7 +73,7 @@ class SF_Dict:
                 sys.stdout.write('\n')
         return True
 
-    def update_phi(self, l):                
+    def update_phi(self, l, full_output=False):                
         def f_stub(phi):
             lcoef = np.sum(np.outer(np.exp(phi), self.U[l,:]) * Eres * self.gamma, axis=1)
             qcoef = -1./2 * np.sum(np.outer(np.exp(2*phi), self.U[l,:]**2) * self.gamma, axis=1)
@@ -111,6 +104,11 @@ class SF_Dict:
                 print 'A[:, {}]: {}, f={}'.format(l, d['task'], f(mu_hat))
             else:
                 print 'A[:, {}]: {}, f={}'.format(l, d['warnflag'], f(mu_hat))
+                
+            app_grad = approx_grad(f, mu_hat)
+            for n in xrange(self.N):
+                print '|Approximated - True grad[{}]|: {}'.format(n,
+                        np.abs(app_grad[n] - df(mu_hat)[n]))
             return False 
 
         self.EA[:,l], self.EA2[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
@@ -118,35 +116,32 @@ class SF_Dict:
 
     def vb_m(self, verbose=True):
         if verbose:
-            print 'Updating U...'
+            print 'Variational M-step...'
         for l in xrange(self.L):
             self.update_u(l)
-        if verbose:
-            print 'Updating gamma and alpha...'
         self.update_gamma()
         self.update_alpha()
-        pass
+        self._objective()
 
     def update_u(self, l):
         def f(u):
-            pass
+            return np.sum(np.outer(self.EA2[:,l], u**2) - 2*np.outer(self.EA[:,l], u) * Eres)
+        
         def df(u):
-            pass
-        pass
+            tmp = self.EA[:,l]  # for broad-casting
+            return np.sum(np.outer(self.EA2[:,l], u) - Eres * tmp[np.newaxis].T, axis=0)
+
+        Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
+        u0 = self.U[l,:]
+        self.U[l,:], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
+        if d['warnflag']:
+            if d['warnflag'] == 2:
+                print 'U[{}, :]: {}, f={}'.format(l, d['task'], f(self.U[l,:]))
+            else:
+                print 'U[{}, :]: {}, f={}'.format(l, d['warnflag'], f(self.U[l,:]))
 
     def update_gamma(self):
-        #def f(gamma):
-        #    tmp = np.sum(self.V**2 - 2 * self.V * EV + EV2, axis=0) * gamma
-        #    return -(self.N * np.sum(np.log(gamma)) - np.sum(tmp))
-        #def df(gamma):
-        #    return -(self.N / gamma - np.sum(self.V**2 - 2 * self.V * EV + EV2, axis=0))
-        #        
-        #EV = np.dot(self.EA, self.U)
-        #EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
-        #gamma0 = self.gamma
-        #self.gamma, _, d = optimize.fmin_l_bfgs_b(f, gamma0, fprime=df, disp=0)
-        #if d['warnflag']:
-        #    print 'Warning: gamma is not optimal'
+        # closed form update is available for gamma
         EV = np.dot(self.EA, self.U)
         EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
         self.gamma = 1./np.mean(self.V**2 - 2 * self.V * EV + EV2, axis=0)
@@ -162,7 +157,27 @@ class SF_Dict:
         alpha0 = self.alpha        
         self.alpha, _, d = optimize.fmin_l_bfgs_b(f, alpha0, fprime=df, disp=0)
         if d['warnflag']:
-            print 'Warning: alpha is not optimal'
+            print 'Warning: alpha is not optimal (Warning type:{})'.format(d['warnflag'])
+
+            app_grad = approx_grad(f, self.alpha)
+            for l in xrange(self.L):
+                print '|Approximated - True grad[{}]|: {}'.format(l,
+                        np.abs(app_grad[l] - df(self.alpha)[l]))
 
     def _objective(self):
-        pass
+        self.obj = 1./2 * self.N * np.sum(np.log(self.gamma))
+        EV = np.dot(self.EA, self.U)
+        EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
+        self.obj -= np.sum((self.V**2 - 2 * self.V * EV + EV2) * self.gamma)
+        self.obj += self.N * np.sum(self.alpha * np.log(self.alpha) -
+                special.gammaln(self.alpha))
+        self.obj += np.sum(self.mu * (self.alpha - 1) - self.EA * self.alpha)
+
+
+def approx_grad(f, x, delta=1e-6):
+    grad = np.zeros_like(x)
+    for i, _ in enumerate(x):
+        tmpx = x.copy()
+        tmpx[i] += delta
+        grad[i] = (f(tmpx) - f(x)) / delta
+    return grad
