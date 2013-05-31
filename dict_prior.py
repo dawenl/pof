@@ -15,7 +15,10 @@ class SF_Dict:
         self.L = L
         if seed is None:
             print 'Using random seed'
-            seed = np.random.seed()
+            np.random.seed()
+        else:
+            print 'Using fixed seed {}'.format(seed)
+            np.random.seed(seed) 
         self._parse_args(**kwargs)
         self._init(smoothness=smoothness)
 
@@ -32,8 +35,6 @@ class SF_Dict:
         self._init_variational(smoothness)
 
     def _init_variational(self, smoothness):
-        # just in case seed was previously fixed
-        np.random.seed()
         self.mu = np.random.randn(self.N, self.L)
         self.r = np.random.gamma(smoothness, 1./smoothness, size=(self.N, self.L))
         self.EA, self.EA2 = self._comp_expect(self.mu, self.r)
@@ -104,9 +105,17 @@ class SF_Dict:
             else:
                 print 'A[:, {}]: {}, f={}'.format(l, d['warnflag'], f(mu_hat))
                 
+            idx = (self.r[:,l] <= 0)
             app_grad = approx_grad(f, mu_hat)
+            def _df(phi):
+                return np.sum(df(phi))
+            app_hessian = approx_grad(_df, mu_hat)
             for n in xrange(self.N):
-                print '|Approximated - True grad[{}]|: {:.3f}'.format(n, np.abs(app_grad[n] - df(mu_hat)[n]))
+                if idx[n]:
+                    print 'A[{:3d}, {}] = {:.3f}\tApproximated: {:.6f}\tGradient: {:.6f}\t|diff|: {:.6f}'.format(n, l,
+                        mu_hat[n], app_grad[n], df(mu_hat)[n], np.abs(app_grad[n] - df(mu_hat)[n]))
+                    print '\t\t\tApproximated: {:.6f}\tHessian = {:.6f}\t|diff|: {:.6f}'.format(app_hessian[n], df2(mu_hat)[n], 
+                        np.abs(app_hessian[n] - df2(mu_hat)[n]))
             return False 
 
         self.EA[:,l], self.EA2[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
@@ -122,9 +131,6 @@ class SF_Dict:
 
     def update_u(self, l):
         def f(u):
-            '''TODO:
-            CHECK MATH
-            '''
             return np.sum(np.outer(self.EA2[:,l], u**2) - 2*np.outer(self.EA[:,l], u) * Eres)
         
         def df(u):
@@ -142,7 +148,8 @@ class SF_Dict:
 
             app_grad = approx_grad(f, self.U[l,:])
             for idx in xrange(self.F):
-                print '|Approximated - True grad[{}]|: {:.3f}'.format(idx, np.abs(app_grad[idx] - df(self.U[l,:])[idx]))
+                print 'U[{}, {:3d}] = {:.2f}\tApproximated: {:.2f}\tTrue: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, idx,
+                    self.U[l,idx], app_grad[idx], df(self.U[l,:])[idx], np.abs(app_grad[idx] - df(self.U[l,:])[idx]))
 
 
     def update_gamma(self):
@@ -152,15 +159,26 @@ class SF_Dict:
         self.gamma = 1./np.mean(self.V**2 - 2 * self.V * EV + EV2, axis=0)
 
     def update_alpha(self):
-        def f(alpha):
-            tmp1 = alpha * np.log(alpha) - special.gammaln(alpha)
-            tmp2 = self.mu * (alpha - 1) - self.EA * alpha
-            return -(self.N * tmp1.sum() + tmp2.sum())
-        def df(alpha):
-            return -(self.N * (np.log(alpha) + 1 - special.psi(alpha)) + np.sum(self.mu - self.EA, axis=0))
+        #def f(alpha):
+        #    tmp1 = alpha * np.log(alpha) - special.gammaln(alpha)
+        #    tmp2 = self.mu * (alpha - 1) - self.EA * alpha
+        #    return -(self.N * tmp1.sum() + tmp2.sum())
+        #def df(alpha):
+        #    return -(self.N * (np.log(alpha) + 1 - special.psi(alpha)) + np.sum(self.mu - self.EA, axis=0))
 
-        alpha0 = self.alpha        
-        self.alpha, _, d = optimize.fmin_l_bfgs_b(f, alpha0, fprime=df, disp=0)
+        #alpha0 = self.alpha        
+        #self.alpha, _, d = optimize.fmin_l_bfgs_b(f, alpha0, fprime=df, bounds=self.L * [(1e-20, None)], disp=0)
+        def f(beta):
+            tmp1 = np.exp(beta) * beta - special.gammaln(np.exp(beta))
+            tmp2 = self.mu * (np.exp(beta) - 1) - self.EA * np.exp(beta)
+            return -(self.N * tmp1.sum() + tmp2.sum())
+
+        def df(beta):
+            return -np.exp(beta) * (self.N * (beta + 1 - special.psi(np.exp(beta))) + np.sum(self.mu - self.EA, axis=0))
+        
+        beta0 = np.log(self.alpha)
+        beta_hat, _, d = optimize.fmin_l_bfgs_b(f, beta0, fprime=df, disp=0)
+        self.alpha = np.exp(beta_hat)
         if d['warnflag']:
             if d['warnflag'] == 2:
                 print 'f={}, {}'.format(f(self.alpha), d['task'])
@@ -168,7 +186,7 @@ class SF_Dict:
                 print 'f={}, {}'.format(f(self.alpha), d['warnflag'])
             app_grad = approx_grad(f, self.alpha)
             for l in xrange(self.L):
-                print '|Approximated - True grad[{}]|: {:.3f}'.format(l, np.abs(app_grad[l] - df(self.alpha)[l]))
+                print 'Alpha[{:3d}] = {:.2f}\tApproximated: {:.2f}\tTrue: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, self.alpha[l], app_grad[l], df(self.alpha)[l], np.abs(app_grad[l] - df(self.alpha)[l]))
 
     def _objective(self):
         self.obj = 1./2 * self.N * np.sum(np.log(self.gamma))
@@ -179,10 +197,9 @@ class SF_Dict:
         self.obj += np.sum(self.mu * (self.alpha - 1) - self.EA * self.alpha)
 
 
-def approx_grad(f, x, delta=1e-6):
+def approx_grad(f, x, delta=1e-8):
     grad = np.zeros_like(x)
+    diff = delta * np.eye(x.size)
     for i, _ in enumerate(x):
-        tmpx = x.copy()
-        tmpx[i] += delta
-        grad[i] = (f(tmpx) - f(x)) / delta
+        grad[i] = (f(x + diff[i]) - f(x - diff[i])) / (2*delta)
     return grad

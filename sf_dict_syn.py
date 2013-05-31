@@ -17,9 +17,9 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # <codecell>
 
 # Synthetic data
-F = 32
+F = 128
 L = 20
-N = 100
+N = 500
 seed = 3579
 np.random.seed(seed)
 U = np.random.randn(L, F)
@@ -47,12 +47,12 @@ pass
 # <codecell>
 
 reload(dict_prior)
-sfd = dict_prior.SF_Dict(W, L=L)
+sfd = dict_prior.SF_Dict(W, L=L, seed=123)
 
 # <codecell>
 
 obj = []
-for i in xrange(5):
+for i in xrange(2):
     while not sfd.vb_e():
         print 'Bad initialization, restart'
     sfd.vb_m()
@@ -80,15 +80,6 @@ def normalize_and_plot(A, U):
     
 normalize_and_plot(sfd.EA, sfd.U)
 normalize_and_plot(A, U)
-
-# <codecell>
-
-tmpU = U / np.sqrt(np.sum(U**2, axis=1, keepdims=True))
-tmpLU = sfd.U / np.sqrt(np.sum(sfd.U**2, axis=1, keepdims=True))
-dp = np.dot(tmpU, tmpLU.T)
-print float(np.sum(dp < 0))/dp.size
-specshow(dp)
-colorbar()
 
 # <codecell>
 
