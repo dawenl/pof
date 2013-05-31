@@ -37,12 +37,12 @@ class SF_Dict:
     def _init_variational(self, smoothness):
         self.mu = np.random.randn(self.N, self.L)
         self.r = np.random.gamma(smoothness, 1./smoothness, size=(self.N, self.L))
-        self.EA, self.EA2 = self._comp_expect(self.mu, self.r)
+        self.EA, self.EA2, self.ElogA = self._comp_expect(self.mu, self.r)
         self.old_mu = np.inf
         self.old_r = np.inf
 
     def _comp_expect(self, mu, r):
-        return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r))
+        return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r), mu)
          
     def vb_e(self, e_converge=True, smoothness=100, maxiter=500, verbose=True):
         print 'Variational E-step...'
@@ -97,6 +97,7 @@ class SF_Dict:
         Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
         phi0 = self.mu[:,l]
         mu_hat, _, d = optimize.fmin_l_bfgs_b(f, phi0, fprime=df, disp=0)
+        #mu_hat, _, d = optimize.fmin_l_bfgs_b(f, phi0, approx_grad=True)
 
         self.mu[:,l], self.r[:,l] = mu_hat, df2(mu_hat)
         if np.any(self.r[:,l] <= 0):
@@ -116,9 +117,16 @@ class SF_Dict:
                         mu_hat[n], app_grad[n], df(mu_hat)[n], np.abs(app_grad[n] - df(mu_hat)[n]))
                     print '\t\t\tApproximated: {:.6f}\tHessian = {:.6f}\t|diff|: {:.6f}'.format(app_hessian[n], df2(mu_hat)[n], 
                         np.abs(app_hessian[n] - df2(mu_hat)[n]))
+            
+            if np.isnan(f(mu_hat)):
+                print mu_hat
+                l, q = f_stub(mu_hat)
+                print l
+                print q
+            
             return False 
 
-        self.EA[:,l], self.EA2[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
+        self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
         return True
 
     def vb_m(self, verbose=True):
@@ -153,7 +161,6 @@ class SF_Dict:
 
 
     def update_gamma(self):
-        # closed form update is available for gamma
         EV = np.dot(self.EA, self.U)
         EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
         self.gamma = 1./np.mean(self.V**2 - 2 * self.V * EV + EV2, axis=0)
@@ -170,11 +177,11 @@ class SF_Dict:
         #self.alpha, _, d = optimize.fmin_l_bfgs_b(f, alpha0, fprime=df, bounds=self.L * [(1e-20, None)], disp=0)
         def f(beta):
             tmp1 = np.exp(beta) * beta - special.gammaln(np.exp(beta))
-            tmp2 = self.mu * (np.exp(beta) - 1) - self.EA * np.exp(beta)
+            tmp2 = self.ElogA * (np.exp(beta) - 1) - self.EA * np.exp(beta)
             return -(self.N * tmp1.sum() + tmp2.sum())
 
         def df(beta):
-            return -np.exp(beta) * (self.N * (beta + 1 - special.psi(np.exp(beta))) + np.sum(self.mu - self.EA, axis=0))
+            return -np.exp(beta) * (self.N * (beta + 1 - special.psi(np.exp(beta))) + np.sum(self.ElogA - self.EA, axis=0))
         
         beta0 = np.log(self.alpha)
         beta_hat, _, d = optimize.fmin_l_bfgs_b(f, beta0, fprime=df, disp=0)
@@ -194,7 +201,7 @@ class SF_Dict:
         EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
         self.obj -= 1./2 * np.sum((self.V**2 - 2 * self.V * EV + EV2) * self.gamma)
         self.obj += self.N * np.sum(self.alpha * np.log(self.alpha) - special.gammaln(self.alpha))
-        self.obj += np.sum(self.mu * (self.alpha - 1) - self.EA * self.alpha)
+        self.obj += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
 
 
 def approx_grad(f, x, delta=1e-8):
