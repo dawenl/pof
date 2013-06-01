@@ -2,7 +2,7 @@
 CREATED: 2013-05-23 10:58:16 by Dawen Liang <daliang@adobe.com>
 '''
 
-import sys
+import sys, time
 
 import numpy as np
 import scipy.optimize as optimize
@@ -50,13 +50,15 @@ class SF_Dict:
             # do e-step until variational inference converges
             self._init_variational(smoothness)
             for _ in xrange(maxiter):
+                start_t = time.time()
                 for l in xrange(self.L):
                     self.update_phi(l)
                     if verbose and not l % 5:
                         sys.stdout.write('.')
+                t = time.time() - start_t
                 if verbose:
                     sys.stdout.write('\n')
-                    print 'mu increment: {:.4f}; r increment: {:.4f}'.format(np.mean(np.abs(self.old_mu - self.mu)), np.mean(np.abs(self.old_r - self.r)))
+                    print 'mu increment: {:.4f}; r increment: {:.4f}; time: {:.2f}'.format(np.mean(np.abs(self.old_mu - self.mu)), np.mean(np.abs(self.old_r - self.r)), t)
                 if np.mean(np.abs(self.old_mu - self.mu)) <= 1e-3 and np.mean(np.abs(self.old_r - self.r)) <= 5 * 1e-3:
                     break
                 self.old_mu = self.mu.copy()
@@ -80,7 +82,7 @@ class SF_Dict:
             const = self.alpha[l] * phi
             lcoef, qcoef = _f_stub(phi, n)
             return -(const + lcoef + qcoef)
-        
+                
         def _df2(phi, n):
             const = 0
             lcoef, qcoef = _f_stub(phi, n)
@@ -91,6 +93,7 @@ class SF_Dict:
             res = optimize.minimize_scalar(_f, args=(n,))
             self.mu[n, l] = res.x
             self.r[n, l] = _df2(res.x, n)
+
         assert(np.all(self.r[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
 
@@ -131,26 +134,17 @@ class SF_Dict:
         self.gamma = 1./np.mean(self.V**2 - 2 * self.V * EV + EV2, axis=0)
 
     def update_alpha(self):
-        #def f(alpha):
-        #    tmp1 = alpha * np.log(alpha) - special.gammaln(alpha)
-        #    tmp2 = self.mu * (alpha - 1) - self.EA * alpha
-        #    return -(self.N * tmp1.sum() + tmp2.sum())
-        #def df(alpha):
-        #    return -(self.N * (np.log(alpha) + 1 - special.psi(alpha)) + np.sum(self.mu - self.EA, axis=0))
-
-        #alpha0 = self.alpha        
-        #self.alpha, _, d = optimize.fmin_l_bfgs_b(f, alpha0, fprime=df, bounds=self.L * [(1e-20, None)], disp=0)
-        def f(beta):
-            tmp1 = np.exp(beta) * beta - special.gammaln(np.exp(beta))
-            tmp2 = self.ElogA * (np.exp(beta) - 1) - self.EA * np.exp(beta)
+        def f(eta):
+            tmp1 = np.exp(eta) * eta - special.gammaln(np.exp(eta))
+            tmp2 = self.ElogA * (np.exp(eta) - 1) - self.EA * np.exp(eta)
             return -(self.N * tmp1.sum() + tmp2.sum())
 
-        def df(beta):
-            return -np.exp(beta) * (self.N * (beta + 1 - special.psi(np.exp(beta))) + np.sum(self.ElogA - self.EA, axis=0))
+        def df(eta):
+            return -np.exp(eta) * (self.N * (eta + 1 - special.psi(np.exp(eta))) + np.sum(self.ElogA - self.EA, axis=0))
         
-        beta0 = np.log(self.alpha)
-        beta_hat, _, d = optimize.fmin_l_bfgs_b(f, beta0, fprime=df, disp=0)
-        self.alpha = np.exp(beta_hat)
+        eta0 = np.log(self.alpha)
+        eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
+        self.alpha = np.exp(eta_hat)
         if d['warnflag']:
             if d['warnflag'] == 2:
                 print 'f={}, {}'.format(f(self.alpha), d['task'])
