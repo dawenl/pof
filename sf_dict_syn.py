@@ -53,8 +53,7 @@ sfd = dict_prior.SF_Dict(W, L=L, seed=123)
 
 obj = []
 for i in xrange(2):
-    while not sfd.vb_e():
-        print 'Bad initialization, restart'
+    sfd.vb_e()
     sfd.vb_m()
     obj.append(sfd.obj)
 

@@ -51,13 +51,12 @@ class SF_Dict:
             self._init_variational(smoothness)
             for _ in xrange(maxiter):
                 for l in xrange(self.L):
-                    if not self.update_phi(l):
-                        return False
+                    self.update_phi(l)
                     if verbose and not l % 5:
                         sys.stdout.write('.')
                 if verbose:
                     sys.stdout.write('\n')
-                    print 'mu increment: {}; r increment: {}'.format(np.mean(np.abs(self.old_mu - self.mu)), np.mean(np.abs(self.old_r - self.r)))
+                    print 'mu increment: {:.4f}; r increment: {:.4f}'.format(np.mean(np.abs(self.old_mu - self.mu)), np.mean(np.abs(self.old_r - self.r)))
                 if np.mean(np.abs(self.old_mu - self.mu)) <= 1e-3 and np.mean(np.abs(self.old_r - self.r)) <= 5 * 1e-3:
                     break
                 self.old_mu = self.mu.copy()
@@ -65,71 +64,37 @@ class SF_Dict:
         else:
             # do e-step for one iteration
             for l in xrange(self.L):
-                if not self.update_phi(l):
-                    return False
+                self.update_phi(l)
                 if verbose and not l % 5:
                     sys.stdout.write('.')
             if verbose:
                 sys.stdout.write('\n')
-        return True
 
-    def update_phi(self, l, full_output=False):                
-        def f_stub(phi):
-            lcoef = np.sum(np.outer(np.exp(phi), self.U[l,:]) * Eres * self.gamma, axis=1)
-            qcoef = -1./2 * np.sum(np.outer(np.exp(2*phi), self.U[l,:]**2) * self.gamma, axis=1)
+    def update_phi(self, l):                
+        def _f_stub(phi, n):
+            lcoef = np.exp(phi) * (np.sum(Eres[n,:] * self.U[l,:] * self.gamma) - self.alpha[l])
+            qcoef = -1./2 * np.exp(2*phi) * np.sum(self.gamma * self.U[l,:]**2)
             return (lcoef, qcoef)
 
-        def f(phi):
-            const = self.alpha[l] * (phi - np.exp(phi))   
-            lcoef, qcoef = f_stub(phi)
-            return -np.sum(const + lcoef + qcoef)
-
-        def df(phi):
-            const = self.alpha[l] * (1 - np.exp(phi))
-            lcoef, qcoef = f_stub(phi)
-            return -(const + lcoef + 2*qcoef)
-            
-        def df2(phi):
-            const = -self.alpha[l] * np.exp(phi)
-            lcoef, qcoef = f_stub(phi)
+        def _f(phi, n):
+            const = self.alpha[l] * phi
+            lcoef, qcoef = _f_stub(phi, n)
+            return -(const + lcoef + qcoef)
+        
+        def _df2(phi, n):
+            const = 0
+            lcoef, qcoef = _f_stub(phi, n)
             return -(const + lcoef + 4*qcoef)
 
         Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
-        phi0 = self.mu[:,l]
-        mu_hat, _, d = optimize.fmin_l_bfgs_b(f, phi0, fprime=df, disp=0)
-        #mu_hat, _, d = optimize.fmin_l_bfgs_b(f, phi0, approx_grad=True)
-
-        self.mu[:,l], self.r[:,l] = mu_hat, df2(mu_hat)
-        if np.any(self.r[:,l] <= 0):
-            if d['warnflag'] == 2:
-                print 'A[:, {}]: {}, f={}'.format(l, d['task'], f(mu_hat))
-            else:
-                print 'A[:, {}]: {}, f={}'.format(l, d['warnflag'], f(mu_hat))
-                
-            idx = (self.r[:,l] <= 0)
-            app_grad = approx_grad(f, mu_hat)
-            def _df(phi):
-                return np.sum(df(phi))
-            app_hessian = approx_grad(_df, mu_hat)
-            for n in xrange(self.N):
-                if idx[n]:
-                    print 'A[{:3d}, {}] = {:.3f}\tApproximated: {:.6f}\tGradient: {:.6f}\t|diff|: {:.6f}'.format(n, l,
-                        mu_hat[n], app_grad[n], df(mu_hat)[n], np.abs(app_grad[n] - df(mu_hat)[n]))
-                    print '\t\t\tApproximated: {:.6f}\tHessian = {:.6f}\t|diff|: {:.6f}'.format(app_hessian[n], df2(mu_hat)[n], 
-                        np.abs(app_hessian[n] - df2(mu_hat)[n]))
-            
-            if np.isnan(f(mu_hat)):
-                print mu_hat
-                l, q = f_stub(mu_hat)
-                print l
-                print q
-            
-            return False 
-
+        for n in xrange(self.N): 
+            res = optimize.minimize_scalar(_f, args=(n,))
+            self.mu[n, l] = res.x
+            self.r[n, l] = _df2(res.x, n)
+        assert(np.all(self.r[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
-        return True
 
-    def vb_m(self, verbose=True):
+    def vb_m(self):
         print 'Variational M-step...'
         for l in xrange(self.L):
             self.update_u(l)
