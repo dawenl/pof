@@ -52,7 +52,7 @@ sfd = dict_prior.SF_Dict(W, L=L, seed=123)
 # <codecell>
 
 obj = []
-for i in xrange(2):
+for i in xrange(10):
     sfd.vb_e()
     sfd.vb_m()
     obj.append(sfd.obj)

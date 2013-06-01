@@ -9,7 +9,7 @@ import scipy.optimize as optimize
 import scipy.special as special
 
 class SF_Dict:
-    def __init__(self, W, L=10, smoothness=100, seed=None, **kwargs):
+    def __init__(self, W, L=10, smoothness=100, seed=None):
         self.V = np.log(W)
         self.N, self.F = W.shape
         self.L = L
@@ -19,11 +19,7 @@ class SF_Dict:
         else:
             print 'Using fixed seed {}'.format(seed)
             np.random.seed(seed) 
-        self._parse_args(**kwargs)
         self._init(smoothness=smoothness)
-
-    def _parse_args(self, **kwargs):
-        pass
 
     def _init(self, smoothness=100):
         # model parameters
@@ -39,12 +35,12 @@ class SF_Dict:
         self.r = np.random.gamma(smoothness, 1./smoothness, size=(self.N, self.L))
         self.EA, self.EA2, self.ElogA = self._comp_expect(self.mu, self.r)
         self.old_mu = np.inf
-        self.old_r = np.inf
+        self.old_r = np.inf 
 
     def _comp_expect(self, mu, r):
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r), mu)
          
-    def vb_e(self, e_converge=True, smoothness=100, maxiter=500, verbose=True):
+    def vb_e(self, e_converge=True, smoothness=100, maxiter=500, atol=5*1e-4, verbose=True):
         print 'Variational E-step...'
         if e_converge:
             # do e-step until variational inference converges
@@ -56,10 +52,12 @@ class SF_Dict:
                     if verbose and not l % 5:
                         sys.stdout.write('.')
                 t = time.time() - start_t
+                mu_diff = np.mean(np.abs(self.old_mu - self.mu))
+                sigma_diff = np.mean(np.abs(np.sqrt(1./self.old_r) - np.sqrt(1./self.r)))
                 if verbose:
                     sys.stdout.write('\n')
-                    print 'mu increment: {:.4f}; r increment: {:.4f}; time: {:.2f}'.format(np.mean(np.abs(self.old_mu - self.mu)), np.mean(np.abs(self.old_r - self.r)), t)
-                if np.mean(np.abs(self.old_mu - self.mu)) <= 1e-3 and np.mean(np.abs(self.old_r - self.r)) <= 5 * 1e-3:
+                    print 'mu increment: {:.4f}; sigma increment: {:.4f}; time: {:.2f}'.format(mu_diff, sigma_diff, t)
+                if mu_diff <= atol and sigma_diff <= atol:
                     break
                 self.old_mu = self.mu.copy()
                 self.old_r = self.r.copy()
