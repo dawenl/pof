@@ -38,7 +38,7 @@ class SF_Dict:
     def _comp_expect(self, mu, r):
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r), mu)
          
-    def vb_e(self, e_converge=True, smoothness=100, maxiter=500, atol=5*1e-4, verbose=True):
+    def vb_e(self, e_converge=True, smoothness=100, maxiter=500, atol=1e-3, verbose=True):
         print 'Variational E-step...'
         if e_converge:
             # do e-step until variational inference converges
@@ -79,6 +79,11 @@ class SF_Dict:
             lcoef, qcoef = _f_stub(phi, n)
             return -(const + lcoef + qcoef)
                 
+        def _df(phi, n):
+            const = self.alpha[l]
+            lcoef, qcoef = _f_stub(phi, n)
+            return -(const + lcoef + 2*qcoef)
+
         def _df2(phi, n):
             const = 0
             lcoef, qcoef = _f_stub(phi, n)
@@ -86,9 +91,17 @@ class SF_Dict:
 
         Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
         for n in xrange(self.N): 
-            res = optimize.minimize_scalar(_f, args=(n,))
-            self.mu[n, l] = res.x
-            self.r[n, l] = _df2(res.x, n)
+            self.mu[n, l], _, d = optimize.fmin_l_bfgs_b(_f, self.mu[n, l], fprime=_df, args=(n,), disp=0)
+            self.r[n, l] = _df2(self.mu[n, l], n)
+            if d['warnflag']:
+                if d['warnflag'] == 2:
+                    print 'Phi[{}, {}]: {}, f={}'.format(n, l, d['task'], _f(self.mu[n, l], n))
+                else:
+                    print 'Phi[{}, {}]: {}, f={}'.format(n, l, d['warnflag'], _f(self.mu[n, l], n))
+                app_grad = approx_grad(_f, self.mu[n, l], args=(n,))[0]
+                app_hessian = approx_grad(_df, self.mu[n, l], args=(n,))[0]
+                print '\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_grad, _df(self.mu[n, l], n), np.abs(app_grad - _df(self.mu[n, l], n)))
+                print '\tApproximated: {:.5f}\tHessian: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_hessian, _df2(self.mu[n, l], n), np.abs(app_hessian - _df2(self.mu[n, l], n)))
 
         assert(np.all(self.r[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
@@ -169,9 +182,10 @@ class SF_Dict:
         self.obj += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
 
 
-def approx_grad(f, x, delta=1e-8):
+def approx_grad(f, x, delta=1e-8, args=()):
+    x = np.asarray(x).ravel()
     grad = np.zeros_like(x)
     diff = delta * np.eye(x.size)
     for i, _ in enumerate(x):
-        grad[i] = (f(x + diff[i]) - f(x - diff[i])) / (2*delta)
+        grad[i] = (f(x + diff[i], *args) - f(x - diff[i], *args)) / (2*delta)
     return grad
