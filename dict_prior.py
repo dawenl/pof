@@ -186,6 +186,6 @@ def approx_grad(f, x, delta=1e-8, args=()):
     x = np.asarray(x).ravel()
     grad = np.zeros_like(x)
     diff = delta * np.eye(x.size)
-    for i, _ in enumerate(x):
+    for i in xrange(x.size):
         grad[i] = (f(x + diff[i], *args) - f(x - diff[i], *args)) / (2*delta)
     return grad
