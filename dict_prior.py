@@ -34,8 +34,6 @@ class SF_Dict:
         self.mu = np.random.randn(self.N, self.L)
         self.r = np.random.gamma(smoothness, 1./smoothness, size=(self.N, self.L))
         self.EA, self.EA2, self.ElogA = self._comp_expect(self.mu, self.r)
-        self.old_mu = np.inf
-        self.old_r = np.inf 
 
     def _comp_expect(self, mu, r):
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r), mu)
@@ -46,21 +44,21 @@ class SF_Dict:
             # do e-step until variational inference converges
             self._init_variational(smoothness)
             for _ in xrange(maxiter):
+                old_mu = self.mu.copy()
+                old_r = self.r.copy()
                 start_t = time.time()
                 for l in xrange(self.L):
                     self.update_phi(l)
                     if verbose and not l % 5:
                         sys.stdout.write('.')
                 t = time.time() - start_t
-                mu_diff = np.mean(np.abs(self.old_mu - self.mu))
-                sigma_diff = np.mean(np.abs(np.sqrt(1./self.old_r) - np.sqrt(1./self.r)))
+                mu_diff = np.mean(np.abs(old_mu - self.mu))
+                sigma_diff = np.mean(np.abs(np.sqrt(1./old_r) - np.sqrt(1./self.r)))
                 if verbose:
                     sys.stdout.write('\n')
-                    print 'mu increment: {:.4f}; sigma increment: {:.4f}; time: {:.2f}'.format(mu_diff, sigma_diff, t)
+                    print 'mu increment: {:.4f}\tsigma increment: {:.4f}\ttime: {:.2f}'.format(mu_diff, sigma_diff, t)
                 if mu_diff <= atol and sigma_diff <= atol:
                     break
-                self.old_mu = self.mu.copy()
-                self.old_r = self.r.copy()
         else:
             # do e-step for one iteration
             for l in xrange(self.L):
@@ -95,13 +93,24 @@ class SF_Dict:
         assert(np.all(self.r[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
 
-    def vb_m(self):
+    def vb_m(self, atol=5*1e-3, verbose=True):
         print 'Variational M-step...'
+        old_U = self.U.copy()
+        old_gamma = self.gamma.copy()
+        old_alpha = self.alpha.copy()
         for l in xrange(self.L):
             self.update_u(l)
         self.update_gamma()
         self.update_alpha()
         self._objective()
+        U_diff = np.mean(np.abs(self.U - old_U))
+        sigma_diff = np.mean(np.abs(np.sqrt(1./self.gamma) - np.sqrt(1./old_gamma)))
+        alpha_diff = np.mean(np.abs(self.alpha - old_alpha))
+        if verbose:
+            print 'U increment: {:.4f}\tsigma increment: {:.4f}\talpha increment: {:.4f}'.format(U_diff, sigma_diff, alpha_diff)
+        if U_diff < atol and sigma_diff < atol and alpha_diff < atol:
+            return True
+        return False
 
     def update_u(self, l):
         def f(u):
@@ -122,8 +131,7 @@ class SF_Dict:
 
             app_grad = approx_grad(f, self.U[l,:])
             for idx in xrange(self.F):
-                print 'U[{}, {:3d}] = {:.2f}\tApproximated: {:.2f}\tTrue: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, idx,
-                    self.U[l,idx], app_grad[idx], df(self.U[l,:])[idx], np.abs(app_grad[idx] - df(self.U[l,:])[idx]))
+                print 'U[{}, {:3d}] = {:.2f}\tApproximated: {:.2f}\tTrue: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, idx, self.U[l,idx], app_grad[idx], df(self.U[l,:])[idx], np.abs(app_grad[idx] - df(self.U[l,:])[idx]))
 
 
     def update_gamma(self):

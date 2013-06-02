@@ -52,9 +52,11 @@ sfd = dict_prior.SF_Dict(W, L=L, seed=123)
 # <codecell>
 
 obj = []
-for i in xrange(10):
+maxiter = 20
+for i in xrange(maxiter):
     sfd.vb_e()
-    sfd.vb_m()
+    if sfd.vb_m():
+        break
     obj.append(sfd.obj)
 
 # <codecell>
@@ -63,10 +65,18 @@ plot(obj)
 
 # <codecell>
 
+idx_alpha_sfd = np.flipud(argsort(sfd.alpha))
+idx_alpha = np.flipud(argsort(alpha))
+
+plot(sfd.alpha[idx_alpha_sfd], '-o')
+plot(alpha[idx_alpha], '-*')
+
+# <codecell>
+
 def normalize_and_plot(A, U):
     tmpA = A / np.max(A, axis=0, keepdims=True)
     tmpU = U * np.max(A, axis=0, keepdims=True).T
-    
+   
     figure()
     subplot(211)
     specshow(tmpA.T)
@@ -77,13 +87,8 @@ def normalize_and_plot(A, U):
     title('U')
     colorbar()
     
-normalize_and_plot(sfd.EA, sfd.U)
-normalize_and_plot(A, U)
-
-# <codecell>
-
-plot(sort(sfd.alpha), '-o')
-plot(sort(alpha), '-*')
+normalize_and_plot(sfd.EA[:,idx_alpha_sfd], sfd.U[idx_alpha_sfd,:])
+normalize_and_plot(A[:,idx_alpha], U[idx_alpha,:])
 
 # <codecell>
 
@@ -98,6 +103,10 @@ subplot(313)
 specshow((V - V_rec).T)
 colorbar()
 pass
+
+# <codecell>
+
+plot(np.sqrt(1./sfd.gamma))
 
 # <codecell>
 
