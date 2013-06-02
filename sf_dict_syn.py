@@ -17,9 +17,9 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # <codecell>
 
 # Synthetic data
-F = 128
+F = 32
 L = 20
-N = 500
+N = 100
 seed = 3579
 np.random.seed(seed)
 U = np.random.randn(L, F)
@@ -76,7 +76,7 @@ plot(alpha[idx_alpha], '-*')
 def normalize_and_plot(A, U):
     tmpA = A / np.max(A, axis=0, keepdims=True)
     tmpU = U * np.max(A, axis=0, keepdims=True).T
-   
+        
     figure()
     subplot(211)
     specshow(tmpA.T)
@@ -106,7 +106,10 @@ pass
 
 # <codecell>
 
+subplot(211)
 plot(np.sqrt(1./sfd.gamma))
+subplot(212)
+plot(np.sqrt(1./gamma))
 pass
 
 # <codecell>
