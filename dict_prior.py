@@ -35,6 +35,9 @@ class SF_Dict:
         self.r = np.random.gamma(smoothness, 1./smoothness, size=(self.N, self.L))
         self.EA, self.EA2, self.ElogA = self._comp_expect(self.mu, self.r)
 
+        self.old_mu_inc = np.inf 
+        self.old_r_inc = np.inf
+
     def _comp_expect(self, mu, r):
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r), mu)
          
@@ -57,8 +60,10 @@ class SF_Dict:
                 if verbose:
                     sys.stdout.write('\n')
                     print 'mu increment: {:.4f}\tsigma increment: {:.4f}\ttime: {:.2f}'.format(mu_diff, sigma_diff, t)
-                if mu_diff <= atol and sigma_diff <= atol:
+                if self.old_mu_inc - mu_diff <= atol and self.old_r_inc - sigma_diff <= atol:
                     break
+                self.old_mu_inc = mu_diff
+                self.old_r_inc = sigma_diff
         else:
             # do e-step for one iteration
             for l in xrange(self.L):
