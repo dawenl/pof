@@ -1,6 +1,6 @@
-'''
+"""
 CREATED: 2013-05-23 10:58:16 by Dawen Liang <daliang@adobe.com>
-'''
+"""
 
 import sys, time
 
@@ -27,6 +27,10 @@ class SF_Dict:
         self.alpha = np.random.gamma(smoothness, 1./smoothness, size=(self.L,))
         self.gamma = np.random.gamma(smoothness, 1./(2*smoothness), size=(self.F,))
 
+        self.old_U_inc = np.inf
+        self.old_alpha_inc = np.inf
+        self.old_gamma_inc = np.inf
+
         # variational parameters and expectations
         self._init_variational(smoothness)
 
@@ -41,7 +45,32 @@ class SF_Dict:
     def _comp_expect(self, mu, r):
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r), mu)
          
-    def vb_e(self, e_converge=True, smoothness=100, fmin='Brent', maxiter=500, atol=1e-3, verbose=True):
+    def vb_e(self, e_converge=True, smoothness=100, fmin='LBFGS', conv_check=1, maxiter=500, atol=1e-3, verbose=True, disp=0):
+        """ Perform one variational E-step, appxorimate the posterior P(A | -)
+
+        Parameters
+        ----------
+        e_converge: bool
+            Do e-step until convergence if true, otherwise just to one ieration.
+        smoothness: float
+            Smootheness of the variational initialization, larger value will
+            lead to more concentrated initialization.
+        fmin: str
+            Optimization solver either 'LBFGS' (gradient-based) or 'Brent'
+            (bisection-based).
+        conv_check: int
+            Check convergence on the first-order difference if 1 or second-order
+            difference if 2. 
+        maxiter: int
+            Maximal number of iterations in one e-step.
+        atol: float 
+            Absolute convergence threshold. 
+        verbose: bool
+            Output log if true.
+        disp: int
+            Display warning from solver if > 0, mainly from LBFGS.
+
+        """
         print 'Variational E-step...'
         if e_converge:
             # do e-step until variational inference converges
@@ -51,7 +80,7 @@ class SF_Dict:
                 old_r = self.r.copy()
                 start_t = time.time()
                 for l in xrange(self.L):
-                    self.update_phi(l, fmin)
+                    self.update_phi(l, fmin, disp)
                     if verbose and not l % 5:
                         sys.stdout.write('.')
                 t = time.time() - start_t
@@ -60,21 +89,26 @@ class SF_Dict:
                 if verbose:
                     sys.stdout.write('\n')
                     print 'mu increment: {:.4f}\tsigma increment: {:.4f}\ttime: {:.2f}'.format(mu_diff, sigma_diff, t)
-                #if mu_diff <= atol and sigma_diff <= atol:
-                if self.old_mu_inc - mu_diff <= atol and self.old_r_inc - sigma_diff <= atol:
-                    break
-                self.old_mu_inc = mu_diff
-                self.old_r_inc = sigma_diff
+                if conv_check == 1:
+                    if mu_diff <= atol and sigma_diff <= atol:
+                        break
+                elif conv_check == 2:
+                    if self.old_mu_inc - mu_diff <= atol and self.old_r_inc - sigma_diff <= atol:
+                        break
+                    self.old_mu_inc = mu_diff
+                    self.old_r_inc = sigma_diff
+                else:
+                    raise ValueError('conv_check can only be 1 or 2')
         else:
             # do e-step for one iteration
             for l in xrange(self.L):
-                self.update_phi(l)
+                self.update_phi(l, fmin, disp)
                 if verbose and not l % 5:
                     sys.stdout.write('.')
             if verbose:
                 sys.stdout.write('\n')
 
-    def update_phi(self, l, fmin):                
+    def update_phi(self, l, fmin, disp):                
         def _f_stub(phi, n):
             lcoef = np.exp(phi) * (np.sum(Eres[n,:] * self.U[l,:] * self.gamma) - self.alpha[l])
             qcoef = -1./2 * np.exp(2*phi) * np.sum(self.gamma * self.U[l,:]**2)
@@ -104,7 +138,7 @@ class SF_Dict:
             elif fmin == 'LBFGS':
                 self.mu[n, l], _, d = optimize.fmin_l_bfgs_b(_f, self.mu[n, l], fprime=_df, args=(n,), disp=0)
                 self.r[n, l] = _df2(self.mu[n, l], n)
-                if d['warnflag']:
+                if disp and d['warnflag']:
                     if d['warnflag'] == 2:
                         print 'Phi[{}, {}]: {}, f={}'.format(n, l, d['task'], _f(self.mu[n, l], n))
                     else:
@@ -119,26 +153,51 @@ class SF_Dict:
         assert(np.all(self.r[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
 
-    def vb_m(self, atol=5*1e-3, verbose=True):
+    def vb_m(self, conv_check=1, atol=5*1e-3, verbose=True, disp=0):
+        """ Perform one M-step, update the model parameters with A fixed from E-step
+
+        Parameters
+        ----------
+        conv_check: int
+            Check convergence on the first-order difference if 1 or second-order
+            difference if 2. 
+        atol: float
+            Absolute convergence threshold.
+        verbose: bool
+            Output log if ture.
+        disp: int
+            Display warning from solver if > 0, mostly from LBFGS.
+
+        """
+
         print 'Variational M-step...'
         old_U = self.U.copy()
         old_gamma = self.gamma.copy()
         old_alpha = self.alpha.copy()
         for l in xrange(self.L):
-            self.update_u(l)
+            self.update_u(l, disp)
         self.update_gamma()
-        self.update_alpha()
+        self.update_alpha(disp)
         self._objective()
         U_diff = np.mean(np.abs(self.U - old_U))
         sigma_diff = np.mean(np.abs(np.sqrt(1./self.gamma) - np.sqrt(1./old_gamma)))
         alpha_diff = np.mean(np.abs(self.alpha - old_alpha))
         if verbose:
             print 'U increment: {:.4f}\tsigma increment: {:.4f}\talpha increment: {:.4f}'.format(U_diff, sigma_diff, alpha_diff)
-        if U_diff < atol and sigma_diff < atol and alpha_diff < atol:
-            return True
+        if conv_check == 1:
+            if U_diff < atol and sigma_diff < atol and alpha_diff < atol:
+                return True
+        elif conv_check == 2:
+            if self.old_U_inc - U_diff < atol and self.old_gamma_inc - sigma_diff < atol and self.old_alpha_inc - alpha_diff < atol:
+                return True
+            self.old_U_inc = U_diff
+            self.old_gamma_inc = sigma_diff
+            self.old_alpha_inc = alpha_diff
+        else:
+            raise ValueError('conv_check can only be 1 or 2')
         return False
 
-    def update_u(self, l):
+    def update_u(self, l, disp):
         def f(u):
             return np.sum(np.outer(self.EA2[:,l], u**2) - 2*np.outer(self.EA[:,l], u) * Eres)
         
@@ -149,7 +208,7 @@ class SF_Dict:
         Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
         u0 = self.U[l,:]
         self.U[l,:], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
-        if d['warnflag']:
+        if disp and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'U[{}, :]: {}, f={}'.format(l, d['task'], f(self.U[l,:]))
             else:
@@ -165,7 +224,7 @@ class SF_Dict:
         EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
         self.gamma = 1./np.mean(self.V**2 - 2 * self.V * EV + EV2, axis=0)
 
-    def update_alpha(self):
+    def update_alpha(self, disp):
         def f(eta):
             tmp1 = np.exp(eta) * eta - special.gammaln(np.exp(eta))
             tmp2 = self.ElogA * (np.exp(eta) - 1) - self.EA * np.exp(eta)
@@ -177,7 +236,7 @@ class SF_Dict:
         eta0 = np.log(self.alpha)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
         self.alpha = np.exp(eta_hat)
-        if d['warnflag']:
+        if disp and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'f={}, {}'.format(f(self.alpha), d['task'])
             else:

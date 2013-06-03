@@ -17,9 +17,9 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # <codecell>
 
 # Synthetic data
-F = 128
-L = 20
-N = 500
+F = 32
+L = 10
+N = 100
 seed = 3579
 np.random.seed(seed)
 U = np.random.randn(L, F)
@@ -51,12 +51,11 @@ sfd = dict_prior.SF_Dict(W, L=L, seed=123)
 
 # <codecell>
 
-# first-order brent
-obj = []
+#obj = []
 maxiter = 20
 for i in xrange(maxiter):
     print 'ITERATION: {}'.format(i)
-    sfd.vb_e(fmin='Brent')
+    sfd.vb_e()
     if sfd.vb_m():
         break
     obj.append(sfd.obj)
