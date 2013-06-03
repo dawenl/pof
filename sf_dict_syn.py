@@ -51,11 +51,12 @@ sfd = dict_prior.SF_Dict(W, L=L, seed=123)
 
 # <codecell>
 
-# second-order lbfgs
+# first-order brent
 obj = []
 maxiter = 20
 for i in xrange(maxiter):
-    sfd.vb_e(fmin='LBFGS')
+    print 'ITERATION: {}'.format(i)
+    sfd.vb_e(fmin='Brent')
     if sfd.vb_m():
         break
     obj.append(sfd.obj)
