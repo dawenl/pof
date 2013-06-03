@@ -60,6 +60,7 @@ class SF_Dict:
                 if verbose:
                     sys.stdout.write('\n')
                     print 'mu increment: {:.4f}\tsigma increment: {:.4f}\ttime: {:.2f}'.format(mu_diff, sigma_diff, t)
+                #if mu_diff <= atol and sigma_diff <= atol:
                 if self.old_mu_inc - mu_diff <= atol and self.old_r_inc - sigma_diff <= atol:
                     break
                 self.old_mu_inc = mu_diff

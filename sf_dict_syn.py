@@ -17,9 +17,9 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # <codecell>
 
 # Synthetic data
-F = 32
+F = 128
 L = 20
-N = 100
+N = 500
 seed = 3579
 np.random.seed(seed)
 U = np.random.randn(L, F)
@@ -51,10 +51,11 @@ sfd = dict_prior.SF_Dict(W, L=L, seed=123)
 
 # <codecell>
 
+# second-order lbfgs
 obj = []
 maxiter = 20
 for i in xrange(maxiter):
-    sfd.vb_e()
+    sfd.vb_e(fmin='LBFGS')
     if sfd.vb_m():
         break
     obj.append(sfd.obj)
@@ -107,9 +108,9 @@ pass
 # <codecell>
 
 subplot(211)
-plot(np.sqrt(1./sfd.gamma))
+plot(np.sqrt(1./sfd.gamma), '-o')
 subplot(212)
-plot(np.sqrt(1./gamma))
+plot(np.sqrt(1./gamma), '-o')
 pass
 
 # <codecell>
