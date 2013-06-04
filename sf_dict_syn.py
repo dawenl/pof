@@ -19,15 +19,15 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # Synthetic data
 F = 32
 L = 10
-N = 500
+T = 500
 seed = 3579
 np.random.seed(seed)
 U = np.random.randn(L, F)
 alpha = np.random.gamma(1, size=(L,))
 gamma = np.random.gamma(100, 1./10, size=(F,))
-A = np.empty((N, L))
-for n in xrange(N):
-    A[n,:] = np.random.gamma(alpha, scale=1./alpha)
+A = np.empty((T, L))
+for t in xrange(T):
+    A[t,:] = np.random.gamma(alpha, scale=1./alpha)
 V = np.dot(A, U) + np.random.normal(scale=np.sqrt(1./gamma))
 W = np.exp(V)
 

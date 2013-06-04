@@ -11,7 +11,7 @@ import scipy.special as special
 class SF_Dict:
     def __init__(self, W, L=10, smoothness=100, seed=None):
         self.V = np.log(W)
-        self.N, self.F = W.shape
+        self.T, self.F = W.shape
         self.L = L
         if seed is None:
             print 'Using random seed'
@@ -35,8 +35,8 @@ class SF_Dict:
         self._init_variational(smoothness)
 
     def _init_variational(self, smoothness):
-        self.mu = np.random.randn(self.N, self.L)
-        self.r = np.random.gamma(smoothness, 1./smoothness, size=(self.N, self.L))
+        self.mu = np.random.randn(self.T, self.L)
+        self.r = np.random.gamma(smoothness, 1./smoothness, size=(self.T, self.L))
         self.EA, self.EA2, self.ElogA = self._comp_expect(self.mu, self.r)
 
         self.old_mu_inc = np.inf 
@@ -46,12 +46,14 @@ class SF_Dict:
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r), mu)
          
     def vb_e(self, e_converge=True, smoothness=100, fmin='LBFGS', conv_check=1, maxiter=500, atol=1e-3, verbose=True, disp=0):
-        """ Perform one variational E-step, appxorimate the posterior P(A | -)
+        """ Perform one variational E-step, which may have one sub-iteration or
+        multiple sub-iterations if e_converge is set to True, to appxorimate the 
+        posterior P(A | -)
 
         Parameters
         ----------
         e_converge: bool
-            Do e-step until convergence if true, otherwise just to one ieration.
+            Do e-step until convergence if true, otherwise just to one sub-iteration.
         smoothness: float
             Smootheness of the variational initialization, larger value will
             lead to more concentrated initialization.
@@ -109,46 +111,45 @@ class SF_Dict:
                 sys.stdout.write('\n')
 
     def update_phi(self, l, fmin, disp):                
-        def _f_stub(phi, n):
-            lcoef = np.exp(phi) * (np.sum(Eres[n,:] * self.U[l,:] * self.gamma) - self.alpha[l])
+        def _f_stub(phi, t):
+            lcoef = np.exp(phi) * (np.sum(Eres[t,:] * self.U[l,:] * self.gamma) - self.alpha[l])
             qcoef = -1./2 * np.exp(2*phi) * np.sum(self.gamma * self.U[l,:]**2)
             return (lcoef, qcoef)
 
-        def _f(phi, n):
+        def _f(phi, t):
             const = self.alpha[l] * phi
-            lcoef, qcoef = _f_stub(phi, n)
+            lcoef, qcoef = _f_stub(phi, t)
             return -(const + lcoef + qcoef)
                 
-        def _df(phi, n):
+        def _df(phi, t):
             const = self.alpha[l]
-            lcoef, qcoef = _f_stub(phi, n)
+            lcoef, qcoef = _f_stub(phi, t)
             return -(const + lcoef + 2*qcoef)
 
-        def _df2(phi, n):
+        def _df2(phi, t):
             const = 0
-            lcoef, qcoef = _f_stub(phi, n)
+            lcoef, qcoef = _f_stub(phi, t)
             return -(const + lcoef + 4*qcoef)
 
         Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
-        for n in xrange(self.N): 
+        for t in xrange(self.T): 
             if fmin == 'Brent':
-                res = optimize.minimize_scalar(_f, args=(n,))
-                self.mu[n, l] = res.x
-                self.r[n, l] = _df2(res.x, n)
+                res = optimize.minimize_scalar(_f, args=(t,))
+                self.mu[t, l] = res.x
             elif fmin == 'LBFGS':
-                self.mu[n, l], _, d = optimize.fmin_l_bfgs_b(_f, self.mu[n, l], fprime=_df, args=(n,), disp=0)
-                self.r[n, l] = _df2(self.mu[n, l], n)
+                self.mu[t, l], _, d = optimize.fmin_l_bfgs_b(_f, self.mu[t, l], fprime=_df, args=(t,), disp=0)
                 if disp and d['warnflag']:
                     if d['warnflag'] == 2:
-                        print 'Phi[{}, {}]: {}, f={}'.format(n, l, d['task'], _f(self.mu[n, l], n))
+                        print 'Phi[{}, {}]: {}, f={}'.format(t, l, d['task'], _f(self.mu[t, l], t))
                     else:
-                        print 'Phi[{}, {}]: {}, f={}'.format(n, l, d['warnflag'], _f(self.mu[n, l], n))
-                    app_grad = approx_grad(_f, self.mu[n, l], args=(n,))[0]
-                    app_hessian = approx_grad(_df, self.mu[n, l], args=(n,))[0]
-                    print '\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_grad, _df(self.mu[n, l], n), np.abs(app_grad - _df(self.mu[n, l], n)))
-                    print '\tApproximated: {:.5f}\tHessian: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_hessian, _df2(self.mu[n, l], n), np.abs(app_hessian - _df2(self.mu[n, l], n)))
+                        print 'Phi[{}, {}]: {}, f={}'.format(t, l, d['warnflag'], _f(self.mu[t, l], t))
+                    app_grad = approx_grad(_f, self.mu[t, l], args=(t,))[0]
+                    app_hessian = approx_grad(_df, self.mu[t, l], args=(t,))[0]
+                    print '\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_grad, _df(self.mu[t, l], t), np.abs(app_grad - _df(self.mu[t, l], t)))
+                    print '\tApproximated: {:.5f}\tHessian: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_hessian, _df2(self.mu[t, l], t), np.abs(app_hessian - _df2(self.mu[t, l], t)))
             else:
                 raise ValueError('fmin can only be Brent or LBFGS')
+            self.r[t, l] = _df2(self.mu[t, l], t)
 
         assert(np.all(self.r[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
@@ -228,10 +229,10 @@ class SF_Dict:
         def f(eta):
             tmp1 = np.exp(eta) * eta - special.gammaln(np.exp(eta))
             tmp2 = self.ElogA * (np.exp(eta) - 1) - self.EA * np.exp(eta)
-            return -(self.N * tmp1.sum() + tmp2.sum())
+            return -(self.T * tmp1.sum() + tmp2.sum())
 
         def df(eta):
-            return -np.exp(eta) * (self.N * (eta + 1 - special.psi(np.exp(eta))) + np.sum(self.ElogA - self.EA, axis=0))
+            return -np.exp(eta) * (self.T * (eta + 1 - special.psi(np.exp(eta))) + np.sum(self.ElogA - self.EA, axis=0))
         
         eta0 = np.log(self.alpha)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
@@ -246,11 +247,11 @@ class SF_Dict:
                 print 'Alpha[{:3d}] = {:.2f}\tApproximated: {:.2f}\tGradient: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, self.alpha[l], app_grad[l], df(self.alpha)[l], np.abs(app_grad[l] - df(self.alpha)[l]))
 
     def _objective(self):
-        self.obj = 1./2 * self.N * np.sum(np.log(self.gamma))
+        self.obj = 1./2 * self.T * np.sum(np.log(self.gamma))
         EV = np.dot(self.EA, self.U)
         EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
         self.obj -= 1./2 * np.sum((self.V**2 - 2 * self.V * EV + EV2) * self.gamma)
-        self.obj += self.N * np.sum(self.alpha * np.log(self.alpha) - special.gammaln(self.alpha))
+        self.obj += self.T * np.sum(self.alpha * np.log(self.alpha) - special.gammaln(self.alpha))
         self.obj += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
 
 
