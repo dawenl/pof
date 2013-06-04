@@ -153,7 +153,7 @@ class SF_Dict:
         assert(np.all(self.r[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
 
-    def vb_m(self, conv_check=1, atol=5*1e-3, verbose=True, disp=0):
+    def vb_m(self, conv_check=1, atol=1e-3, verbose=True, disp=0):
         """ Perform one M-step, update the model parameters with A fixed from E-step
 
         Parameters
@@ -216,7 +216,7 @@ class SF_Dict:
 
             app_grad = approx_grad(f, self.U[l,:])
             for idx in xrange(self.F):
-                print 'U[{}, {:3d}] = {:.2f}\tApproximated: {:.2f}\tTrue: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, idx, self.U[l,idx], app_grad[idx], df(self.U[l,:])[idx], np.abs(app_grad[idx] - df(self.U[l,:])[idx]))
+                print 'U[{}, {:3d}] = {:.2f}\tApproximated: {:.2f}\tGradient: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, idx, self.U[l,idx], app_grad[idx], df(self.U[l,:])[idx], np.abs(app_grad[idx] - df(self.U[l,:])[idx]))
 
 
     def update_gamma(self):
@@ -243,7 +243,7 @@ class SF_Dict:
                 print 'f={}, {}'.format(f(self.alpha), d['warnflag'])
             app_grad = approx_grad(f, self.alpha)
             for l in xrange(self.L):
-                print 'Alpha[{:3d}] = {:.2f}\tApproximated: {:.2f}\tTrue: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, self.alpha[l], app_grad[l], df(self.alpha)[l], np.abs(app_grad[l] - df(self.alpha)[l]))
+                print 'Alpha[{:3d}] = {:.2f}\tApproximated: {:.2f}\tGradient: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, self.alpha[l], app_grad[l], df(self.alpha)[l], np.abs(app_grad[l] - df(self.alpha)[l]))
 
     def _objective(self):
         self.obj = 1./2 * self.N * np.sum(np.log(self.gamma))

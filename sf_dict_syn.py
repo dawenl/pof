@@ -19,11 +19,11 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # Synthetic data
 F = 32
 L = 10
-N = 100
+N = 500
 seed = 3579
 np.random.seed(seed)
 U = np.random.randn(L, F)
-alpha = np.random.gamma(2, size=(L,))
+alpha = np.random.gamma(1, size=(L,))
 gamma = np.random.gamma(100, 1./10, size=(F,))
 A = np.empty((N, L))
 for n in xrange(N):
@@ -51,8 +51,8 @@ sfd = dict_prior.SF_Dict(W, L=L, seed=123)
 
 # <codecell>
 
-#obj = []
-maxiter = 20
+obj = []
+maxiter = 50
 for i in xrange(maxiter):
     print 'ITERATION: {}'.format(i)
     sfd.vb_e()
@@ -71,13 +71,13 @@ idx_alpha = np.flipud(argsort(alpha))
 
 plot(sfd.alpha[idx_alpha_sfd], '-o')
 plot(alpha[idx_alpha], '-*')
+pass
 
 # <codecell>
 
 def normalize_and_plot(A, U):
     tmpA = A / np.max(A, axis=0, keepdims=True)
-    tmpU = U * np.max(A, axis=0, keepdims=True).T
-        
+    tmpU = U * np.max(A, axis=0, keepdims=True).T  
     figure()
     subplot(211)
     specshow(tmpA.T)
@@ -107,9 +107,7 @@ pass
 
 # <codecell>
 
-subplot(211)
 plot(np.sqrt(1./sfd.gamma), '-o')
-subplot(212)
 plot(np.sqrt(1./gamma), '-o')
 pass
 
