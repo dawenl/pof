@@ -107,10 +107,4 @@ pass
 
 # <codecell>
 
-plot(np.sqrt(1./sfd.gamma), '-o')
-plot(np.sqrt(1./gamma), '-o')
-pass
-
-# <codecell>
-
 

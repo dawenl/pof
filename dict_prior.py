@@ -77,7 +77,7 @@ class SF_Dict:
         if e_converge:
             # do e-step until variational inference converges
             self._init_variational(smoothness)
-            for _ in xrange(maxiter):
+            for i in xrange(maxiter):
                 old_mu = self.mu.copy()
                 old_r = self.r.copy()
                 start_t = time.time()
@@ -90,7 +90,7 @@ class SF_Dict:
                 sigma_diff = np.mean(np.abs(np.sqrt(1./old_r) - np.sqrt(1./self.r)))
                 if verbose:
                     sys.stdout.write('\n')
-                    print 'mu increment: {:.4f}\tsigma increment: {:.4f}\ttime: {:.2f}'.format(mu_diff, sigma_diff, t)
+                    print 'Subiter: {:3d}\tmu increment: {:.4f}\tsigma increment: {:.4f}\ttime: {:.2f}'.format(i, mu_diff, sigma_diff, t)
                 if conv_check == 1:
                     if mu_diff <= atol and sigma_diff <= atol:
                         break
