@@ -60,15 +60,28 @@ def write_wav(w, filename, channels=1, samplerate=16000):
 
 # <codecell>
 
+reload(librosa)
+import scipy.signal
 n_fft = 1024
-hop_length = 0.5 * n_fft
+hop_length = 512
 wav = load_timit(TIMIT_DIR + 'dr1/fcjf0/sa1.wav')
-W_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+W_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length, window=scipy.signal.bartlett(n_fft))
+
+# <codecell>
+
+ww = librosa.istft(W_complex, n_fft=n_fft, hop_length=hop_length, window=scipy.signal.bartlett(n_fft))
+write_wav(ww, 'test.wav')
+write_wav(wav, 'sa1.wav')
+
+# <codecell>
+
+ratio = amax(ww) / amax(wav)
+plot(ww - ratio * wav[:ww.size])
 
 # <codecell>
 
 specshow(logspec(np.abs(W_complex)))
-colorbar()
+colorbar() 
 pass
 
 # <codecell>
@@ -144,10 +157,4 @@ w_rec = librosa.istft(W_rec, n_fft=n_fft, hop_length=hop_length)
 write_wav(w_rec, 'rec_fit.wav')
 w_rec_org = librosa.istft(W_complex, n_fft=n_fft, hop_length=hop_length)
 write_wav(w_rec_org, 'rec_org.wav')
-
-# <codecell>
-
-
-# <codecell>
-
 
