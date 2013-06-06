@@ -63,6 +63,7 @@ for i in xrange(maxiter):
 # <codecell>
 
 plot(obj)
+pass
 
 # <codecell>
 
