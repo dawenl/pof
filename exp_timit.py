@@ -65,11 +65,11 @@ import scipy.signal
 n_fft = 1024
 hop_length = 512
 wav = load_timit(TIMIT_DIR + 'dr1/fcjf0/sa1.wav')
-W_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length, window=scipy.signal.bartlett(n_fft))
+W_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length, hann_w=0)#, window=scipy.signal.bartlett(n_fft))
 
 # <codecell>
 
-ww = librosa.istft(W_complex, n_fft=n_fft, hop_length=hop_length, window=scipy.signal.bartlett(n_fft))
+ww = librosa.istft(W_complex, n_fft=n_fft, hop_length=hop_length, hann_w=0)#, window=scipy.signal.bartlett(n_fft))
 write_wav(ww, 'test.wav')
 write_wav(wav, 'sa1.wav')
 
@@ -77,6 +77,12 @@ write_wav(wav, 'sa1.wav')
 
 ratio = amax(ww) / amax(wav)
 plot(ww - ratio * wav[:ww.size])
+print ratio
+
+# <codecell>
+
+stem(arange(31), scipy.signal.hann(31))
+pass
 
 # <codecell>
 
