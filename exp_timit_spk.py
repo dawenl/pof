@@ -3,7 +3,7 @@
 
 # <codecell>
 
-import functools, pickle
+import functools, glob, pickle
 
 import numpy as np
 import scipy.io as sio
@@ -70,13 +70,42 @@ def write_wav(w, filename, channels=1, samplerate=16000):
 
 n_fft = 1024
 hop_length = 512
-wav = load_timit(TIMIT_DIR + 'dr1/fcjf0/sa1.wav')
-W_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+spk_dir = 'dr1/fcjf0/'
+files = glob.glob(TIMIT_DIR + spk_dir + '*.wav')
+
+N_train = 8
+N_test = 2
+np.random.seed(98765)
+idx = np.random.permutation(10)
+
+W_complex_train = None
+for file_dir in files[:N_train]:
+    wav = load_timit(file_dir)
+    if W_complex_train is None:
+        W_complex_train = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+    else:
+        W_complex_train = np.hstack((W_complex_train, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))) 
+W_complex_test = None
+for file_dir in files[N_train:]:
+    wav = load_timit(file_dir)
+    if W_complex_test is None:
+        W_complex_test = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+    else:
+        W_complex_test = np.hstack((W_complex_test, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
 
 # <codecell>
 
-specshow(logspec(np.abs(W_complex)))
+print W_complex_train.shape
+print W_complex_test.shape
+
+# <codecell>
+
+subplot(211)
+specshow(logspec(np.abs(W_complex_train)))
 colorbar() 
+subplot(212)
+specshow(logspec(np.abs(W_complex_test)))
+colorbar()
 pass
 
 # <codecell>
@@ -85,12 +114,12 @@ threshold = 0.005
 old_obj = -np.inf
 L = 30
 maxiter = 100
-cold_start = False
-sfd = dp.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
+cold_start = True
+sfd = dp.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    sfd.vb_e(e_converge=cold_start, disp=1)
-    if sfd.vb_m(disp=1):
+    sfd.vb_e(disp=1)
+    if sfd.vb_m(e_converge=cold_start, disp=1):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
@@ -128,26 +157,26 @@ pass
 
 # <codecell>
 
-sf_encoder = dp.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
+sf_encoder = dp.SF_Dict(np.abs(W_complex_test.T), L=L, seed=98765)
 sf_encoder.U, sf_encoder.gamma, sf_encoder.alpha = sfd.U, sfd.gamma, sfd.alpha
-sf_encoder.vb_e(maxiter=100, atol=0.005)
+sf_encoder.vb_e()
 A = sf_encoder.EA
 
 # <codecell>
 
 W_rec_amp = np.exp(np.dot(A, sfd.U)).T
-W_rec = W_rec_amp * np.exp(1j * np.angle(W_complex))
+W_rec = W_rec_amp * np.exp(1j * np.angle(W_complex_test))
 
 # <codecell>
 
 subplot(311)
-specshow(logspec(np.abs(W_complex)))
+specshow(logspec(np.abs(W_complex_test)))
 colorbar()
 subplot(312)
 specshow(logspec(W_rec_amp))
 colorbar()
 subplot(313)
-specshow(W_rec_amp - np.abs(W_complex))
+specshow(W_rec_amp - np.abs(W_complex_test))
 colorbar()
 pass
 
@@ -156,13 +185,10 @@ pass
 str_cold_start = 'cold' if cold_start else 'warm'
 w_rec = librosa.istft(W_rec, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(w_rec, 'rec_fit_L{}_F{}_H{}_{}.wav'.format(L, n_fft, hop_length, str_cold_start))
-w_rec_org = librosa.istft(W_complex, n_fft=n_fft, hop_length=hop_length, hann_w=0)
+w_rec_org = librosa.istft(W_complex_test, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(w_rec_org, 'rec_org.wav')
 
 # <codecell>
 
 save_object(sfd, 'dr1_fcjf0_sa1_L{}_F{}_H{}_{}_Seed98765'.format(L, n_fft, hop_length, str_cold_start))
-
-# <codecell>
-
 
