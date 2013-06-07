@@ -81,15 +81,15 @@ pass
 
 # <codecell>
 
-threshold = 0.005
+threshold = 0.01
 old_obj = -np.inf
-L = 30
+L = 100
 maxiter = 100
-cold_start = False
+cold_start = True
 sfd = dp.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    sfd.vb_e(e_converge=cold_start, disp=1)
+    sfd.vb_e(cold_start=cold_start, disp=1)
     if sfd.vb_m(disp=1):
         break
     obj.append(sfd.obj)
@@ -130,7 +130,7 @@ pass
 
 sf_encoder = dp.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
 sf_encoder.U, sf_encoder.gamma, sf_encoder.alpha = sfd.U, sfd.gamma, sfd.alpha
-sf_encoder.vb_e(maxiter=100, atol=0.005)
+sf_encoder.vb_e()
 A = sf_encoder.EA
 
 # <codecell>
@@ -161,7 +161,7 @@ write_wav(w_rec_org, 'rec_org.wav')
 
 # <codecell>
 
-save_object(sfd, 'dr1_fcjf0_sa1_L{}_F{}_H{}_{}_Seed98765'.format(L, n_fft, hop_length, str_cold_start))
+save_object(sfd, 'dr1_fcjf0_sa1_L{}_F{}_H{}_Seed98765'.format(L, n_fft, hop_length))
 
 # <codecell>
 

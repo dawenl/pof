@@ -95,11 +95,6 @@ for file_dir in files[N_train:]:
 
 # <codecell>
 
-print W_complex_train.shape
-print W_complex_test.shape
-
-# <codecell>
-
 subplot(211)
 specshow(logspec(np.abs(W_complex_train)))
 colorbar() 
@@ -110,16 +105,16 @@ pass
 
 # <codecell>
 
-threshold = 0.005
+threshold = 0.01
 old_obj = -np.inf
-L = 30
+L = 50
 maxiter = 100
 cold_start = True
 sfd = dp.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    sfd.vb_e(disp=1)
-    if sfd.vb_m(e_converge=cold_start, disp=1):
+    sfd.vb_e(cold_start=cold_start, disp=1)
+    if sfd.vb_m(disp=1):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
@@ -184,11 +179,11 @@ pass
 
 str_cold_start = 'cold' if cold_start else 'warm'
 w_rec = librosa.istft(W_rec, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(w_rec, 'rec_fit_L{}_F{}_H{}_{}.wav'.format(L, n_fft, hop_length, str_cold_start))
+write_wav(w_rec, 'rec_spk_fit_L{}_F{}_H{}_{}.wav'.format(L, n_fft, hop_length, str_cold_start))
 w_rec_org = librosa.istft(W_complex_test, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(w_rec_org, 'rec_org.wav')
+write_wav(w_rec_org, 'rec_spk_org.wav')
 
 # <codecell>
 
-save_object(sfd, 'dr1_fcjf0_sa1_L{}_F{}_H{}_{}_Seed98765'.format(L, n_fft, hop_length, str_cold_start))
+save_object(sfd, 'dr1_fcjf0_L{}_F{}_H{}_{}_Seed98765'.format(L, n_fft, hop_length, str_cold_start))
 

@@ -45,21 +45,18 @@ class SF_Dict:
     def _comp_expect(self, mu, r):
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r), mu)
          
-    def vb_e(self, e_converge=True, smoothness=100, fmin='LBFGS', conv_check=1, maxiter=500, atol=1e-3, verbose=True, disp=0):
+    def vb_e(self, cold_start=True, smoothness=100, conv_check=1, maxiter=500, atol=1e-3, verbose=True, disp=0):
         """ Perform one variational E-step, which may have one sub-iteration or
         multiple sub-iterations if e_converge is set to True, to appxorimate the 
         posterior P(A | -)
 
         Parameters
         ----------
-        e_converge: bool
-            Do e-step until convergence if true, otherwise just to one sub-iteration.
+        cold_start: bool
+            Do e-step with fresh initialization until convergence if true, otherwise just to one sub-iteration.
         smoothness: float
             Smootheness of the variational initialization, larger value will
             lead to more concentrated initialization.
-        fmin: str
-            Optimization solver either 'LBFGS' (gradient-based) or 'Brent'
-            (bisection-based).
         conv_check: int
             Check convergence on the first-order difference if 1 or second-order
             difference if 2. 
@@ -74,7 +71,7 @@ class SF_Dict:
 
         """
         print 'Variational E-step...'
-        if e_converge:
+        if cold_start:
             # do e-step until variational inference converges
             self._init_variational(smoothness)
             for i in xrange(maxiter):
@@ -82,7 +79,7 @@ class SF_Dict:
                 old_r = self.r.copy()
                 start_t = time.time()
                 for l in xrange(self.L):
-                    self.update_phi(l, fmin, disp)
+                    self.update_phi(l, disp)
                     if verbose and not l % 5:
                         sys.stdout.write('.')
                 t = time.time() - start_t
@@ -104,13 +101,13 @@ class SF_Dict:
         else:
             # do e-step for one iteration
             for l in xrange(self.L):
-                self.update_phi(l, fmin, disp)
+                self.update_phi(l, disp)
                 if verbose and not l % 5:
                     sys.stdout.write('.')
             if verbose:
                 sys.stdout.write('\n')
 
-    def update_phi(self, l, fmin, disp):                
+    def update_phi(self, l, disp):                
         def _f_stub(phi, t):
             lcoef = np.exp(phi) * (np.sum(Eres[t,:] * self.U[l,:] * self.gamma) - self.alpha[l])
             qcoef = -1./2 * np.exp(2*phi) * np.sum(self.gamma * self.U[l,:]**2)
@@ -127,29 +124,28 @@ class SF_Dict:
             return -(const + lcoef + 2*qcoef)
 
         def _df2(phi, t):
-            const = 0
             lcoef, qcoef = _f_stub(phi, t)
-            return -(const + lcoef + 4*qcoef)
+            return -(lcoef + 4*qcoef)
 
         Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
         for t in xrange(self.T): 
-            if fmin == 'Brent':
-                res = optimize.minimize_scalar(_f, args=(t,))
-                self.mu[t, l] = res.x
-            elif fmin == 'LBFGS':
-                self.mu[t, l], _, d = optimize.fmin_l_bfgs_b(_f, self.mu[t, l], fprime=_df, args=(t,), disp=0)
-                if disp and d['warnflag']:
-                    if d['warnflag'] == 2:
-                        print 'Phi[{}, {}]: {}, f={}'.format(t, l, d['task'], _f(self.mu[t, l], t))
-                    else:
-                        print 'Phi[{}, {}]: {}, f={}'.format(t, l, d['warnflag'], _f(self.mu[t, l], t))
-                    app_grad = approx_grad(_f, self.mu[t, l], args=(t,))[0]
-                    app_hessian = approx_grad(_df, self.mu[t, l], args=(t,))[0]
-                    print '\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_grad, _df(self.mu[t, l], t), np.abs(app_grad - _df(self.mu[t, l], t)))
-                    print '\tApproximated: {:.5f}\tHessian: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_hessian, _df2(self.mu[t, l], t), np.abs(app_hessian - _df2(self.mu[t, l], t)))
-            else:
-                raise ValueError('fmin can only be Brent or LBFGS')
-            self.r[t, l] = _df2(self.mu[t, l], t)
+            self.mu[t, l], _, d = optimize.fmin_l_bfgs_b(_f, self.mu[t, l], fprime=_df, args=(t,), disp=0)
+            tmp_r = _df2(self.mu[t, l], t)
+            if disp and d['warnflag']:
+                if d['warnflag'] == 2:
+                    print 'Phi[{}, {}]: {}, f={}'.format(t, l, d['task'], _f(self.mu[t, l], t))
+                else:
+                    print 'Phi[{}, {}]: {}, f={}'.format(t, l, d['warnflag'], _f(self.mu[t, l], t))
+                app_grad = approx_grad(_f, self.mu[t, l], args=(t,))[0]
+                app_hessian = approx_grad(_df, self.mu[t, l], args=(t,))[0]
+                print '\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_grad, _df(self.mu[t, l], t), np.abs(app_grad - _df(self.mu[t, l], t)))
+                print '\tApproximated: {:.5f}\tHessian: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_hessian, tmp_r, np.abs(app_hessian - _df2(self.mu[t, l], t)))
+                if tmp_r <= 0:
+                    res = optimize.minimize_scalar(_f, args=(t,))
+                    self.mu[t, l] = res.x
+                    tmp_r = _df2(res.x, t)
+                    print '\t\tLBFGS failed, try Brent ==>\tGradient: {:.5f}\tHessian: {:5f}'.format(_df(self.mu[t, l], t), tmp_r)
+            self.r[t, l] = tmp_r 
 
         assert(np.all(self.r[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
