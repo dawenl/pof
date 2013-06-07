@@ -89,8 +89,8 @@ cold_start = True
 sfd = dp.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start)
-    if sfd.vb_m():
+    sfd.vb_e(cold_start=cold_start, disp=1)
+    if sfd.vb_m(disp=1):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
