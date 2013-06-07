@@ -144,7 +144,8 @@ class SF_Dict:
                 res = optimize.minimize_scalar(_f, args=(t,))
                 self.mu[t, l] = res.x
                 tmp_r = _df2(res.x, t)
-                print '\t\tLBFGS failed, try Brent ==>\tGradient: {:.5f}\tHessian: {:5f}'.format(_df(self.mu[t, l], t), tmp_r)
+                if disp:
+                    print '\tLBFGS failed, try Brent ==>\tGradient: {:.5f}\tHessian: {:5f}'.format(_df(self.mu[t, l], t), tmp_r)
             self.r[t, l] = tmp_r 
 
         assert(np.all(self.r[:,l] > 0))

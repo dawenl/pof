@@ -83,7 +83,7 @@ pass
 
 threshold = 0.01
 old_obj = -np.inf
-L = 100
+L = 50
 maxiter = 100
 cold_start = True
 sfd = dp.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
@@ -130,7 +130,7 @@ pass
 
 sf_encoder = dp.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
 sf_encoder.U, sf_encoder.gamma, sf_encoder.alpha = sfd.U, sfd.gamma, sfd.alpha
-sf_encoder.vb_e()
+sf_encoder.vb_e(maxiter=100, atol=0.005)
 A = sf_encoder.EA
 
 # <codecell>
