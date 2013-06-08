@@ -161,7 +161,7 @@ write_wav(w_rec_org, 'rec_org.wav')
 
 # <codecell>
 
-save_object(sfd, 'dr1_fcjf0_sa1_L{}_F{}_H{}_Seed98765'.format(L, n_fft, hop_length))
+save_object(sfd, 'dr1_fcjf0_sa1_L{}_F{}_H{}_{}_Seed98765'.format(L, n_fft, hop_length, str_cold_start))
 
 # <codecell>
 

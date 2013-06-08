@@ -53,7 +53,9 @@ class SF_Dict:
         Parameters
         ----------
         cold_start: bool
-            Do e-step with fresh initialization until convergence if true, otherwise just to one sub-iteration.
+            Do e-step with fresh initialization until convergence if true,
+            otherwise just do one sub-iteration with previous values as
+            initialization.
         smoothness: float
             Smootheness of the variational initialization, larger value will
             lead to more concentrated initialization.
