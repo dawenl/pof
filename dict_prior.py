@@ -178,7 +178,7 @@ class SF_Dict:
             self.update_u(l, disp)
         self.update_gamma()
         self.update_alpha(disp)
-        self._objective()
+        self._objective_m()
         U_diff = np.mean(np.abs(self.U - old_U))
         sigma_diff = np.mean(np.abs(np.sqrt(1./self.gamma) - np.sqrt(1./old_gamma)))
         alpha_diff = np.mean(np.abs(self.alpha - old_alpha))
@@ -245,7 +245,11 @@ class SF_Dict:
             for l in xrange(self.L):
                 print 'Alpha[{:3d}] = {:.2f}\tApproximated: {:.2f}\tGradient: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, self.alpha[l], app_grad[l], df(self.alpha)[l], np.abs(app_grad[l] - df(self.alpha)[l]))
 
-    def _objective(self):
+
+    def _objective_e(self):
+        pass
+
+    def _objective_m(self):
         self.obj = 1./2 * self.T * np.sum(np.log(self.gamma))
         EV = np.dot(self.EA, self.U)
         EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)

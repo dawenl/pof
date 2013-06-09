@@ -163,6 +163,3 @@ write_wav(w_rec_org, 'rec_org.wav')
 
 save_object(sfd, 'dr1_fcjf0_sa1_L{}_F{}_H{}_{}_Seed98765'.format(L, n_fft, hop_length, str_cold_start))
 
-# <codecell>
-
-
