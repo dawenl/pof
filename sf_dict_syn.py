@@ -8,7 +8,7 @@ import functools
 from matplotlib.pyplot import *
 
 import numpy as np
-import dict_prior
+import dict_prior as dp
 
 # <codecell>
 
@@ -17,9 +17,9 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # <codecell>
 
 # Synthetic data
-F = 32
+F = 50
 L = 10
-T = 500
+T = 50
 seed = 3579
 np.random.seed(seed)
 U = np.random.randn(L, F)
@@ -35,30 +35,38 @@ W = np.exp(V)
 
 subplot(311)
 specshow(U.T)
+title('U')
 colorbar()
 subplot(312)
 specshow(A.T)
+title('A')
 colorbar()
 subplot(313)
 specshow(V.T)
+title('log(W)')
 colorbar()
+tight_layout()
 pass
 
 # <codecell>
 
-reload(dict_prior)
-sfd = dict_prior.SF_Dict(W, L=L, seed=123)
+threshold = 0.01
+old_obj = -np.inf
+maxiter = 100
+cold_start = True
 
-# <codecell>
-
+sfd = dp.SF_Dict(W, L=4*L, seed=98765)
 obj = []
-maxiter = 50
 for i in xrange(maxiter):
-    print 'ITERATION: {}'.format(i)
-    sfd.vb_e()
-    if sfd.vb_m():
+    sfd.vb_e(cold_start=cold_start, disp=1)
+    if sfd.vb_m(disp=1):
         break
     obj.append(sfd.obj)
+    improvement = (sfd.obj - old_obj) / abs(sfd.obj)
+    print 'After ITERATION: {}\tImprovement: {:.4f}'.format(i, improvement)
+    if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
+        break
+    old_obj = sfd.obj
 
 # <codecell>
 
@@ -76,9 +84,13 @@ pass
 
 # <codecell>
 
-def normalize_and_plot(A, U):
-    tmpA = A / np.max(A, axis=0, keepdims=True)
-    tmpU = U * np.max(A, axis=0, keepdims=True).T  
+def normalize_and_plot(A, U, normalize=False):
+    if normalize:
+        tmpA = A / np.max(A, axis=0, keepdims=True)
+        tmpU = U * np.max(A, axis=0, keepdims=True).T  
+    else:
+        tmpA = A
+        tmpU = U
     figure()
     subplot(211)
     specshow(tmpA.T)
