@@ -40,7 +40,7 @@ TIMIT_DIR = '../timit/train/'
 def load_timit(wav_dir):
     f = Sndfile(wav_dir, 'r')
     wav = f.read_frames(f.nframes)
-    return wav
+    return (wav, f.samplerate)
 
 def learn_prior(W, L, maxiter=50, seed=None):
     sfd = dp.SF_Dict(W, L=L, seed=seed)
@@ -80,14 +80,14 @@ idx = np.random.permutation(10)
 
 W_complex_train = None
 for file_dir in files[:N_train]:
-    wav = load_timit(file_dir)
+    wav, sr = load_timit(file_dir)
     if W_complex_train is None:
         W_complex_train = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
     else:
         W_complex_train = np.hstack((W_complex_train, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))) 
 W_complex_test = None
 for file_dir in files[N_train:]:
-    wav = load_timit(file_dir)
+    wav, sr = load_timit(file_dir)
     if W_complex_test is None:
         W_complex_test = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
     else:

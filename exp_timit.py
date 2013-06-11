@@ -40,7 +40,7 @@ TIMIT_DIR = '../timit/train/'
 def load_timit(wav_dir):
     f = Sndfile(wav_dir, 'r')
     wav = f.read_frames(f.nframes)
-    return wav
+    return (wav, f.samplerate)
 
 def learn_prior(W, L, maxiter=50, seed=None):
     sfd = dp.SF_Dict(W, L=L, seed=seed)
@@ -70,7 +70,7 @@ def write_wav(w, filename, channels=1, samplerate=16000):
 
 n_fft = 1024
 hop_length = 512
-wav = load_timit(TIMIT_DIR + 'dr1/fcjf0/sa1.wav')
+wav, sr = load_timit(TIMIT_DIR + 'dr1/fcjf0/sa1.wav')
 W_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
 
 # <codecell>
