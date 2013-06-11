@@ -17,9 +17,9 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # <codecell>
 
 # Synthetic data
-F = 50
+F = 128
 L = 10
-T = 50
+T = 80
 seed = 3579
 np.random.seed(seed)
 U = np.random.randn(L, F)
@@ -52,10 +52,10 @@ pass
 
 threshold = 0.01
 old_obj = -np.inf
-maxiter = 100
+maxiter = 10
 cold_start = True
 
-sfd = dp.SF_Dict(W, L=4*L, seed=98765)
+sfd = dp.SF_Dict(W, L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
     sfd.vb_e(cold_start=cold_start, disp=1)
@@ -100,6 +100,7 @@ def normalize_and_plot(A, U, normalize=False):
     specshow(tmpU.T)
     title('U')
     colorbar()
+    tight_layout()
     
 normalize_and_plot(sfd.EA[:,idx_alpha_sfd], sfd.U[idx_alpha_sfd,:])
 normalize_and_plot(A[:,idx_alpha], U[idx_alpha,:])

@@ -107,7 +107,7 @@ pass
 
 threshold = 0.01
 old_obj = -np.inf
-L = 50
+L = 30
 maxiter = 100
 cold_start = True
 sfd = dp.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
@@ -166,13 +166,17 @@ W_rec = W_rec_amp * np.exp(1j * np.angle(W_complex_test))
 
 subplot(311)
 specshow(logspec(np.abs(W_complex_test)))
+title('Original')
 colorbar()
 subplot(312)
 specshow(logspec(W_rec_amp))
+title('Reconstruction')
 colorbar()
 subplot(313)
 specshow(W_rec_amp - np.abs(W_complex_test))
+title('Reconstruction Error')
 colorbar()
+tight_layout()
 pass
 
 # <codecell>
@@ -186,4 +190,7 @@ write_wav(w_rec_org, 'rec_spk_org.wav')
 # <codecell>
 
 save_object(sfd, 'dr1_fcjf0_L{}_F{}_H{}_{}_Seed98765'.format(L, n_fft, hop_length, str_cold_start))
+
+# <codecell>
+
 

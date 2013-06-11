@@ -142,13 +142,17 @@ W_rec = W_rec_amp * np.exp(1j * np.angle(W_complex))
 
 subplot(311)
 specshow(logspec(np.abs(W_complex)))
+title('Original')
 colorbar()
 subplot(312)
 specshow(logspec(W_rec_amp))
+title('Reconstruction')
 colorbar()
 subplot(313)
 specshow(W_rec_amp - np.abs(W_complex))
+title('Reconstruction Error')
 colorbar()
+tight_layout()
 pass
 
 # <codecell>
