@@ -25,7 +25,7 @@ class SF_Dict:
         # model parameters
         self.U = np.random.randn(self.L, self.F)
         self.alpha = np.random.gamma(smoothness, 1./smoothness, size=(self.L,))
-        self.gamma = np.random.gamma(smoothness, 1./(2*smoothness), size=(self.F,))
+        self.gamma = np.random.gamma(smoothness, 2./smoothness, size=(self.F,))
 
         self.old_U_inc = np.inf
         self.old_alpha_inc = np.inf
