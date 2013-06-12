@@ -2,8 +2,8 @@ library(rstan)
 set_cppo('fast')
 
 # Constant
-n_freq <- 20
-n_time <- 20
+n_freq <- 128
+n_time <- 80
 L <- 10
 
 seed <- 3579
