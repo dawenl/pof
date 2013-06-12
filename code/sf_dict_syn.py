@@ -26,9 +26,10 @@ U = np.random.randn(L, F)
 alpha = np.random.gamma(1, size=(L,))
 gamma = np.random.gamma(100, 1./10, size=(F,))
 A = np.empty((T, L))
+V = np.empty((T, F))
 for t in xrange(T):
     A[t,:] = np.random.gamma(alpha, scale=1./alpha)
-V = np.dot(A, U) + np.random.normal(scale=np.sqrt(1./gamma))
+    V[t,:] = np.dot(A[t,:], U) + np.random.normal(scale=np.sqrt(1./gamma))
 W = np.exp(V)
 
 # <codecell>
