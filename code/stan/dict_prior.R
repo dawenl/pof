@@ -1,15 +1,6 @@
 library(rstan)
 set_cppo('fast')
 
-# Constant
-n_freq <- 128
-n_time <- 80
-L <- 10
-
-seed <- 3579
-data <- gen.data(seed)
-V <- data$V
-
 maxiter <- 50
 threshold <- 0.01
 fit <- NULL
