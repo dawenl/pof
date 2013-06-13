@@ -1,24 +1,17 @@
 # E-step
-e.step <- function(stanfile, U, alpha, gamma, model=NULL, parallel=F) {
+e.step <- function(stanfile, U, alpha, gamma, model=NULL, chains=1, iter=1000) {
   dat <- list(F=n_freq, T=n_time, L=L, V=V, U=U, sigma=sqrt(1/gamma), alpha=alpha)
   if (is.null(model)) {
-    fit <- stan(file=stanfile, data=dat, iter=1000, chains=4)
+    fit <- stan(file=stanfile, data=dat, iter=iter, chains=chains)
   } else {
-    if (parallel) {
-      require(parallel)
-      seed <- floor(10000 * runif(1))
-      sflist <- mclapply(1:4, mc.cores=8, function(i) stan(fit=model, seed=seed, data=dat, iter=1000, chains=1, chain_id=i, refresh=-1))
-      fit <- sflist2stanfit(sflist)
-    } else {
-      fit <- stan(fit=model, data=dat, iter=1000, chains=4)
-    }
+    fit <- stan(fit=model, data=dat, iter=1000, chains=chains)
   } 
   return (fit)
 }
 
 # compute expectations: E[A], E[A^2], E[logA]
-comp.exp <- function(fit) {
-  A.sample <- matrix(extract(fit, permuted=T)$A, nrow=n_time * L, ncol=2000, byrow=T)
+comp.exp <- function(fit, chains=1, iter=1000) {
+  A.sample <- matrix(extract(fit, permuted=T)$A, nrow=n_time * L, ncol=chains * iter /2, byrow=T)
   EA <- matrix(apply(A.sample, 1, mean), nrow=n_time, ncol=L)
   EA2 <- matrix(apply(A.sample^2, 1, mean), nrow=n_time, ncol=L)
   ElogA <- matrix(apply(log(A.sample), 1, mean), nrow=n_time, ncol=L)
