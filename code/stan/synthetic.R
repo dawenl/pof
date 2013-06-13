@@ -14,8 +14,8 @@ gen.data <- function(seed) {
 }
 
 # Constant
-n_freq <- 20
-n_time <- 25
+n_freq <- 129
+n_time <- 80
 L <- 10
 
 seed <- 3579
