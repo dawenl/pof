@@ -4,7 +4,7 @@ set_cppo('fast')
 maxiter <- 50
 threshold <- 0.01
 fit <- NULL
-stanfile <- 'full_bayes.stan'
+stanfile <- 'posterior_approx.stan'
 old.obj <- -Inf
 
 seed <- 98765
