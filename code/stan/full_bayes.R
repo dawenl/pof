@@ -27,6 +27,6 @@ full_bayes <- '
     }
 '
 dat <- list(F=n_freq, T=n_time, L=L, V=V)
-fit <- stan(model_code=full_bayes, data=dat, iter=1000, chains=4)
+fit <- stan(model_code=full_bayes, data=dat, iter=1000, chains=1)
 
 pars <- extract(fit, permuted=T)
