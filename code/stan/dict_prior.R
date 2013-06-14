@@ -40,3 +40,6 @@ for (i in 1:maxiter) {
   }
   old.obj <- objs[i]
 }
+
+emp.bayes <- list(U=U, A=EA, alpha=alpha, sigma=sigma, objs=objs[1:i])
+save(emp.bayes, file='emp_bayes.RData')
