@@ -8,7 +8,7 @@ import numpy as np
 import scipy.optimize as optimize
 import scipy.special as special
 
-class SF_Dict:
+class VPL:
     def __init__(self, W, L=10, smoothness=100, seed=None):
         self.V = np.log(W)
         self.T, self.F = W.shape
@@ -36,36 +36,20 @@ class SF_Dict:
 
     def _init_variational(self, smoothness):
         self.mu = np.random.randn(self.T, self.L)
-        self.r = np.random.gamma(smoothness, 1./smoothness, size=(self.T, self.L))
-        self.EA, self.EA2, self.ElogA = self._comp_expect(self.mu, self.r)
+        self.sigma = 1./np.random.gamma(smoothness, 1./smoothness, size=(self.T, self.L))
+        self.EA, self.EA2, self.ElogA = self._comp_expect(self.mu, self.sigma)
 
         self.old_mu_inc = np.inf 
-        self.old_r_inc = np.inf
+        self.old_sigma_inc = np.inf
 
-    def _comp_expect(self, mu, r):
-        return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r), mu)
+    def _comp_expect(self, mu, sigma):
+        return (np.exp(mu + sigma/2), np.exp(2*mu + 2*sigma), mu)
          
-    def vb_e(self, cold_start=True, smoothness=100, conv_check=1, maxiter=500, atol=1e-3, verbose=True, disp=0):
-        """ Perform one variational E-step, which may have one sub-iteration or
-        multiple sub-iterations if e_converge is set to True, to appxorimate the 
-        posterior P(A | -)
+    def vb_e(self, verbose=True, disp=0):
+        """ Perform one variational E-step to appxorimate the posterior P(A | -)
 
         Parameters
         ----------
-        cold_start: bool
-            Do e-step with fresh initialization until convergence if true,
-            otherwise just do one sub-iteration with previous values as
-            initialization.
-        smoothness: float
-            Smootheness of the variational initialization, larger value will
-            lead to more concentrated initialization.
-        conv_check: int
-            Check convergence on the first-order difference if 1 or second-order
-            difference if 2. 
-        maxiter: int
-            Maximal number of iterations in one e-step.
-        atol: float 
-            Absolute convergence threshold. 
         verbose: bool
             Output log if true.
         disp: int
@@ -73,85 +57,52 @@ class SF_Dict:
 
         """
         print 'Variational E-step...'
-        if cold_start:
-            # do e-step until variational inference converges
-            self._init_variational(smoothness)
-            for i in xrange(maxiter):
-                old_mu = self.mu.copy()
-                old_r = self.r.copy()
-                start_t = time.time()
-                for l in xrange(self.L):
-                    self.update_phi(l, disp)
-                    if verbose and not l % 5:
-                        sys.stdout.write('.')
-                t = time.time() - start_t
-                mu_diff = np.mean(np.abs(old_mu - self.mu))
-                sigma_diff = np.mean(np.abs(np.sqrt(1./old_r) - np.sqrt(1./self.r)))
-                if verbose:
-                    sys.stdout.write('\n')
-                    print 'Subiter: {:3d}\tmu increment: {:.4f}\tsigma increment: {:.4f}\ttime: {:.2f}'.format(i, mu_diff, sigma_diff, t)
-                if conv_check == 1:
-                    if mu_diff <= atol and sigma_diff <= atol:
-                        break
-                elif conv_check == 2:
-                    if self.old_mu_inc - mu_diff <= atol and self.old_r_inc - sigma_diff <= atol:
-                        break
-                    self.old_mu_inc = mu_diff
-                    self.old_r_inc = sigma_diff
-                else:
-                    raise ValueError('conv_check can only be 1 or 2')
-        else:
-            # do e-step for one iteration
-            for l in xrange(self.L):
-                self.update_phi(l, disp)
-                if verbose and not l % 5:
-                    sys.stdout.write('.')
-            if verbose:
-                sys.stdout.write('\n')
+        for l in xrange(self.L):
+            self.update_theta(l, disp)
+            if verbose and not l % 5:
+                sys.stdout.write('.')
+        if verbose:
+            sys.stdout.write('\n')
+        pass
 
-    def update_phi(self, l, disp):                
-        def _f_stub(phi, t):
-            lcoef = np.exp(phi) * (np.sum(Eres[t,:] * self.U[l,:] * self.gamma) - self.alpha[l])
-            qcoef = -1./2 * np.exp(2*phi) * np.sum(self.gamma * self.U[l,:]**2)
-            return (lcoef, qcoef)
+    def update_theta(self, l, disp):                
+        def f_stub(theta):
+            mu, sigma = theta[:self.T], np.exp(theta[-self.T:])
+            Ea, Ea2, Eloga = self._comp_expect(mu, sigma) 
 
-        def _f(phi, t):
+            lcoef = Ea * (np.sum(Eres[t,:] * self.U[l,:] * self.gamma) - self.alpha[l])
+            qcoef = -1./2 * Ea2 * np.sum(self.gamma * self.U[l,:]**2)
+            return (lcoef, qcoef, Eloga)
+
+        def f(theta):
+            lcoef, qcoef, Eloga = f_stub(theta)
+            const = self.alpha[l] * Eloga + 1./2 * np.log()
             const = self.alpha[l] * phi
-            lcoef, qcoef = _f_stub(phi, t)
             return -(const + lcoef + qcoef)
                 
-        def _df(phi, t):
+        def df(theta):
             const = self.alpha[l]
             lcoef, qcoef = _f_stub(phi, t)
             return -(const + lcoef + 2*qcoef)
 
-        def _df2(phi, t):
-            lcoef, qcoef = _f_stub(phi, t)
-            return -(lcoef + 4*qcoef)
-
         Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
-        for t in xrange(self.T): 
-            self.mu[t, l], _, d = optimize.fmin_l_bfgs_b(_f, self.mu[t, l], fprime=_df, args=(t,), disp=0)
-            tmp_r = _df2(self.mu[t, l], t)
-            if disp and d['warnflag']:
-                if d['warnflag'] == 2:
-                    print 'Phi[{}, {}]: {}, f={}'.format(t, l, d['task'], _f(self.mu[t, l], t))
-                else:
-                    print 'Phi[{}, {}]: {}, f={}'.format(t, l, d['warnflag'], _f(self.mu[t, l], t))
-                app_grad = approx_grad(_f, self.mu[t, l], args=(t,))[0]
-                app_hessian = approx_grad(_df, self.mu[t, l], args=(t,))[0]
-                print '\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_grad, _df(self.mu[t, l], t), np.abs(app_grad - _df(self.mu[t, l], t)))
-                print '\tApproximated: {:.5f}\tHessian: {:.5f}\t|Approximated - True|: {:.5f}'.format(app_hessian, tmp_r, np.abs(app_hessian - _df2(self.mu[t, l], t)))
-            if tmp_r <= 0:
-                res = optimize.minimize_scalar(_f, args=(t,))
-                self.mu[t, l] = res.x
-                tmp_r = _df2(res.x, t)
-                if disp:
-                    print '\tLBFGS failed, try Brent ==>\tGradient: {:.5f}\tHessian: {:5f}'.format(_df(self.mu[t, l], t), tmp_r)
-            self.r[t, l] = tmp_r 
+        theta0 = np.hstack((self.mu[:,l], np.log(self.sigma[:,l])))
 
-        assert(np.all(self.r[:,l] > 0))
-        self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.r[:,l])
+        theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
+        if disp and d['warning']:
+            theta = np.hstack((self.mu[:,l], np.log(self.sigma[:,l])))
+            if d['warnflag'] == 2:
+                print 'A[:, {}]: {}, f={}'.format(l, d['task'], f(theta))
+            else:
+                print 'A[:, {}]: {}, f={}'.format(l, d['warnflag'], f(theta))
+            app_grad = approx_grad(f, theta)
+            for t in xrange(2 * self.T):
+                print 'Theta[{:3d}, {}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta[t], app_grad[t], df(theta)[t], np.abs(app_grad[t] - df(theta)[t]))
+
+        self.mu[:,l], self.sigma[:,l] = theta_hat[:self.T], np.exp(theta_hat[-self.T:])
+
+        assert(np.all(self.sigma[:,l] > 0))
+        self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.sigma[:,l])
 
     def vb_m(self, conv_check=1, atol=0.01, verbose=True, disp=0):
         """ Perform one M-step, update the model parameters with A fixed from E-step
