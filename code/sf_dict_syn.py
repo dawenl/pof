@@ -8,7 +8,7 @@ import functools
 from matplotlib.pyplot import *
 
 import numpy as np
-import dict_prior as dp
+import vpl
 
 # <codecell>
 
@@ -17,8 +17,8 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # <codecell>
 
 # Synthetic data
-F = 128
-L = 10
+F = 257
+L = 20
 T = 80
 seed = 3579
 np.random.seed(seed)
@@ -51,16 +51,17 @@ pass
 
 # <codecell>
 
+reload(vpl)
 threshold = 0.01
 old_obj = -np.inf
-maxiter = 10
-cold_start = True
+maxiter = 3
+cold_start = False
 
-sfd = dp.SF_Dict(W, L=L, seed=98765)
+sfd = vpl.VPL(W, L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
     sfd.vb_e(cold_start=cold_start, disp=1)
-    if sfd.vb_m(disp=1):
+    if sfd.vb_m(disp=1, atol=1e-3):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
@@ -72,6 +73,7 @@ for i in xrange(maxiter):
 # <codecell>
 
 plot(obj)
+print obj
 pass
 
 # <codecell>
