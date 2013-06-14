@@ -54,7 +54,7 @@ pass
 reload(vpl)
 threshold = 0.01
 old_obj = -np.inf
-maxiter = 3
+maxiter = 20
 cold_start = False
 
 sfd = vpl.VPL(W, L=L, seed=98765)
@@ -73,7 +73,6 @@ for i in xrange(maxiter):
 # <codecell>
 
 plot(obj)
-print obj
 pass
 
 # <codecell>
@@ -121,7 +120,4 @@ subplot(313)
 specshow((V - V_rec).T)
 colorbar()
 pass
-
-# <codecell>
-
 

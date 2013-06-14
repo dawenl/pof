@@ -1,5 +1,6 @@
 """
-CREATED: 2013-05-23 10:58:16 by Dawen Liang <daliang@adobe.com>
+CREATED: 2013-06-14 10:31:54 by Dawen Liang <daliang@adobe.com>   
+
 """
 
 import sys, time
@@ -82,14 +83,14 @@ class VPL:
             mu, sigma = theta[:self.T], np.exp(theta[-self.T:])
             Ea, Ea2, Eloga = self._comp_expect(mu, sigma) 
 
-            const = self.alpha[l] * Eloga + np.log(sigma)/2 + mu
+            const = (self.alpha[l] - 1) * Eloga + np.log(sigma)/2 + mu
             return -np.sum(const + Ea * lcoef + Ea2 * qcoef)
                 
         def df(theta):
             mu, sigma = theta[:self.T], np.exp(theta[-self.T:])
             Ea, Ea2, _ = self._comp_expect(mu, sigma) 
 
-            grad_mu = Ea * lcoef + 2 * Ea2 * qcoef + self.alpha[l] + 1  
+            grad_mu = Ea * lcoef + 2 * Ea2 * qcoef + self.alpha[l]   
             grad_sigma = sigma * (Ea * lcoef/2 + 2 * Ea2 * qcoef + 1./sigma) 
             return -np.hstack((grad_mu, grad_sigma))
 
@@ -106,8 +107,10 @@ class VPL:
             else:
                 print 'A[:, {}]: {}, f={}'.format(l, d['warnflag'], f(theta_hat))
             app_grad = approx_grad(f, theta_hat)
-            for t in xrange(2 * self.T):
-                print 'Theta[{:3d}, {}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[t], app_grad[t], df(theta_hat)[t], np.abs(app_grad[t] - df(theta_hat)[t]))
+            for t in xrange(self.T):
+                print 'mu[{:3d}, {}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[t], app_grad[t], df(theta_hat)[t], np.abs(app_grad[t] - df(theta_hat)[t]))
+            for t in xrange(self.T):
+                print 'sigma[{:3d}, {}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[t + self.T], app_grad[t + self.T], df(theta_hat)[t + self.T], np.abs(app_grad[t + self.T] - df(theta_hat)[t + self.T]))
 
         self.mu[:,l], self.sigma[:,l] = theta_hat[:self.T], np.exp(theta_hat[-self.T:])
 
@@ -115,15 +118,15 @@ class VPL:
         #    mu, sigma = theta[0], np.exp(theta[1])
         #    Ea, Ea2, Eloga = self._comp_expect(mu, sigma) 
 
-        #    const = self.alpha[l] * Eloga + np.log(sigma)/2 + mu
+        #    const = (self.alpha[l] - 1) * Eloga + np.log(sigma)/2 + mu
         #    return -np.sum(const + Ea * lcoef[t] + Ea2 * qcoef)
         #        
         #def _df(theta, t):
         #    mu, sigma = theta[0], np.exp(theta[1])
         #    Ea, Ea2, _ = self._comp_expect(mu, sigma) 
 
-        #    grad_mu = Ea * lcoef[t] + 2 * Ea2 * qcoef + self.alpha[l] + 1  
-        #    grad_sigma = sigma * (Ea * lcoef[t]/2 + 2 * Ea2 * qcoef + 1./sigma) 
+        #    grad_mu = Ea * lcoef[t] + 2 * Ea2 * qcoef + self.alpha[l]   
+        #    grad_sigma = sigma * (Ea * lcoef[t]/2 + 2 * Ea2 * qcoef + 1./sigma) - .5
         #    return -np.array([grad_mu, grad_sigma])
 
         #Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
