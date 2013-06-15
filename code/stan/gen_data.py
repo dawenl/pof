@@ -1,12 +1,14 @@
 import sys
 import scipy.io as sio
 
-def gen_data(matfile, L):
+def gen_data(matfile, L, outfile=None):
     d = sio.loadmat(matfile)
     V = d['V']
     F, T = V.shape
 
-    fout = open('full_bayes.data.R', 'w')
+    if outfile is None:
+        outfile = 'full_bayes.data.R'
+    fout = open(outfile, 'w')
     fout.write('F <- {}\n'.format(F))
     fout.write('T <- {}\n'.format(T))
     fout.write('L <- {}\n'.format(L))
@@ -23,4 +25,9 @@ def gen_data(matfile, L):
 if __name__ == '__main__':
     matfile = sys.argv[1]
     L = sys.argv[2]
-    gen_data(matfile, L)
+    if len(sys.argv) == 3:
+        gen_data(matfile, L)
+    else:
+        outfile = sys.argv[3]
+        gen_data(matfile, L, outfile=outfile)
+
