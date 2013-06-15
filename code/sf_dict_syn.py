@@ -54,21 +54,29 @@ pass
 reload(vpl)
 threshold = 0.01
 old_obj = -np.inf
-maxiter = 20
-cold_start = False
+maxiter = 2
+cold_start = True
 
 sfd = vpl.VPL(W, L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, disp=1)
+    bounds = -np.inf * np.ones((500,))
+    sfd.vb_e(cold_start=cold_start, disp=1, bounds=bounds)
     if sfd.vb_m(disp=1, atol=1e-3):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
-    print 'After ITERATION: {}\tImprovement: {:.4f}'.format(i, improvement)
+    print 'After ITERATION: {}\tObjective Improvement: {:.4f}'.format(i, improvement)
     if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
         break
     old_obj = sfd.obj
+    figure()
+    plot(bounds[-np.isinf(bounds)])
+
+# <codecell>
+
+b = bounds[-np.isinf(bounds)]
+diff(b) / b[:-1]
 
 # <codecell>
 
@@ -120,4 +128,7 @@ subplot(313)
 specshow((V - V_rec).T)
 colorbar()
 pass
+
+# <codecell>
+
 

@@ -28,10 +28,6 @@ class VPL:
         self.alpha = np.random.gamma(smoothness, 1./smoothness, size=(self.L,))
         self.gamma = np.random.gamma(smoothness, 2./smoothness, size=(self.F,))
 
-        self.old_U_inc = np.inf
-        self.old_alpha_inc = np.inf
-        self.old_gamma_inc = np.inf
-
         # variational parameters and expectations
         self._init_variational(smoothness)
 
@@ -40,14 +36,14 @@ class VPL:
         self.sigma = 1./np.random.gamma(smoothness, 1./smoothness, size=(self.T, self.L))
         self.EA, self.EA2, self.ElogA = self._comp_expect(self.mu, self.sigma)
 
-        #self.old_mu_inc = np.inf 
-        #self.old_sigma_inc = np.inf
-
     def _comp_expect(self, mu, sigma):
         return (np.exp(mu + sigma/2), np.exp(2*mu + 2*sigma), mu)
          
-    def vb_e(self, cold_start=True, smoothness=100, verbose=True, disp=0):
-        """ Perform one variational E-step to appxorimate the posterior P(A | -)
+    def vb_e(self, cold_start=True, smoothness=100, maxiter=500,
+            atol=1e-3, rtol=1e-4, verbose=True, disp=0, bounds=None):
+        """ Perform one variational E-step, which may have one sub-iteration or
+        multiple sub-iterations if e_converge is set to True, to appxorimate the 
+        posterior P(A | -)
 
         Parameters
         ----------
@@ -58,6 +54,10 @@ class VPL:
         smoothness: float
             Smootheness of the variational initialization, larger value will
             lead to more concentrated initialization.
+        maxiter: int
+            Maximal number of iterations in one e-step.
+        atol: float 
+            Absolute convergence threshold. 
         verbose: bool
             Output log if true.
         disp: int
@@ -66,17 +66,38 @@ class VPL:
         """
         print 'Variational E-step...'
         if cold_start:
+            # re-initialize all the variational parameters
             self._init_variational(smoothness)
-        start_t = time.time()
-        for l in xrange(self.L):
-            self.update_theta(l, disp)
-            if verbose and not l % 5:
-                sys.stdout.write('.')
-        t = time.time() - start_t
-        if verbose:
-            #sys.stdout.write('\n')
-            print '\ttime: {:.2f}'.format(t)
-        pass
+
+        old_bound = -np.inf
+        for i in xrange(maxiter):
+            old_mu = self.mu.copy()
+            old_sigma = self.sigma.copy()
+            start_t = time.time()
+            for l in xrange(self.L):
+                self.update_theta(l, disp)
+                if verbose and not l % 5:
+                    sys.stdout.write('.')
+            t = time.time() - start_t
+            mu_diff = np.mean(np.abs(old_mu - self.mu))
+            sigma_diff = np.mean(np.abs(np.sqrt(old_sigma) - np.sqrt(self.sigma)))
+
+            self._vb_bound()
+            improvement = (self.bound - old_bound) / np.abs(self.bound)
+
+            if verbose:
+                sys.stdout.write('\n')
+                print 'Subiter: {:3d}\tmu increment: {:.4f}\tsigma increment: {:.4f}\ttime: {:.2f}'.format(i, mu_diff, sigma_diff, t)
+                print 'Subiter: {:3d}\tBound: {:.2f}\tBound Improvement: {:.4f}\ttime: {:.2f}'.format(i, self.bound, improvement, t)
+            if bounds is not None:
+                bounds[i] = self.bound
+
+            if improvement < rtol:
+                break
+            old_bound = self.bound
+
+            if mu_diff <= atol and sigma_diff <= atol:
+                break
 
     def update_theta(self, l, disp):                
         def f(theta):
@@ -126,7 +147,7 @@ class VPL:
         #    Ea, Ea2, _ = self._comp_expect(mu, sigma) 
 
         #    grad_mu = Ea * lcoef[t] + 2 * Ea2 * qcoef + self.alpha[l]   
-        #    grad_sigma = sigma * (Ea * lcoef[t]/2 + 2 * Ea2 * qcoef + 1./sigma) - .5
+        #    grad_sigma = sigma * (Ea * lcoef[t]/2 + 2 * Ea2 * qcoef + 1./sigma)
         #    return -np.array([grad_mu, grad_sigma])
 
         #Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
@@ -150,14 +171,11 @@ class VPL:
         assert(np.all(self.sigma[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.sigma[:,l])
 
-    def vb_m(self, conv_check=1, atol=0.01, verbose=True, disp=0):
+    def vb_m(self, atol=0.01, verbose=True, disp=0):
         """ Perform one M-step, update the model parameters with A fixed from E-step
 
         Parameters
         ----------
-        conv_check: int
-            Check convergence on the first-order difference if 1 or second-order
-            difference if 2. 
         atol: float
             Absolute convergence threshold.
         verbose: bool
@@ -175,23 +193,14 @@ class VPL:
             self.update_u(l, disp)
         self.update_gamma()
         self.update_alpha(disp)
-        self._objective_m()
+        self._objective()
         U_diff = np.mean(np.abs(self.U - old_U))
         sigma_diff = np.mean(np.abs(np.sqrt(1./self.gamma) - np.sqrt(1./old_gamma)))
         alpha_diff = np.mean(np.abs(self.alpha - old_alpha))
         if verbose:
             print 'U increment: {:.4f}\tsigma increment: {:.4f}\talpha increment: {:.4f}'.format(U_diff, sigma_diff, alpha_diff)
-        if conv_check == 1:
-            if U_diff < atol and sigma_diff < atol and alpha_diff < atol:
-                return True
-        elif conv_check == 2:
-            if self.old_U_inc - U_diff < atol and self.old_gamma_inc - sigma_diff < atol and self.old_alpha_inc - alpha_diff < atol:
-                return True
-            self.old_U_inc = U_diff
-            self.old_gamma_inc = sigma_diff
-            self.old_alpha_inc = alpha_diff
-        else:
-            raise ValueError('conv_check can only be 1 or 2')
+        if U_diff < atol and sigma_diff < atol and alpha_diff < atol:
+            return True
         return False
 
     def update_u(self, l, disp):
@@ -243,10 +252,14 @@ class VPL:
                 print 'Alpha[{:3d}] = {:.2f}\tApproximated: {:.2f}\tGradient: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, self.alpha[l], app_grad[l], df(self.alpha)[l], np.abs(app_grad[l] - df(self.alpha)[l]))
 
 
-    def _objective_e(self):
-        pass
+    def _vb_bound(self):
+        self.bound = np.sum(1./2 * np.log(self.sigma) + self.mu) 
+        self.bound += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
+        EV = np.dot(self.EA, self.U)
+        EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
+        self.bound += 1./2 * np.sum((2 * EV * self.V - EV2) * self.gamma)
 
-    def _objective_m(self):
+    def _objective(self):
         self.obj = 1./2 * self.T * np.sum(np.log(self.gamma))
         EV = np.dot(self.EA, self.U)
         EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
