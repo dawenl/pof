@@ -26,8 +26,6 @@ def parse_samples(samples_csv, F, T, L):
         vals = np.mean(d, axis=0)
         for i, col in enumerate(cols):
             pos = header[col].strip().split('.')
-            if not header[col].startswith('U'):
-                print header[col]
             eval('assign({}, {}, {})'.format(pos[0], tuple([int(p)-1 for p in pos[1:]]), vals[i]))           
         print '{} variables have been processed'.format(cols[-1] - SKIPCOLS + 1)
     gamma = 1./(sigma**2)
@@ -35,8 +33,6 @@ def parse_samples(samples_csv, F, T, L):
      
 
 def assign(arr, idx, val):
-    print idx
-    print val
     arr[idx] = val
 
 
