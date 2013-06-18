@@ -157,7 +157,8 @@ class EBayes:
 
 if __name__ == '__main__':
     if len(sys.argv) != 4 and len(sys.argv) != 5: 
-        print 'Usage:\n\tpython empirical_bayes.py matfile data L (outfile)\noutfile by default is emp_bayes.data.R'
+        print 'Usage:\n\tpython empirical_bayes.py matfile data L (outfile)\n\toutfile by default is emp_bayes.data.R'
+        sys.exit(1)
     matfile = sys.argv[1]
     data = sys.argv[2]
     d = sio.loadmat(matfile)
