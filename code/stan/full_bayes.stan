@@ -14,7 +14,7 @@ data {
     sigma ~ exponential(10);
     alpha ~ exponential(10);
     for (l in 1:L) {
-      U[l] ~ normal(0, 100);
+      U[l] ~ normal(0, 4);
     }
     for (t in 1:T) {
       A[t] ~ gamma(alpha, alpha);
