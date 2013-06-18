@@ -22,7 +22,7 @@ def gen_data(V, U, alpha, sigma, L, outfile=None):
     write_arr(fout, 'alpha', alpha)
     write_arr(fout, 'sigma', sigma)
     fout.close()
-    pass
+    return outfile 
 
 def write_matrix(fp, name, M):
     fp.write('{} <- structure(c('.format(name))
@@ -67,11 +67,11 @@ class EBayes:
     def _comp_expect(self, mu, r):
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r), mu)
          
-    def vb_e(self, data, outfile=None):
+    def vb_e(self, outfile=None):
         print 'Variational E-step...'
-        gen_data(self.V.T, self.U.T, self.alpha, np.sqrt(1./self.gamma), self.L, outfile=outfile)
+        outfile = gen_data(self.V.T, self.U.T, self.alpha, np.sqrt(1./self.gamma), self.L, outfile=outfile)
         samples_csv = 'samples_emp_L{}.csv'.format(L) 
-        subprocess.call('./posterior_approx --data={} --samples={}', data, samples_csv)
+        subprocess.call('./posterior_approx --data={} --samples={}', outfile, samples_csv)
         self.EA, self.EA2, self.ElogA = samples_parser.parse_EA(samples_csv, self.T, self.L)
         pass
 
