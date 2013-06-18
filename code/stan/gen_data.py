@@ -23,6 +23,9 @@ def gen_data(matfile, L, outfile=None):
     pass
 
 if __name__ == '__main__':
+    if len(sys.argv) != 3 or len(sys.argv) != 4:
+        print 'Useage\n\tpython gen_data.py matfile L (outfile)\n\toutfile = full_bayes.data.R by default'
+        sys.exit(1)
     matfile = sys.argv[1]
     L = sys.argv[2]
     if len(sys.argv) == 3:
