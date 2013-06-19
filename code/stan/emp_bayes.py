@@ -166,7 +166,7 @@ if __name__ == '__main__':
     V = d['V']
     L = int(sys.argv[2])
     outfile = None
-    if len(sys.argv) == 5:
+    if len(sys.argv) == 4:
         outfile = sys.argv[3]
     sfd = EBayes(V.T, L=L, seed=98765)
 
