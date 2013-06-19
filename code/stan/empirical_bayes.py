@@ -71,7 +71,7 @@ class EBayes:
         print 'Variational E-step...'
         outfile = gen_data(self.V.T, self.U.T, self.alpha, np.sqrt(1./self.gamma), self.L, outfile=outfile)
         samples_csv = 'samples_emp_L{}.csv'.format(L) 
-        subprocess.call('./posterior_approx --data={} --samples={}', outfile, samples_csv)
+        subprocess.call('./posterior_approx --data={} --samples={} > emp_bayes_L{}', outfile, samples_csv, L)
         self.EA, self.EA2, self.ElogA = samples_parser.parse_EA(samples_csv, self.T, self.L)
         pass
 
@@ -156,17 +156,16 @@ class EBayes:
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 4 and len(sys.argv) != 5: 
-        print 'Usage:\n\tpython empirical_bayes.py matfile data L (outfile)\n\toutfile by default is emp_bayes.data.R'
+    if len(sys.argv) != 3 and len(sys.argv) != 4: 
+        print 'Usage:\n\tpython empirical_bayes.py matfile L (outfile)\n\toutfile by default is emp_bayes.data.R'
         sys.exit(1)
     matfile = sys.argv[1]
-    data = sys.argv[2]
     d = sio.loadmat(matfile)
     V = d['V']
-    L = int(sys.argv[3])
+    L = int(sys.argv[2])
     outfile = None
     if len(sys.argv) == 5:
-        outfile = sys.argv[4]
+        outfile = sys.argv[3]
     ebayes = EBayes(V.T, L=L, seed=98765)
 
     # start the process
@@ -176,7 +175,7 @@ if __name__ == '__main__':
     maxiter = 100
     obj = []
     for i in xrange(maxiter):
-        sfd.vb_e(data, outfile)
+        sfd.vb_e(outfile)
         if sfd.vb_m(disp=1):
             break
         obj.append(sfd.obj)
