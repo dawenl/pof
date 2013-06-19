@@ -1,6 +1,7 @@
 import subprocess, sys, time
 
 import numpy as np
+import scipy.io as sio
 import scipy.optimize as optimize
 import scipy.special as special
 
@@ -71,8 +72,9 @@ class EBayes:
         print 'Variational E-step...'
         outfile = gen_data(self.V.T, self.U.T, self.alpha, np.sqrt(1./self.gamma), self.L, outfile=outfile)
         samples_csv = 'samples_emp_L{}.csv'.format(L) 
-        subprocess.call('./posterior_approx --data={} --samples={} > emp_bayes_L{}', outfile, samples_csv, L)
-        self.EA, self.EA2, self.ElogA = samples_parser.parse_EA(samples_csv, self.T, self.L)
+        subprocess.call('./posterior_approx --data={} --samples={} > emp_bayes_L{}'.format(outfile, samples_csv, L), shell=True)
+        subprocess.call("grep -v '#' {} > {}_parse".format(samples_csv, samples_csv))
+        self.EA, self.EA2, self.ElogA = samples_parser.parse_EA('{}_parse'.format(samples_csv), self.T, self.L)
         pass
 
     def vb_m(self, atol=0.01, verbose=True, disp=0):
@@ -157,7 +159,7 @@ class EBayes:
 
 if __name__ == '__main__':
     if len(sys.argv) != 3 and len(sys.argv) != 4: 
-        print 'Usage:\n\tpython empirical_bayes.py matfile L (outfile)\n\toutfile by default is emp_bayes.data.R'
+        print 'Usage:\n\tpython emp_bayes.py matfile L (outfile)\n\toutfile by default is emp_bayes.data.R'
         sys.exit(1)
     matfile = sys.argv[1]
     d = sio.loadmat(matfile)
@@ -166,12 +168,11 @@ if __name__ == '__main__':
     outfile = None
     if len(sys.argv) == 5:
         outfile = sys.argv[3]
-    ebayes = EBayes(V.T, L=L, seed=98765)
+    sfd = EBayes(V.T, L=L, seed=98765)
 
     # start the process
     threshold = 0.01
     old_obj = -np.inf
-    L = 50
     maxiter = 100
     obj = []
     for i in xrange(maxiter):
@@ -184,6 +185,8 @@ if __name__ == '__main__':
         if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
             break
         old_obj = sfd.obj
+    sio.savemat('emp_bayes.mat', {'U':sfd.U, 'alpha':sfd.alpha, 'gamma':sfd.gamma})
+
 
 
 
