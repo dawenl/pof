@@ -20,8 +20,8 @@ def gen_data(V, U, alpha, sigma, L, outfile=None):
 
     write_matrix(fout, 'V', V)
     write_matrix(fout, 'U', U)
-    write_arr(fout, 'alpha', alpha)
-    write_arr(fout, 'sigma', sigma)
+    write_array(fout, 'alpha', alpha)
+    write_array(fout, 'sigma', sigma)
     fout.close()
     return outfile 
 
@@ -36,7 +36,7 @@ def write_matrix(fp, name, M):
     fp.write('), .Dim = c({}, {}))\n'.format(Y, X))
     pass
 
-def write_arr(fp, name, arr):
+def write_array(fp, name, arr):
     fp.write('{} <- c('.format(name))
     X = len(arr)
     for i in xrange(X):
@@ -52,10 +52,10 @@ class EBayes:
         self.T, self.F = V.shape
         self.L = L
         if seed is None:
-            print 'Using random seed'
+            sys.stdout.write('Using random seed\n')
             np.random.seed()
         else:
-            print 'Using fixed seed {}'.format(seed)
+            sys.stdout.write('Using fixed seed {}\n'.format(seed))
             np.random.seed(seed) 
         self._init(smoothness=smoothness)
 
@@ -68,8 +68,8 @@ class EBayes:
     def _comp_expect(self, mu, r):
         return (np.exp(mu + 1./(2*r)), np.exp(2*mu + 2./r), mu)
          
-    def vb_e(self, outfile=None):
-        print 'Variational E-step...'
+    def e_step(self, outfile=None):
+        sys.stdout.write('Variational E-step...\n')
         outfile = gen_data(self.V.T, self.U.T, self.alpha, np.sqrt(1./self.gamma), self.L, outfile=outfile)
         samples_csv = 'samples_emp_L{}.csv'.format(L) 
         subprocess.call('./posterior_approx --data={} --samples={}'.format(outfile, samples_csv).split())
@@ -77,8 +77,8 @@ class EBayes:
         self.EA, self.EA2, self.ElogA = samples_parser.parse_EA('parse_{}'.format(samples_csv), self.T, self.L)
         pass
 
-    def vb_m(self, atol=0.01, verbose=True, disp=0):
-        print 'Variational M-step...'
+    def m_step(self, atol=0.01, verbose=True, disp=0):
+        sys.stdout.write('Variational M-step...\n')
         old_U = self.U.copy()
         old_gamma = self.gamma.copy()
         old_alpha = self.alpha.copy()
@@ -91,7 +91,7 @@ class EBayes:
         sigma_diff = np.mean(np.abs(np.sqrt(1./self.gamma) - np.sqrt(1./old_gamma)))
         alpha_diff = np.mean(np.abs(self.alpha - old_alpha))
         if verbose:
-            print 'U increment: {:.4f}\tsigma increment: {:.4f}\talpha increment: {:.4f}'.format(U_diff, sigma_diff, alpha_diff)
+            sys.stdout.write('U increment: {:.4f}\tsigma increment: {:.4f}\talpha increment: {:.4f}\n'.format(U_diff, sigma_diff, alpha_diff))
         if U_diff < atol and sigma_diff < atol and alpha_diff < atol:
             return True
         return False
@@ -176,12 +176,12 @@ if __name__ == '__main__':
     maxiter = 100
     obj = []
     for i in xrange(maxiter):
-        sfd.vb_e(outfile)
-        if sfd.vb_m(disp=1):
+        sfd.e_step(outfile)
+        if sfd.m_step(disp=1):
             break
         obj.append(sfd.obj)
         improvement = (sfd.obj - old_obj) / abs(sfd.obj)
-        print 'After ITERATION: {}\tImprovement: {:.4f}'.format(i, improvement)
+        sys.stdout.write('After ITERATION: {}\tImprovement: {:.4f}\n'.format(i, improvement))
         if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
             break
         old_obj = sfd.obj

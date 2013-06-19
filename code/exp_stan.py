@@ -95,6 +95,3 @@ write_wav(wav_rec, 'rec_stan_L{}_F{}_H{}.wav'.format(L, n_fft, hop_length))
 plot(flipud(sort(alpha)), '-o')
 pass
 
-# <codecell>
-
-
