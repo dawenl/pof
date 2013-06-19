@@ -72,9 +72,9 @@ class EBayes:
         print 'Variational E-step...'
         outfile = gen_data(self.V.T, self.U.T, self.alpha, np.sqrt(1./self.gamma), self.L, outfile=outfile)
         samples_csv = 'samples_emp_L{}.csv'.format(L) 
-        subprocess.call('./posterior_approx --data={} --samples={} > emp_bayes_L{}'.format(outfile, samples_csv, L), shell=True)
-        subprocess.call("grep -v '#' {} > {}_parse".format(samples_csv, samples_csv))
-        self.EA, self.EA2, self.ElogA = samples_parser.parse_EA('{}_parse'.format(samples_csv), self.T, self.L)
+        subprocess.call('./posterior_approx --data={} --samples={}'.format(outfile, samples_csv).split())
+        subprocess.call("grep -v '#' {} > parse_{}".format(samples_csv, samples_csv), shell=True)
+        self.EA, self.EA2, self.ElogA = samples_parser.parse_EA('parse_{}'.format(samples_csv), self.T, self.L)
         pass
 
     def vb_m(self, atol=0.01, verbose=True, disp=0):
