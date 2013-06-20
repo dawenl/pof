@@ -40,7 +40,7 @@ class VPL:
         return (np.exp(mu + sigma/2), np.exp(2*mu + 2*sigma), mu)
          
     def vb_e(self, cold_start=True, smoothness=100, maxiter=500,
-            atol=1e-3, rtol=1e-4, verbose=True, disp=0, bounds=None):
+            atol=1e-3, rtol=1e-5, verbose=True, disp=0, bounds=None):
         """ Perform one variational E-step, which may have one sub-iteration or
         multiple sub-iterations if e_converge is set to True, to appxorimate the 
         posterior P(A | -)
@@ -112,7 +112,7 @@ class VPL:
             Ea, Ea2, _ = self._comp_expect(mu, sigma) 
 
             grad_mu = Ea * lcoef + 2 * Ea2 * qcoef + self.alpha[l]   
-            grad_sigma = sigma * (Ea * lcoef/2 + 2 * Ea2 * qcoef + 1./sigma) 
+            grad_sigma = sigma * (Ea * lcoef/2 + 2 * Ea2 * qcoef + 1./(2*sigma)) 
             return -np.hstack((grad_mu, grad_sigma))
 
         Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])

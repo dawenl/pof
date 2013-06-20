@@ -54,14 +54,13 @@ pass
 reload(vpl)
 threshold = 0.01
 old_obj = -np.inf
-maxiter = 2
-cold_start = True
+maxiter = 20
+cold_start = False
 
 sfd = vpl.VPL(W, L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    bounds = -np.inf * np.ones((500,))
-    sfd.vb_e(cold_start=cold_start, disp=1, bounds=bounds)
+    sfd.vb_e(cold_start=cold_start, disp=1)
     if sfd.vb_m(disp=1, atol=1e-3):
         break
     obj.append(sfd.obj)
@@ -70,13 +69,6 @@ for i in xrange(maxiter):
     if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
         break
     old_obj = sfd.obj
-    figure()
-    plot(bounds[-np.isinf(bounds)])
-
-# <codecell>
-
-b = bounds[-np.isinf(bounds)]
-diff(b) / b[:-1]
 
 # <codecell>
 

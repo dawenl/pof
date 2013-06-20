@@ -20,7 +20,7 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # <codecell>
 
 ## parameters
-L = 40
+L = 20
 samples_csv = 'samples_L{}.csv'.format(L)
 matfile = 'sa1.mat'
 
@@ -62,6 +62,12 @@ pass
 
 # <codecell>
 
+for l in xrange(L):
+    figure(l)
+    plot(U[l,:])
+
+# <codecell>
+
 V_rec = np.dot(U.T, A.T)
 subplot(311)
 specshow(V_rec)
@@ -94,4 +100,7 @@ write_wav(wav_rec, 'rec_stan_L{}_F{}_H{}.wav'.format(L, n_fft, hop_length))
 
 plot(flipud(sort(alpha)), '-o')
 pass
+
+# <codecell>
+
 
