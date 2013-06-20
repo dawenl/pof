@@ -57,6 +57,7 @@ class EBayes:
         else:
             sys.stdout.write('Using fixed seed {}\n'.format(seed))
             np.random.seed(seed) 
+        sys.stdout.flush()
         self._init(smoothness=smoothness)
 
     def _init(self, smoothness=100):
@@ -70,6 +71,7 @@ class EBayes:
          
     def e_step(self, outfile=None):
         sys.stdout.write('Variational E-step...\n')
+        sys.stdout.flush()
         outfile = gen_data(self.V.T, self.U.T, self.alpha, np.sqrt(1./self.gamma), self.L, outfile=outfile)
         samples_csv = 'samples_emp_L{}.csv'.format(L) 
         subprocess.call('./posterior_approx --data={} --samples={}'.format(outfile, samples_csv).split())
@@ -79,6 +81,7 @@ class EBayes:
 
     def m_step(self, atol=0.01, verbose=True, disp=0):
         sys.stdout.write('Variational M-step...\n')
+        sys.stdout.flush()
         old_U = self.U.copy()
         old_gamma = self.gamma.copy()
         old_alpha = self.alpha.copy()
@@ -92,6 +95,7 @@ class EBayes:
         alpha_diff = np.mean(np.abs(self.alpha - old_alpha))
         if verbose:
             sys.stdout.write('U increment: {:.4f}\tsigma increment: {:.4f}\talpha increment: {:.4f}\n'.format(U_diff, sigma_diff, alpha_diff))
+            sys.stdout.flush()
         if U_diff < atol and sigma_diff < atol and alpha_diff < atol:
             return True
         return False
@@ -166,7 +170,7 @@ if __name__ == '__main__':
     V = d['V']
     L = int(sys.argv[2])
     outfile = None
-    if len(sys.argv) == 5:
+    if len(sys.argv) == 4:
         outfile = sys.argv[3]
     sfd = EBayes(V.T, L=L, seed=98765)
 
@@ -182,6 +186,7 @@ if __name__ == '__main__':
         obj.append(sfd.obj)
         improvement = (sfd.obj - old_obj) / abs(sfd.obj)
         sys.stdout.write('After ITERATION: {}\tImprovement: {:.4f}\n'.format(i, improvement))
+        sys.stdout.flush()
         if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
             break
         old_obj = sfd.obj
