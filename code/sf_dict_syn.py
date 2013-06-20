@@ -54,13 +54,13 @@ pass
 reload(vpl)
 threshold = 0.01
 old_obj = -np.inf
-maxiter = 20
-cold_start = False
+maxiter = 50
+cold_start = True
 
 sfd = vpl.VPL(W, L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, disp=1)
+    sfd.vb_e(cold_start=cold_start, disp=0)
     if sfd.vb_m(disp=1, atol=1e-3):
         break
     obj.append(sfd.obj)
