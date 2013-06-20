@@ -2,9 +2,17 @@
 *.swp
 *.ipynb
 *.wav
+*.csv
+.DS_Store
+.Rhistory
+# log
+output*
 
 # C extensions
 *.so
+*.cpp
+*.o
+*.d
 
 # Packages
 *.egg
