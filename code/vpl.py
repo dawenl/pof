@@ -39,7 +39,7 @@ class VPL:
     def _comp_expect(self, mu, sigma):
         return (np.exp(mu + sigma/2), np.exp(2*mu + 2*sigma), mu)
          
-    def vb_e(self, cold_start=True, smoothness=100, maxiter=500,
+    def vb_e(self, cold_start=True, batch=True, smoothness=100, maxiter=500,
             atol=1e-3, rtol=1e-5, verbose=True, disp=0, bounds=None):
         """ Perform one variational E-step, which may have one sub-iteration or
         multiple sub-iterations if e_converge is set to True, to appxorimate the 
@@ -69,35 +69,64 @@ class VPL:
             # re-initialize all the variational parameters
             self._init_variational(smoothness)
 
-        old_bound = -np.inf
-        for i in xrange(maxiter):
-            old_mu = self.mu.copy()
-            old_sigma = self.sigma.copy()
+        if batch:
             start_t = time.time()
-            for l in xrange(self.L):
-                self.update_theta(l, disp)
-                if verbose and not l % 5:
-                    sys.stdout.write('.')
+            self.update_theta_batch(disp)
             t = time.time() - start_t
-            mu_diff = np.mean(np.abs(old_mu - self.mu))
-            sigma_diff = np.mean(np.abs(np.sqrt(old_sigma) - np.sqrt(self.sigma)))
-
-            self._vb_bound()
-            improvement = (self.bound - old_bound) / np.abs(self.bound)
-
             if verbose:
-                sys.stdout.write('\n')
-                print 'Subiter: {:3d}\tmu increment: {:.4f}\tsigma increment: {:.4f}\ttime: {:.2f}'.format(i, mu_diff, sigma_diff, t)
-                print 'Subiter: {:3d}\tBound: {:.2f}\tBound Improvement: {:.5f}\ttime: {:.2f}'.format(i, self.bound, improvement, t)
-            if bounds is not None:
-                bounds[i] = self.bound
+                print 'Batch update\ttime: {:.2f}'.format(t)
 
-            if improvement < rtol:
-                break
-            old_bound = self.bound
+        else:
+            old_bound = -np.inf
+            for i in xrange(maxiter):
+                old_mu = self.mu.copy()
+                old_sigma = self.sigma.copy()
+                start_t = time.time()
+                for l in xrange(self.L):
+                    self.update_theta(l, disp)
+                    if verbose and not l % 5:
+                        sys.stdout.write('.')
+                t = time.time() - start_t
+                mu_diff = np.mean(np.abs(old_mu - self.mu))
+                sigma_diff = np.mean(np.abs(np.sqrt(old_sigma) - np.sqrt(self.sigma)))
 
-            if mu_diff <= atol and sigma_diff <= atol:
-                break
+                self._vb_bound()
+                improvement = (self.bound - old_bound) / np.abs(self.bound)
+
+                if verbose:
+                    sys.stdout.write('\n')
+                    print 'Subiter: {:3d}\tmu increment: {:.4f}\tsigma increment: {:.4f}\ttime: {:.2f}'.format(i, mu_diff, sigma_diff, t)
+                    print 'Subiter: {:3d}\tBound: {:.2f}\tBound Improvement: {:.5f}\ttime: {:.2f}'.format(i, self.bound, improvement, t)
+                if bounds is not None:
+                    bounds[i] = self.bound
+
+                if improvement < rtol:
+                    break
+                old_bound = self.bound
+
+                if mu_diff <= atol and sigma_diff <= atol:
+                    break
+
+    def update_theta_batch(self, disp):
+        def f(theta):
+            mu, sigma = theta[:, :self.T], np.exp(theta[:, -self.T:])
+            EA, EA2, ElogA = self._comp_expect(mu, sigma)
+            pass
+
+        def df(theta):
+            mu, sigma = theta[:, :self.T], np.exp(theta[:, -self.T:])
+            EA, EA2, ElogA = self._comp_expect(mu, sigma)
+            pass
+
+        theta0 = np.hstack((self.mu, np.log(self.sigma)))
+        theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
+        if disp and d['warning']:
+            pass
+
+        self.mu, self.sigma = theta_hat[:, :self.T], theta_hat[:, -self.T:]
+        assert(np.all(self.sigma > 0))
+        self.EA, self.EA2, self.ElogA = self._comp_expect(self.mu, self.sigma)
+
 
     def update_theta(self, l, disp):                
         def f(theta):
