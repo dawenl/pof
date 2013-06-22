@@ -11,7 +11,7 @@ from scikits.audiolab import Sndfile, Format
 from matplotlib.pyplot import *
 
 import librosa
-import dict_prior as dp
+import vpl
 
 # <codecell>
 
@@ -33,7 +33,7 @@ def load_object(filename):
 
 # <codecell>
 
-TIMIT_DIR = '../timit/train/'
+TIMIT_DIR = '../../timit/train/'
 
 # <codecell>
 
@@ -105,15 +105,18 @@ pass
 
 # <codecell>
 
+reload(vpl)
 threshold = 0.01
 old_obj = -np.inf
-L = 30
+L = 50
 maxiter = 100
-cold_start = True
-sfd = dp.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
+cold_start = False
+batch = True
+
+sfd = vpl.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, disp=1)
+    sfd.vb_e(cold_start=cold_start, batch=batch, disp=1)
     if sfd.vb_m(disp=1):
         break
     obj.append(sfd.obj)
@@ -130,8 +133,13 @@ pass
 
 # <codecell>
 
+subplot(211)
 specshow(sfd.U)
 colorbar()
+subplot(212)
+specshow(sfd.EA.T)
+colorbar()
+tight_layout()
 pass
 
 # <codecell>
@@ -190,7 +198,4 @@ write_wav(w_rec_org, 'rec_spk_org.wav')
 # <codecell>
 
 save_object(sfd, 'dr1_fcjf0_L{}_F{}_H{}_{}_Seed98765'.format(L, n_fft, hop_length, str_cold_start))
-
-# <codecell>
-
 

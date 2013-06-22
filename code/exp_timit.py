@@ -11,7 +11,7 @@ from scikits.audiolab import Sndfile, Format
 from matplotlib.pyplot import *
 
 import librosa
-import dict_prior as dp
+import vpl
 
 # <codecell>
 
@@ -33,7 +33,7 @@ def load_object(filename):
 
 # <codecell>
 
-TIMIT_DIR = '../timit/train/'
+TIMIT_DIR = '../../timit/train/'
 
 # <codecell>
 
@@ -85,16 +85,19 @@ threshold = 0.01
 old_obj = -np.inf
 L = 50
 maxiter = 100
-cold_start = True
-sfd = dp.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
+cold_start = False
+batch = False
+
+sfd = vpl.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
 obj = []
+
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, disp=1)
-    if sfd.vb_m(disp=1):
+    sfd.vb_e(cold_start=cold_start, batch=batch, disp=0)
+    if sfd.vb_m(disp=1, atol=1e-3):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
-    print 'After ITERATION: {}\tImprovement: {:.4f}'.format(i, improvement)
+    print 'After ITERATION: {}\tObjective Improvement: {:.4f}'.format(i, improvement)
     if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
         break
     old_obj = sfd.obj
@@ -106,8 +109,13 @@ pass
 
 # <codecell>
 
+subplot(211)
 specshow(sfd.U)
 colorbar()
+subplot(212)
+specshow(sfd.EA.T)
+colorbar()
+tight_layout()
 pass
 
 # <codecell>
@@ -121,16 +129,17 @@ pass
 # <codecell>
 
 figure()
-plot(sfd.alpha, '-o')
+plot(sort(sfd.alpha), '-o')
 figure()
 plot(np.sqrt(1./sfd.gamma))
 pass
 
 # <codecell>
 
-sf_encoder = dp.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
+sf_encoder = vpl.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
 sf_encoder.U, sf_encoder.gamma, sf_encoder.alpha = sfd.U, sfd.gamma, sfd.alpha
-sf_encoder.vb_e(maxiter=100, atol=0.005)
+batch = False
+sf_encoder.vb_e(batch=batch, maxiter=100)
 A = sf_encoder.EA
 
 # <codecell>

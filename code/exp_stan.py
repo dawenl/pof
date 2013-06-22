@@ -20,8 +20,8 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # <codecell>
 
 ## parameters
-L = 20
-samples_csv = 'samples_L{}.csv'.format(L)
+L = 40
+samples_csv = 'samples_L{}_wp.csv'.format(L)
 matfile = 'sa1.mat'
 
 # <codecell>
@@ -64,7 +64,7 @@ pass
 
 for l in xrange(L):
     figure(l)
-    plot(U[l,:])
+    plot(np.exp(U[l,:]))
 
 # <codecell>
 
