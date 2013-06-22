@@ -190,7 +190,7 @@ if __name__ == '__main__':
         if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
             break
         old_obj = sfd.obj
-    sio.savemat('emp_bayes.mat', {'U':sfd.U, 'alpha':sfd.alpha, 'gamma':sfd.gamma})
+    sio.savemat('emp_bayes.mat', {'A':sfd.EA, 'U':sfd.U, 'alpha':sfd.alpha, 'gamma':sfd.gamma})
 
 
 
