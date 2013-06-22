@@ -34,13 +34,10 @@ class VPL:
     def _init_variational(self, smoothness):
         self.mu = np.random.randn(self.T, self.L)
         self.sigma = 1./np.random.gamma(smoothness, 1./smoothness, size=(self.T, self.L))
-        self.EA, self.EA2, self.ElogA = self._comp_expect(self.mu, self.sigma)
+        self.EA, self.EA2, self.ElogA = comp_expect(self.mu, self.sigma)
 
-    def _comp_expect(self, mu, sigma):
-        return (np.exp(mu + sigma/2), np.exp(2*mu + 2*sigma), mu)
-         
     def vb_e(self, cold_start=True, batch=True, smoothness=100, maxiter=500,
-            atol=1e-3, rtol=1e-5, verbose=True, disp=0, bounds=None):
+            atol=1e-3, rtol=1e-5, verbose=True, disp=0):
         """ Perform one variational E-step, which may have one sub-iteration or
         multiple sub-iterations if e_converge is set to True, to appxorimate the 
         posterior P(A | -)
@@ -75,7 +72,6 @@ class VPL:
             t = time.time() - start_t
             if verbose:
                 print 'Batch update\ttime: {:.2f}'.format(t)
-
         else:
             old_bound = -np.inf
             for i in xrange(maxiter):
@@ -95,28 +91,35 @@ class VPL:
 
                 if verbose:
                     sys.stdout.write('\n')
-                    print 'Subiter: {:3d}\tmu increment: {:.4f}\tsigma increment: {:.4f}\ttime: {:.2f}'.format(i, mu_diff, sigma_diff, t)
-                    print 'Subiter: {:3d}\tBound: {:.2f}\tBound Improvement: {:.5f}\ttime: {:.2f}'.format(i, self.bound, improvement, t)
-                if bounds is not None:
-                    bounds[i] = self.bound
+                    print 'Subiter: {:3d}\tmu diff: {:.4f}\tsigma diff {:.4f}\tbound: {:.2f}\tbound improvement: {:.5f}\ttime: {:.2f}'.format(i, mu_diff, sigma_diff, self.bound, improvement, t)
 
-                if improvement < rtol:
+                if improvement < rtol or (mu_diff <= atol and sigma_diff <= atol):
                     break
                 old_bound = self.bound
-
-                if mu_diff <= atol and sigma_diff <= atol:
-                    break
 
     def update_theta_batch(self, disp):
         def f(theta):
             mu, sigma = theta[:, :self.T], np.exp(theta[:, -self.T:])
-            EA, EA2, ElogA = self._comp_expect(mu, sigma)
-            pass
+            EA, EA2, ElogA = comp_expect(mu, sigma)
+
+            EV = np.dot(EA, self.U)
+            EV2 = np.dot(EA2, self.U**2) + EV**2 - np.dot(EA**2, self.U**2)
+
+            tmp1 = (2*self.V * EV - EV2) * self.gamma/2
+            tmp2 = ElogA * (self.alpha - 1) - EA * self.alpha
+            tmp3 = np.log(sigma)/2 + mu
+            
+            return -(tmp1.sum() + tmp2.sum() + tmp3.sum())
 
         def df(theta):
             mu, sigma = theta[:, :self.T], np.exp(theta[:, -self.T:])
-            EA, EA2, ElogA = self._comp_expect(mu, sigma)
-            pass
+            EA, EA2, _ = comp_expect(mu, sigma)
+
+            grad_mu = self.alpha + EA2 * qcoef + EA * lcoef 
+            grad_sigma = sigma * (1./(2*sigma) + EA2 * qcoef +  EA * lcoef/2)
+            return -np.hstack((grad_mu, grad_sigma)) 
+
+        qcoef = -np.sum(self.U**2 * self.gamma, axis=1)
 
         theta0 = np.hstack((self.mu, np.log(self.sigma)))
         theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
@@ -125,20 +128,20 @@ class VPL:
 
         self.mu, self.sigma = theta_hat[:, :self.T], theta_hat[:, -self.T:]
         assert(np.all(self.sigma > 0))
-        self.EA, self.EA2, self.ElogA = self._comp_expect(self.mu, self.sigma)
+        self.EA, self.EA2, self.ElogA = comp_expect(self.mu, self.sigma)
 
 
     def update_theta(self, l, disp):                
         def f(theta):
             mu, sigma = theta[:self.T], np.exp(theta[-self.T:])
-            Ea, Ea2, Eloga = self._comp_expect(mu, sigma) 
+            Ea, Ea2, Eloga = comp_expect(mu, sigma) 
 
             const = (self.alpha[l] - 1) * Eloga + np.log(sigma)/2 + mu
             return -np.sum(const + Ea * lcoef + Ea2 * qcoef)
                 
         def df(theta):
             mu, sigma = theta[:self.T], np.exp(theta[-self.T:])
-            Ea, Ea2, _ = self._comp_expect(mu, sigma) 
+            Ea, Ea2, _ = comp_expect(mu, sigma) 
 
             grad_mu = Ea * lcoef + 2 * Ea2 * qcoef + self.alpha[l]   
             grad_sigma = sigma * (Ea * lcoef/2 + 2 * Ea2 * qcoef + 1./(2*sigma)) 
@@ -165,7 +168,7 @@ class VPL:
         self.mu[:,l], self.sigma[:,l] = theta_hat[:self.T], np.exp(theta_hat[-self.T:])
 
         assert(np.all(self.sigma[:,l] > 0))
-        self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = self._comp_expect(self.mu[:,l], self.sigma[:,l])
+        self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = comp_expect(self.mu[:,l], self.sigma[:,l])
 
     def vb_m(self, atol=0.01, verbose=True, disp=0):
         """ Perform one M-step, update the model parameters with A fixed from E-step
@@ -262,6 +265,10 @@ class VPL:
         self.obj -= 1./2 * np.sum((self.V**2 - 2 * self.V * EV + EV2) * self.gamma)
         self.obj += self.T * np.sum(self.alpha * np.log(self.alpha) - special.gammaln(self.alpha))
         self.obj += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
+
+
+def comp_expect(mu, sigma):
+    return (np.exp(mu + sigma/2), np.exp(2*mu + 2*sigma), mu)
 
 
 def approx_grad(f, x, delta=1e-8, args=()):
