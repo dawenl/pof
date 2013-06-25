@@ -11,7 +11,9 @@ def parse_samples(samples_csv, F, T, L, LEN_BATCH=5000):
     length = len(header) - SKIPCOLS
     f.close()
 
-    assert(F * L + T * L + L + F == length)
+    exp_length = F * L + T * L + L + F
+    print 'expected # of variables: {}\tactual # of variables: {}'.format(exp_length, length)
+    assert(exp_length == length)
     
     U = np.zeros((L, F))
     A = np.zeros((T, L))
@@ -36,6 +38,7 @@ def parse_EA(samples_csv, T, L, LEN_BATCH=5000):
     length = len(header) - SKIPCOLS
     f.close()
 
+    print 'expected # of variables: {}\tactual # of variables: {}'.format(T * L, length)
     assert(T * L == length)
     
     EA = np.zeros((T, L))

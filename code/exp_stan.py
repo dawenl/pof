@@ -3,7 +3,7 @@
 
 # <codecell>
 
-import functools, librosa
+import functools, glob, librosa
 import scipy.io as sio
 
 from scikits.audiolab import Sndfile, Format
@@ -20,15 +20,16 @@ specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower
 # <codecell>
 
 ## parameters
-L = 40
-samples_csv = 'samples_L{}_wp.csv'.format(L)
-matfile = 'sa1.mat'
+L = 50
+samples_csv = 'samples_spk_L{}.csv'.format(L)
+matfile = 'spk1.mat'
 
 # <codecell>
 
 d = sio.loadmat(matfile)
 V = d['V']
 F, T = V.shape
+print F, T
 
 # <codecell>
 
@@ -44,8 +45,26 @@ def load_timit(wav_dir):
 TIMIT_DIR = '../../../timit/train/'
 n_fft = 1024
 hop_length = 512
-wav, sr = load_timit(TIMIT_DIR + 'dr1/fcjf0/sa1.wav')
-W_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+speaker = True
+
+if speaker:
+    spk_dir = 'dr1/fcjf0/'
+    files = glob.glob(TIMIT_DIR + spk_dir + '*.wav')
+
+    N_train = 8
+    np.random.seed(98765)
+    idx = np.random.permutation(10)
+    
+    W_complex = None
+    for file_dir in files[:N_train]:
+        wav, sr = load_timit(file_dir)
+        if W_complex is None:
+            W_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+        else:
+            W_complex = np.hstack((W_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))) 
+else:
+    wav, sr = load_timit(TIMIT_DIR + 'dr1/fcjf0/sa1.wav')
+    W_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
 
 # <codecell>
 
@@ -64,7 +83,7 @@ pass
 
 for l in xrange(L):
     figure(l)
-    plot(np.exp(U[l,:]))
+    plot((U[l,:]))
 
 # <codecell>
 
@@ -99,6 +118,17 @@ write_wav(wav_rec, 'rec_stan_L{}_F{}_H{}.wav'.format(L, n_fft, hop_length))
 # <codecell>
 
 plot(flipud(sort(alpha)), '-o')
+pass
+
+# <codecell>
+
+reload(samples_parser)
+EA, EA2, ElogA = samples_parser.parse_EA('samples_emp_L20.csv', 90, 20)
+
+# <codecell>
+
+specshow(EA)
+colorbar()
 pass
 
 # <codecell>

@@ -68,30 +68,39 @@ def write_wav(w, filename, channels=1, samplerate=16000):
 
 # <codecell>
 
+gender = 'f'
+dirs = !ls -d "$TIMIT_DIR"dr1/"$gender"*
+
+files = [glob.glob(spk_dir + '/*.wav') for spk_dir in dirs]
+n_files = len(files)
+
+# <codecell>
+
 n_fft = 1024
 hop_length = 512
-spk_dir = 'dr1/fcjf0/'
-files = glob.glob(TIMIT_DIR + spk_dir + '*.wav')
 
-N_train = 8
-N_test = 2
+N_train = int(0.8 * n_files)
+N_test = n_files - N_train
 np.random.seed(98765)
-idx = np.random.permutation(10)
+
+idx = np.random.permutation(n_files)
 
 W_complex_train = None
 for file_dir in files[:N_train]:
-    wav, sr = load_timit(file_dir)
-    if W_complex_train is None:
-        W_complex_train = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
-    else:
-        W_complex_train = np.hstack((W_complex_train, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))) 
+    for wav_dir in file_dir:
+        wav, sr = load_timit(wav_dir)
+        if W_complex_train is None:
+            W_complex_train = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+        else:
+            W_complex_train = np.hstack((W_complex_train, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))) 
 W_complex_test = None
 for file_dir in files[N_train:]:
-    wav, sr = load_timit(file_dir)
-    if W_complex_test is None:
-        W_complex_test = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
-    else:
-        W_complex_test = np.hstack((W_complex_test, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
+    for wav_dir in file_dir:
+        wav, sr = load_timit(wav_dir)
+        if W_complex_test is None:
+            W_complex_test = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+        else:
+            W_complex_test = np.hstack((W_complex_test, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
 
 # <codecell>
 
@@ -105,23 +114,22 @@ pass
 
 # <codecell>
 
-reload(vpl)
 threshold = 0.01
 old_obj = -np.inf
 L = 50
 maxiter = 100
 cold_start = False
-batch = True
+batch = False
 
 sfd = vpl.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, batch=batch, disp=1)
+    sfd.vb_e(cold_start=cold_start, batch=batch, disp=0)
     if sfd.vb_m(disp=1):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
-    print 'After ITERATION: {}\tImprovement: {:.4f}'.format(i, improvement)
+    print 'After ITERATION: {}\tObjective improvement: {:.4f}'.format(i, improvement)
     if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
         break
     old_obj = sfd.obj
@@ -157,14 +165,6 @@ subplot(212)
 specshow(tmpA.T)
 colorbar()
 title('A')
-tight_layout()
-pass
-
-# <codecell>
-
-for l in xrange(L):
-    figure(l)
-    plot(sfd.U[l])
 tight_layout()
 pass
 
@@ -211,11 +211,10 @@ pass
 
 str_cold_start = 'cold' if cold_start else 'warm'
 w_rec = librosa.istft(W_rec, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(w_rec, 'rec_spk_fit_L{}_F{}_H{}_{}.wav'.format(L, n_fft, hop_length, str_cold_start))
+write_wav(w_rec, 'rec_gen{}_fit_L{}_F{}_H{}_{}.wav'.format(gender, L, n_fft, hop_length, str_cold_start))
 w_rec_org = librosa.istft(W_complex_test, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(w_rec_org, 'rec_spk_org.wav')
+write_wav(w_rec_org, 'rec_gen{}_org.wav'.format(gender))
 
 # <codecell>
 
-save_object(sfd, 'dr1_fcjf0_L{}_F{}_H{}_{}_Seed98765'.format(L, n_fft, hop_length, str_cold_start))
 
