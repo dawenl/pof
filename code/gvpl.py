@@ -188,7 +188,7 @@ class SF_Dict:
         assert(np.all(self.mu[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = comp_expect(self.a[:,l], self.mu[:,l])
 
-    def vb_m(self, atol=0.01, verbose=True, disp=0, update_alpha=True):
+    def vb_m(self, batch=True, atol=0.01, verbose=True, disp=0, update_alpha=True):
         """ Perform one M-step, update the model parameters with A fixed from E-step
 
         Parameters
@@ -206,8 +206,11 @@ class SF_Dict:
         old_U = self.U.copy()
         old_gamma = self.gamma.copy()
         old_alpha = self.alpha.copy()
-        for l in xrange(self.L):
-            self.update_u(l, disp)
+        if batch:
+            self.update_u_batch(disp) 
+        else:
+            for l in xrange(self.L):
+                self.update_u(l, disp)
         self.update_gamma()
         if update_alpha:
             self.update_alpha(disp)
@@ -220,6 +223,24 @@ class SF_Dict:
         if U_diff < atol and sigma_diff < atol and alpha_diff < atol:
             return True
         return False
+
+    def update_u_batch(self, disp):
+        def f(u):
+            pass 
+
+        def df(u):
+            pass
+
+        u0 = self.U.ravel()
+        u_hat, _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
+        self.U = u_hat.reshape(self.L, self.F)
+        if disp and d['warnflag']:
+            if d['warnflag'] == 2:
+                print 'U: {}, f={}'.format(d['task'], f(u_hat))
+            else:
+                print 'U: {}, f={}'.format(d['warnflag'], f(u_hat))
+
+
 
     def update_u(self, l, disp):
         def f(u):
