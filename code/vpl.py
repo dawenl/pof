@@ -1,6 +1,8 @@
 """
 CREATED: 2013-06-14 10:31:54 by Dawen Liang <daliang@adobe.com>   
 
+Source-filter dictionary prior learning with log-normal variational distribution
+
 """
 
 import sys, time
@@ -37,62 +39,62 @@ class SF_Dict:
         self.EA, self.EA2, self.ElogA = comp_expect(self.mu, self.sigma)
 
     
-    def vb(self, verbose=True, disp=0):
-        print 'Do the whole optimization jointly...'
-        start_t = time.time()
-        self.update_all(disp)
-        t = time.time() - start_t
-        if verbose:
-            print 'Batch update\ttime: {:.2f}'.format(t)
+    #def vb(self, verbose=True, disp=0):
+    #    print 'Do the whole optimization jointly...'
+    #    start_t = time.time()
+    #    self.update_all(disp)
+    #    t = time.time() - start_t
+    #    if verbose:
+    #        print 'Batch update\ttime: {:.2f}'.format(t)
 
-    def update_all(self, disp):
-        def f(theta):
-            mu, sigma = theta[:self.T * self.L].reshape(self.T, self.L), np.exp(theta[-self.T * self.L:].reshape(self.T, self.L))
-            EA, EA2, ElogA = comp_expect(mu, sigma)
+    #def update_all(self, disp):
+    #    def f(theta):
+    #        mu, sigma = theta[:self.T * self.L].reshape(self.T, self.L), np.exp(theta[-self.T * self.L:].reshape(self.T, self.L))
+    #        EA, EA2, ElogA = comp_expect(mu, sigma)
 
-            EV = np.dot(EA, self.U)
-            EV2 = np.dot(EA2, self.U**2) + EV**2 - np.dot(EA**2, self.U**2)
+    #        EV = np.dot(EA, self.U)
+    #        EV2 = np.dot(EA2, self.U**2) + EV**2 - np.dot(EA**2, self.U**2)
 
-            tmp1 = (2*self.V * EV - EV2) * self.gamma/2
-            tmp2 = ElogA * (self.alpha - 1) - EA * self.alpha
-            tmp3 = np.log(sigma)/2 + mu
-            
-            return -(tmp1.sum() + tmp2.sum() + tmp3.sum())
+    #        tmp1 = (2*self.V * EV - EV2) * self.gamma/2
+    #        tmp2 = ElogA * (self.alpha - 1) - EA * self.alpha
+    #        tmp3 = np.log(sigma)/2 + mu
+    #        
+    #        return -(tmp1.sum() + tmp2.sum() + tmp3.sum())
 
-        def df(theta):
-            mu, sigma = theta[:self.T * self.L].reshape(self.T, self.L), np.exp(theta[-self.T * self.L:].reshape(self.T, self.L))
-            EA, EA2, _ = comp_expect(mu, sigma)
+    #    def df(theta):
+    #        mu, sigma = theta[:self.T * self.L].reshape(self.T, self.L), np.exp(theta[-self.T * self.L:].reshape(self.T, self.L))
+    #        EA, EA2, _ = comp_expect(mu, sigma)
 
-            grad_mu = np.zeros((self.T, self.L))
-            grad_sigma = np.zeros((self.T, self.L))
-            for l in xrange(self.L):
-                Eres = self.V - np.dot(EA, self.U) + np.outer(EA[:,l], self.U[l,:])
-                lcoef = np.sum(Eres * self.U[l, :] * self.gamma, axis=1) - self.alpha[l]
-                grad_mu[:, l] = EA[:, l] * lcoef + EA2[:, l] * qcoef[l] + self.alpha[l]
-                grad_sigma[:, l] = sigma[:, l] * (EA[:, l] * lcoef/2 + EA2[:, l] * qcoef[l] + 1./(2*sigma[:, l]))
-            return -np.vstack((grad_mu, grad_sigma)).ravel() 
+    #        grad_mu = np.zeros((self.T, self.L))
+    #        grad_sigma = np.zeros((self.T, self.L))
+    #        for l in xrange(self.L):
+    #            Eres = self.V - np.dot(EA, self.U) + np.outer(EA[:,l], self.U[l,:])
+    #            lcoef = np.sum(Eres * self.U[l, :] * self.gamma, axis=1) - self.alpha[l]
+    #            grad_mu[:, l] = EA[:, l] * lcoef + EA2[:, l] * qcoef[l] + self.alpha[l]
+    #            grad_sigma[:, l] = sigma[:, l] * (EA[:, l] * lcoef/2 + EA2[:, l] * qcoef[l] + 1./(2*sigma[:, l]))
+    #        return -np.vstack((grad_mu, grad_sigma)).ravel() 
 
-        # the quadratic exp(theta^2) terms share the same coefficients
-        qcoef = -np.sum(self.U**2 * self.gamma, axis=1)
+    #    # the quadratic exp(theta^2) terms share the same coefficients
+    #    qcoef = -np.sum(self.U**2 * self.gamma, axis=1)
 
-        theta0 = np.vstack((self.mu, np.log(self.sigma))).ravel()   # 2T * L matrix, raveled rowwise
-        theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
-        if disp and d['warning']:
-            if d['warnflag'] == 2:
-                print 'A: {}, f={}'.format(d['task'], f(theta_hat))
-            else:
-                print 'A: {}, f={}'.format(d['warnflag'], f(theta_hat))
-            app_grad = approx_grad(f, theta_hat)
-            for t in xrange(self.T):
-                for l in xrange(self.L):
-                    idx = t * self.T + l
-                    print 'mu[{:3d}, {}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[idx], app_grad[idx], df(theta_hat)[idx], np.abs(app_grad[idx] - df(theta_hat)[idx]))
-                    idx += self.T * self.L
-                    print 'sigma[{:3d}, {}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[idx], app_grad[idx], df(theta_hat)[idx], np.abs(app_grad[idx] - df(theta_hat)[idx]))
+    #    theta0 = np.vstack((self.mu, np.log(self.sigma))).ravel()   # 2T * L matrix, raveled rowwise
+    #    theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
+    #    if disp and d['warning']:
+    #        if d['warnflag'] == 2:
+    #            print 'A: {}, f={}'.format(d['task'], f(theta_hat))
+    #        else:
+    #            print 'A: {}, f={}'.format(d['warnflag'], f(theta_hat))
+    #        app_grad = approx_grad(f, theta_hat)
+    #        for t in xrange(self.T):
+    #            for l in xrange(self.L):
+    #                idx = t * self.T + l
+    #                print 'mu[{:3d}, {}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[idx], app_grad[idx], df(theta_hat)[idx], np.abs(app_grad[idx] - df(theta_hat)[idx]))
+    #                idx += self.T * self.L
+    #                print 'sigma[{:3d}, {}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[idx], app_grad[idx], df(theta_hat)[idx], np.abs(app_grad[idx] - df(theta_hat)[idx]))
 
-        self.mu, self.sigma = theta_hat[:self.T * self.L].reshape(self.T, self.L), np.exp(theta_hat[-self.T * self.L:].reshape(self.T, self.L))
-        assert(np.all(self.sigma > 0))
-        self.EA, self.EA2, self.ElogA = comp_expect(self.mu, self.sigma)
+    #    self.mu, self.sigma = theta_hat[:self.T * self.L].reshape(self.T, self.L), np.exp(theta_hat[-self.T * self.L:].reshape(self.T, self.L))
+    #    assert(np.all(self.sigma > 0))
+    #    self.EA, self.EA2, self.ElogA = comp_expect(self.mu, self.sigma)
 
 
     def vb_e(self, cold_start=True, batch=True, smoothness=100, maxiter=500,
@@ -127,9 +129,14 @@ class SF_Dict:
 
         if batch:
             start_t = time.time()
-            self.update_theta_batch(disp)
+            #self.update_theta_batch(disp)
+            for t in xrange(self.T):
+                self.update_theta_batch(t, disp)
+                if verbose and not t % 100:
+                    sys.stdout.write('.')
             t = time.time() - start_t
             if verbose:
+                sys.stdout.write('\n')
                 print 'Batch update\ttime: {:.2f}'.format(t)
         else:
             old_bound = -np.inf
@@ -156,54 +163,48 @@ class SF_Dict:
                     break
                 old_bound = self.bound
 
-    def update_theta_batch(self, disp):
+    def update_theta_batch(self, t, disp):
         def f(theta):
-            mu, sigma = theta[:self.T * self.L].reshape(self.T, self.L), np.exp(theta[-self.T * self.L:].reshape(self.T, self.L))
-            EA, EA2, ElogA = comp_expect(mu, sigma)
+            mu, sigma = theta[:self.L], np.exp(theta[-self.L:]) 
+            Ea, Ea2, Eloga = comp_expect(mu, sigma)
 
-            EV = np.dot(EA, self.U)
-            EV2 = np.dot(EA2, self.U**2) + EV**2 - np.dot(EA**2, self.U**2)
+            Ev = np.dot(Ea, self.U)
+            Ev2 = np.dot(Ea2, self.U**2) + Ev**2 - np.dot(Ea**2, self.U**2)
 
-            tmp1 = (2*self.V * EV - EV2) * self.gamma/2
-            tmp2 = ElogA * (self.alpha - 1) - EA * self.alpha
-            tmp3 = np.log(sigma)/2 + mu
-            
-            return -(tmp1.sum() + tmp2.sum() + tmp3.sum())
+            likeli = (2*self.V[t,:]*Ev - Ev2) * self.gamma/2
+            prior = (self.alpha - 1) * Eloga - self.alpha * Ea
+            entropy = np.log(sigma)/2 + mu
+
+            return -(likeli.sum() + prior.sum() + entropy.sum())
 
         def df(theta):
-            mu, sigma = theta[:self.T * self.L].reshape(self.T, self.L), np.exp(theta[-self.T * self.L:].reshape(self.T, self.L))
-            EA, EA2, _ = comp_expect(mu, sigma)
+            mu, sigma = theta[:self.L], np.exp(theta[-self.L:]) 
+            Ea, Ea2, Eloga = comp_expect(mu, sigma)
 
-            grad_mu = np.zeros((self.T, self.L))
-            grad_sigma = np.zeros((self.T, self.L))
-            for l in xrange(self.L):
-                Eres = self.V - np.dot(EA, self.U) + np.outer(EA[:,l], self.U[l,:])
-                lcoef = np.sum(Eres * self.U[l, :] * self.gamma, axis=1) - self.alpha[l]
-                grad_mu[:, l] = EA[:, l] * lcoef + EA2[:, l] * qcoef[l] + self.alpha[l]
-                grad_sigma[:, l] = sigma[:, l] * (EA[:, l] * lcoef/2 + EA2[:, l] * qcoef[l] + 1./(2*sigma[:, l]))
-            return -np.vstack((grad_mu, grad_sigma)).ravel() 
+            Eres = self.V[t,:] - np.dot(Ea, self.U) + self.U * Ea[:,np.newaxis]
+            lcoef = np.sum(self.U * Eres * self.gamma, axis=1) - self.alpha 
+            grad_mu = Ea * lcoef + Ea2 * qcoef + self.alpha
+            grad_sigma = sigma * (Ea * lcoef/2 + Ea2 * qcoef + 1./(2*sigma)) 
 
-        # the quadratic exp(theta^2) terms share the same coefficients
+            return -np.hstack((grad_mu, grad_sigma))
+
         qcoef = -np.sum(self.U**2 * self.gamma, axis=1)
 
-        theta0 = np.vstack((self.mu, np.log(self.sigma))).ravel()   # 2T * L matrix, raveled rowwise
+        theta0 = np.hstack((self.mu[t,:], np.log(self.sigma[t,:])))
         theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
         if disp and d['warnflag']:
             if d['warnflag'] == 2:
-                print 'A: {}, f={}'.format(d['task'], f(theta_hat))
+                print 'A[{}, :]: {}, f={}'.format(t, d['task'], f(theta_hat))
             else:
-                print 'A: {}, f={}'.format(d['warnflag'], f(theta_hat))
+                print 'A[{}, :]: {}, f={}'.format(t, d['warnflag'], f(theta_hat))
             app_grad = approx_grad(f, theta_hat)
-            for t in xrange(self.T):
-                for l in xrange(self.L):
-                    idx = t * self.T + l
-                    print 'mu[{:3d}, {}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[idx], app_grad[idx], df(theta_hat)[idx], np.abs(app_grad[idx] - df(theta_hat)[idx]))
-                    idx += self.T * self.L
-                    print 'sigma[{:3d}, {}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[idx], app_grad[idx], df(theta_hat)[idx], np.abs(app_grad[idx] - df(theta_hat)[idx]))
+            for l in xrange(self.L):
+                print 'mu[{}, {:3d}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[l], app_grad[l], df(theta_hat)[l], np.abs(app_grad[l] - df(theta_hat)[l]))
+                print 'sigma[{}, {:3d}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[l + self.L], app_grad[l + self.L], df(theta_hat)[l + self.L], np.abs(app_grad[l + self.L] - df(theta_hat)[l + self.L]))
 
-        self.mu, self.sigma = theta_hat[:self.T * self.L].reshape(self.T, self.L), np.exp(theta_hat[-self.T * self.L:].reshape(self.T, self.L))
-        assert(np.all(self.sigma > 0))
-        self.EA, self.EA2, self.ElogA = comp_expect(self.mu, self.sigma)
+        self.mu[t,:], self.sigma[t,:] = theta_hat[:self.L], np.exp(theta_hat[-self.L:])
+        assert(np.all(self.sigma[t,:] > 0))
+        self.EA[t,:], self.EA2[t,:], self.ElogA[t,:] = comp_expect(self.mu[t,:], self.sigma[t,:])
 
     def update_theta(self, l, disp):                
         def f(theta):

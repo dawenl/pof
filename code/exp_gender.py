@@ -41,24 +41,6 @@ def load_timit(wav_dir):
     f = Sndfile(wav_dir, 'r')
     wav = f.read_frames(f.nframes)
     return (wav, f.samplerate)
-
-def learn_prior(W, L, maxiter=50, seed=None):
-    sfd = dp.SF_Dict(W, L=L, seed=seed)
-    obj = []
-    for i in xrange(maxiter):
-        print 'ITERATION: {}'.format(i)
-        sfd.vb_e()
-        if sfd.vb_m():
-            break
-        obj.append(sfd.obj)
-    return (sfd.U, sfd.gamma, sfd.alpha, obj)
-
-def encode(W, U, gamma, alpha, seed=None):
-    L, _ = U.shape
-    sfd = dp.SF_Dict(W, L=L, seed=seed)
-    sfd.U, sfd.gamma, sfd.alpha = U, gamma, alpha
-    sfd.vb_e()
-    return sfd.EA
     
 def write_wav(w, filename, channels=1, samplerate=16000):
     f_out = Sndfile(filename, 'w', format=Format(), channels=channels, samplerate=samplerate)
@@ -119,7 +101,7 @@ old_obj = -np.inf
 L = 50
 maxiter = 100
 cold_start = False
-batch = False
+batch = True
 
 sfd = vpl.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
@@ -213,7 +195,7 @@ str_cold_start = 'cold' if cold_start else 'warm'
 w_rec = librosa.istft(W_rec, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(w_rec, 'rec_gen{}_fit_L{}_F{}_H{}_{}.wav'.format(gender, L, n_fft, hop_length, str_cold_start))
 w_rec_org = librosa.istft(W_complex_test, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(w_rec_org, 'rec_gen{}_org.wav'.format(gender))
+write_wav(w_rec_org, 'rec_gen{}_org.wav'.format(gegender))
 
 # <codecell>
 

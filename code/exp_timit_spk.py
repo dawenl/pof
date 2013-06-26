@@ -11,7 +11,7 @@ from scikits.audiolab import Sndfile, Format
 from matplotlib.pyplot import *
 
 import librosa
-import vpl
+import gvpl as vpl
 
 # <codecell>
 
@@ -41,24 +41,6 @@ def load_timit(wav_dir):
     f = Sndfile(wav_dir, 'r')
     wav = f.read_frames(f.nframes)
     return (wav, f.samplerate)
-
-def learn_prior(W, L, maxiter=50, seed=None):
-    sfd = dp.SF_Dict(W, L=L, seed=seed)
-    obj = []
-    for i in xrange(maxiter):
-        print 'ITERATION: {}'.format(i)
-        sfd.vb_e()
-        if sfd.vb_m():
-            break
-        obj.append(sfd.obj)
-    return (sfd.U, sfd.gamma, sfd.alpha, obj)
-
-def encode(W, U, gamma, alpha, seed=None):
-    L, _ = U.shape
-    sfd = dp.SF_Dict(W, L=L, seed=seed)
-    sfd.U, sfd.gamma, sfd.alpha = U, gamma, alpha
-    sfd.vb_e()
-    return sfd.EA
     
 def write_wav(w, filename, channels=1, samplerate=16000):
     f_out = Sndfile(filename, 'w', format=Format(), channels=channels, samplerate=samplerate)
@@ -111,7 +93,7 @@ old_obj = -np.inf
 L = 50
 maxiter = 100
 cold_start = False
-batch = True
+batch = False
 
 sfd = vpl.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
@@ -162,6 +144,11 @@ pass
 
 # <codecell>
 
+plot(meanA.ravel(), '-o')
+pass
+
+# <codecell>
+
 for l in xrange(L):
     figure(l)
     plot(sfd.U[l])
@@ -181,8 +168,7 @@ pass
 sf_encoder = vpl.SF_Dict(np.abs(W_complex_test.T), L=L, seed=98765)
 sf_encoder.U, sf_encoder.gamma, sf_encoder.alpha = sfd.U, sfd.gamma, sfd.alpha
 
-batch = True
-sf_encoder.vb_e(cold_start = False, batch=batch, maxiter=100, atol=0.005)
+sf_encoder.vb_e(cold_start = False, batch=True)
 A = sf_encoder.EA
 
 # <codecell>
