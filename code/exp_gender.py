@@ -11,7 +11,7 @@ from scikits.audiolab import Sndfile, Format
 from matplotlib.pyplot import *
 
 import librosa
-import vpl
+import gvpl as vpl
 
 # <codecell>
 
@@ -111,8 +111,8 @@ for i in xrange(maxiter):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
-    print 'After ITERATION: {}\tObjective improvement: {:.4f}'.format(i, improvement)
-    if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
+    print 'After ITERATION: {}\tObjective: {:.2f}\tOld objective: {:.2f}\tImprovement: {:.4f}'.format(i, sfd.obj, old_obj, improvement)
+    if improvement < threshold:
         break
     old_obj = sfd.obj
 
@@ -152,6 +152,17 @@ pass
 
 # <codecell>
 
+for l in xrange(L):
+    figure(l)
+    subplot(121)
+    plot(sfd.U[l])
+    subplot(122)
+    plot(np.exp(sfd.U[l]))
+    tight_layout()
+pass
+
+# <codecell>
+
 figure()
 plot(sfd.alpha, '-o')
 figure()
@@ -163,8 +174,7 @@ pass
 sf_encoder = vpl.SF_Dict(np.abs(W_complex_test.T), L=L, seed=98765)
 sf_encoder.U, sf_encoder.gamma, sf_encoder.alpha = sfd.U, sfd.gamma, sfd.alpha
 
-batch = True
-sf_encoder.vb_e(cold_start = False, batch=batch, maxiter=100, atol=0.005)
+sf_encoder.vb_e(cold_start = False, batch=True)
 A = sf_encoder.EA
 
 # <codecell>
@@ -195,7 +205,7 @@ str_cold_start = 'cold' if cold_start else 'warm'
 w_rec = librosa.istft(W_rec, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(w_rec, 'rec_gen{}_fit_L{}_F{}_H{}_{}.wav'.format(gender, L, n_fft, hop_length, str_cold_start))
 w_rec_org = librosa.istft(W_complex_test, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(w_rec_org, 'rec_gen{}_org.wav'.format(gegender))
+write_wav(w_rec_org, 'rec_gen{}_org.wav'.format(gender))
 
 # <codecell>
 

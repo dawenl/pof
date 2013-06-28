@@ -54,16 +54,17 @@ pass
 reload(vpl)
 threshold = 0.005
 old_obj = -np.inf
-maxiter = 5
+maxiter = 50
 cold_start = False
-batch = False
+batch_e = True
+batch_m = False
 
 sfd = vpl.SF_Dict(W, L=L, seed=98765)
 obj = []
 
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, batch=batch, disp=1)
-    if sfd.vb_m(disp=1, atol=1e-3):
+    sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=1)
+    if sfd.vb_m(batch=batch_m, disp=1, atol=1e-3):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)

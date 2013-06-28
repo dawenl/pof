@@ -87,24 +87,23 @@ pass
 
 # <codecell>
 
-reload(vpl)
 threshold = 0.01
 old_obj = -np.inf
 L = 50
 maxiter = 100
 cold_start = False
-batch = False
+batch = True
 
 sfd = vpl.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, batch=batch, disp=1)
+    sfd.vb_e(cold_start=cold_start, batch=batch, disp=0)
     if sfd.vb_m(disp=1):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
-    print 'After ITERATION: {}\tImprovement: {:.4f}'.format(i, improvement)
-    if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
+    print 'After ITERATION: {}\tObjective: {:.2f}\tOld objective: {:.2f}\tImprovement: {:.4f}'.format(i, sfd.obj, old_obj, improvement)
+    if improvement < threshold:
         break
     old_obj = sfd.obj
 

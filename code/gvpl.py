@@ -71,7 +71,6 @@ class SF_Dict:
 
         if batch:
             start_t = time.time()
-            #self.update_theta_batch(disp)
             for t in xrange(self.T):
                 self.update_theta_batch(t, disp)
                 if verbose and not t % 100:
@@ -226,10 +225,18 @@ class SF_Dict:
 
     def update_u_batch(self, disp):
         def f(u):
-            pass 
+            U = u.reshape(self.L, self.F) 
+            EV = np.dot(self.EA, U)
+            EV2 = np.dot(self.EA2, U**2) + EV**2 - np.dot(self.EA**2, U**2)
+            return -np.sum(2*self.V * EV - EV2)
 
         def df(u):
-            pass
+            U = u.reshape(self.L, self.F)
+            grad_U = np.zeros_like(U)
+            for l in xrange(self.L):
+                Eres = self.V - np.dot(self.EA, U) + np.outer(self.EA[:,l], U[l,:])
+                grad_U[l,:] = np.sum(np.outer(self.EA2[:,l], U[l,:]) - Eres * self.EA[:,l][np.newaxis].T, axis=0)
+            return grad_U.ravel()
 
         u0 = self.U.ravel()
         u_hat, _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
@@ -239,8 +246,6 @@ class SF_Dict:
                 print 'U: {}, f={}'.format(d['task'], f(u_hat))
             else:
                 print 'U: {}, f={}'.format(d['warnflag'], f(u_hat))
-
-
 
     def update_u(self, l, disp):
         def f(u):
