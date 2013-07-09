@@ -15,6 +15,7 @@ import gvpl as vpl
 
 # <codecell>
 
+fig = functools.partial(figure, figsize=(16,4))
 specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower', interpolation='nearest')
 
 def logspec(X, amin=1e-10, dbdown=80):

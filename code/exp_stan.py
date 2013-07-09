@@ -16,12 +16,17 @@ import samples_parser
 # <codecell>
 
 specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower', interpolation='nearest')
+fig = functools.partial(figure, figsize=(16,4))
+
+def logspec(X, amin=1e-10, dbdown=80):
+    logX = 20 * np.log10(np.maximum(X, amin))
+    return np.maximum(logX, logX.max() - dbdown)
 
 # <codecell>
 
 ## parameters
 L = 50
-samples_csv = 'samples_spk_L{}.csv'.format(L)
+samples_csv = 'samples_spk_L{}_wp.csv'.format(L)
 matfile = 'spk1.mat'
 
 # <codecell>
@@ -81,23 +86,62 @@ pass
 
 # <codecell>
 
-for l in xrange(L):
-    figure(l)
-    plot((U[l,:]))
+meanA = np.mean(A, axis=0, keepdims=True)
+
+tmpA = A / meanA
+tmpU = U * meanA.T
+
+subplot(211)
+specshow(tmpU.T)
+colorbar()
+title('U')
+subplot(212)
+specshow(tmpA.T)
+colorbar()
+title('A')
+tight_layout()
+pass
 
 # <codecell>
 
-V_rec = np.dot(U.T, A.T)
+plot(np.sum(U[alpha > 1], axis=0))
+pass
+
+# <codecell>
+
+idx = np.where(alpha > 1)[0]
+for i in idx: 
+    fig()
+    subplot(121)
+    plot(U[i])
+    subplot(122)
+    hist(A[:, i], bins=20)
+pass
+
+# <codecell>
+
+for l in xrange(L):
+    fig()
+    subplot(121)
+    plot(U[l])
+    subplot(122)
+    plot(np.exp(U[l]))
+    tight_layout()
+pass
+
+# <codecell>
+
+W_rec = np.exp(np.dot(U.T, A.T))
 subplot(311)
-specshow(V_rec)
+specshow(logspec(W_rec))
 title('UA')
 colorbar()
 subplot(312)
-specshow(V)
+specshow(logspec(np.exp(V)))
 title('log(W)')
 colorbar()
 subplot(313)
-specshow(np.exp(V_rec) - np.exp(V))
+specshow(W_rec - np.exp(V))
 title('exp(UA) - W')
 colorbar()
 tight_layout()
@@ -105,24 +149,16 @@ pass
 
 # <codecell>
 
-def write_wav(w, filename, channels=1, samplerate=16000):
-    f_out = Sndfile(filename, 'w', format=Format(), channels=channels, samplerate=samplerate)
-    f_out.write_frames(w)
-    f_out.close()
-    pass
-
-W_rec = np.exp(V_rec) * np.exp(1j * np.angle(W_complex))
-wav_rec = librosa.istft(W_rec, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(wav_rec, 'rec_stan_L{}_F{}_H{}.wav'.format(L, n_fft, hop_length))
-
-# <codecell>
-
-plot(flipud(sort(alpha)), '-o')
+fig()
+subplot(121)
+semilogy(flipud(sort(alpha)), '-o')
+subplot(122)
+plot(np.sqrt(1./gamma))
 pass
 
 # <codecell>
 
-reload(samples_parser)
+## Load results from empirical Bayes
 EA, EA2, ElogA = samples_parser.parse_EA('samples_emp_L20.csv', 90, 20)
 
 # <codecell>

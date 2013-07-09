@@ -11,10 +11,11 @@ from scikits.audiolab import Sndfile, Format
 from matplotlib.pyplot import *
 
 import librosa
-import vpl
+import gvpl as vpl
 
 # <codecell>
 
+fig = functools.partial(figure, figsize=(16,4))
 specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower', interpolation='nearest')
 
 def logspec(X, amin=1e-10, dbdown=80):
@@ -83,17 +84,17 @@ pass
 
 threshold = 0.01
 old_obj = -np.inf
-L = 50
+L = 10
 maxiter = 100
 cold_start = False
-batch = False
+batch = True
 
 sfd = vpl.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
 obj = []
 
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, batch=batch, disp=0)
-    if sfd.vb_m(disp=1, atol=1e-3):
+    sfd.vb_e(cold_start=cold_start, batch=batch, disp=1)
+    if sfd.vb_m(disp=1):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
@@ -121,7 +122,10 @@ pass
 # <codecell>
 
 for l in xrange(L):
-    figure(l)
+    fig()
+    subplot(121)
+    plot(sfd.U[l])
+    subplot(122)
     plot(np.exp(sfd.U[l]))
 tight_layout()
 pass

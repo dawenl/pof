@@ -11,7 +11,7 @@ from scikits.audiolab import Sndfile, Format
 from matplotlib.pyplot import *
 
 import librosa
-import gvpl as vpl
+import st_vpl 
 
 # <codecell>
 
@@ -97,24 +97,38 @@ pass
 
 # <codecell>
 
-threshold = 0.005
+TAU = 1.
+KAPPA = .75
+rho = (arange(100) + TAU)**(-KAPPA)
+plot(rho, '-o')
+
+# <codecell>
+
+reload(st_vpl)
+threshold = 0.01
 old_obj = -np.inf
 L = 50
-maxiter = 100
-cold_start = False
+maxiter = 500
 batch = True
 
-sfd = vpl.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
+
+TAU = 1.
+KAPPA = 0.75
+batch_size = 50
+
+sfd = st_vpl.SF_Dict(np.ones((batch_size, W_complex_train.shape[0])), L=L, seed=98765)
+n_total = W_complex_train.shape[1]
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, batch=batch, disp=0)
-    if sfd.vb_m(disp=1):
+    rho = 0.1 * (i + TAU)**(-KAPPA)
+    idx = np.random.choice(n_total, size=batch_size, replace=False)
+    sfd.switch(np.abs(W_complex_train[:,idx].reshape(batch_size,-1)))
+    sfd.vb_e(cold_start=True, batch=batch, disp=0)
+    if sfd.vb_m(rho, batch=False, disp=1):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
     print 'After ITERATION: {}\tObjective: {:.2f}\tOld objective: {:.2f}\tImprovement: {:.4f}'.format(i, sfd.obj, old_obj, improvement)
-    if improvement < threshold:
-        break
     old_obj = sfd.obj
 
 # <codecell>
@@ -124,31 +138,8 @@ pass
 
 # <codecell>
 
-subplot(211)
 specshow(sfd.U.T)
 colorbar()
-subplot(212)
-specshow(sfd.EA.T)
-colorbar()
-tight_layout()
-pass
-
-# <codecell>
-
-meanA = np.mean(sfd.EA, axis=0, keepdims=True)
-
-tmpA = sfd.EA / meanA
-tmpU = sfd.U * meanA.T
-
-subplot(211)
-specshow(tmpU.T)
-colorbar()
-title('U')
-subplot(212)
-specshow(tmpA.T)
-colorbar()
-title('A')
-tight_layout()
 pass
 
 # <codecell>
@@ -173,41 +164,17 @@ pass
 
 # <codecell>
 
-sf_encoder = vpl.SF_Dict(np.abs(W_complex_test.T), L=L, seed=98765)
-sf_encoder.U, sf_encoder.gamma, sf_encoder.alpha = sfd.U, sfd.gamma, sfd.alpha
-
-sf_encoder.vb_e(cold_start = False, batch=True)
-A = sf_encoder.EA
-
-# <codecell>
-
-W_rec_amp = np.exp(np.dot(A, sfd.U)).T
-W_rec = W_rec_amp * np.exp(1j * np.angle(W_complex_test))
-
-# <codecell>
-
+W_rec = np.exp(np.dot(sfd.EA, sfd.U)).T
 subplot(311)
-specshow(logspec(np.abs(W_complex_test)))
-title('Original')
+specshow(logspec(W_rec))
 colorbar()
 subplot(312)
-specshow(logspec(W_rec_amp))
-title('Reconstruction')
+specshow(logspec(np.abs(W_complex_train[:,idx])))
 colorbar()
 subplot(313)
-specshow(W_rec_amp - np.abs(W_complex_test))
-title('Reconstruction Error')
+specshow(W_rec - np.abs(W_complex_train[:,idx]))
 colorbar()
-tight_layout()
 pass
-
-# <codecell>
-
-str_cold_start = 'cold' if cold_start else 'warm'
-w_rec = librosa.istft(W_rec, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(w_rec, 'rec_gen{}_fit_L{}_F{}_H{}_{}.wav'.format(gender, L, n_fft, hop_length, str_cold_start))
-w_rec_org = librosa.istft(W_complex_test, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(w_rec_org, 'rec_gen{}_org.wav'.format(gender))
 
 # <codecell>
 

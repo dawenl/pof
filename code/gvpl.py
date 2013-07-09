@@ -11,7 +11,7 @@ import numpy as np
 import scipy.optimize as optimize
 import scipy.special as special
 
-class SF_Dict:
+class SF_Dict(object):
     def __init__(self, W, L=10, smoothness=100, seed=None):
         self.V = np.log(W)
         self.T, self.F = W.shape
@@ -48,16 +48,20 @@ class SF_Dict:
         Parameters
         ----------
         cold_start: bool
-            Do e-step with fresh initialization until convergence if true,
-            otherwise just do one sub-iteration with previous values as
-            initialization.
+            Do e-step with fresh start, otherwise just do e-step with 
+            previous values as initialization.
+        batch: bool
+            Do e-step as a whole optimization if true. Otherwise, do multiple
+            sub-iterations until convergence.
         smoothness: float
             Smootheness of the variational initialization, larger value will
             lead to more concentrated initialization.
         maxiter: int
-            Maximal number of iterations in one e-step.
+            Maximal number of sub-iterations in one e-step.
         atol: float 
             Absolute convergence threshold. 
+        rtol: float
+            Relative increase convergence threshold.
         verbose: bool
             Output log if true.
         disp: int
@@ -187,17 +191,22 @@ class SF_Dict:
         assert(np.all(self.mu[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = comp_expect(self.a[:,l], self.mu[:,l])
 
-    def vb_m(self, batch=True, atol=0.01, verbose=True, disp=0, update_alpha=True):
+    def vb_m(self, batch=False, atol=0.01, verbose=True, disp=0, update_alpha=True):
         """ Perform one M-step, update the model parameters with A fixed from E-step
 
         Parameters
         ----------
+        batch: bool
+            Update U as a whole optimization if true. Otherwise, update U across
+            different basis.
         atol: float
             Absolute convergence threshold.
         verbose: bool
             Output log if ture.
         disp: int
             Display warning from solver if > 0, mostly from LBFGS.
+        update_alpha: bool
+            Update alpha if true.
 
         """
 
@@ -267,7 +276,6 @@ class SF_Dict:
             app_grad = approx_grad(f, self.U[l,:])
             for idx in xrange(self.F):
                 print 'U[{}, {:3d}] = {:.2f}\tApproximated: {:.2f}\tGradient: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, idx, self.U[l,idx], app_grad[idx], df(self.U[l,:])[idx], np.abs(app_grad[idx] - df(self.U[l,:])[idx]))
-
 
     def update_gamma(self):
         EV = np.dot(self.EA, self.U)
