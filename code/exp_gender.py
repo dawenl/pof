@@ -97,10 +97,10 @@ pass
 
 # <codecell>
 
-threshold = 0.005
+threshold = 0.0001
 old_obj = -np.inf
 L = 50
-maxiter = 100
+maxiter = 200
 cold_start = False
 batch = True
 

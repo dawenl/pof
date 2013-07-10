@@ -191,7 +191,7 @@ class SF_Dict(object):
         assert(np.all(self.mu[:,l] > 0))
         self.EA[:,l], self.EA2[:,l], self.ElogA[:,l] = comp_expect(self.a[:,l], self.mu[:,l])
 
-    def vb_m(self, batch=False, atol=0.01, verbose=True, disp=0, update_alpha=True):
+    def vb_m(self, batch=False, atol=1e-3, verbose=True, disp=0, update_alpha=True):
         """ Perform one M-step, update the model parameters with A fixed from E-step
 
         Parameters

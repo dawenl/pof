@@ -115,12 +115,12 @@ obj = []
 
 TAU = 1.
 KAPPA = 0.75
-batch_size = 50
+batch_size = 100
 
 sfd = st_vpl.SF_Dict(np.ones((batch_size, W_complex_train.shape[0])), L=L, seed=98765)
 n_total = W_complex_train.shape[1]
 for i in xrange(maxiter):
-    rho = 0.1 * (i + TAU)**(-KAPPA)
+    rho = 0.5 * (i + TAU)**(-KAPPA)
     idx = np.random.choice(n_total, size=batch_size, replace=False)
     sfd.switch(np.abs(W_complex_train[:,idx].reshape(batch_size,-1)))
     sfd.vb_e(cold_start=True, batch=batch, disp=0)
