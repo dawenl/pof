@@ -166,7 +166,7 @@ pass
 
 fig()
 subplot(121)
-plot(flipud(sort(sfd.alpha)), '-o')
+semilogy(flipud(sort(sfd.alpha)), '-o')
 subplot(122)
 plot(np.sqrt(1./sfd.gamma))
 pass

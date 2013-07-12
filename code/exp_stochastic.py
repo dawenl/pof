@@ -115,16 +115,16 @@ obj = []
 
 TAU = 1.
 KAPPA = 0.75
-batch_size = 100
+batch_size = 50
 
 sfd = st_vpl.SF_Dict(np.ones((batch_size, W_complex_train.shape[0])), L=L, seed=98765)
 n_total = W_complex_train.shape[1]
 for i in xrange(maxiter):
-    rho = 0.5 * (i + TAU)**(-KAPPA)
+    rho = (i + TAU)**(-KAPPA)
     idx = np.random.choice(n_total, size=batch_size, replace=False)
     sfd.switch(np.abs(W_complex_train[:,idx].reshape(batch_size,-1)))
     sfd.vb_e(cold_start=True, batch=batch, disp=0)
-    if sfd.vb_m(rho, batch=False, disp=1):
+    if sfd.vb_m(rho_u= 5 * rho, rho_gamma=rho, rho_alpha=rho, batch=False, disp=1):
         break
     obj.append(sfd.obj)
     improvement = (sfd.obj - old_obj) / abs(sfd.obj)
@@ -133,6 +133,7 @@ for i in xrange(maxiter):
 
 # <codecell>
 
+#semilogy(obj)
 plot(obj)
 pass
 
@@ -157,7 +158,7 @@ pass
 
 fig()
 subplot(121)
-plot(flipud(sort(sfd.alpha)), '-o')
+semilogy(flipud(sort(sfd.alpha)), '-o')
 subplot(122)
 plot(np.sqrt(1./sfd.gamma))
 pass

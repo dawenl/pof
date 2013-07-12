@@ -18,17 +18,28 @@ class SF_Dict(vpl.SF_Dict):
     def switch(self, W, smoothness=100):
         self.V = np.log(W)
             
-    def vb_m(self, rho, batch=False, atol=0.01, verbose=True, disp=0, update_alpha=True):
+    def vb_m(self, rho_u=1, rho_gamma=1, rho_alpha=1, batch=False, verbose=True, disp=0, update_alpha=True):
         print 'Variational M-step...'
+        old_U = self.U.copy()
+        old_gamma = self.gamma.copy()
+        old_alpha = self.alpha.copy()
+
         if batch:
-            self.update_u_batch(rho, disp)
+            self.update_u_batch(rho_u, disp)
         else:
             for l in xrange(self.L):
-                self.update_u(l, rho, disp)
-        self.update_gamma(rho)
+                self.update_u(l, rho_u, disp)
+        self.update_gamma(rho_gamma)
         if update_alpha:
-            self.update_alpha(rho, disp)
+            self.update_alpha(rho_alpha, disp)
         self._objective()
+        U_diff = np.mean(np.abs(self.U - old_U))
+        sigma_diff = np.mean(np.abs(np.sqrt(1./self.gamma) - np.sqrt(1./old_gamma)))
+        alpha_diff = np.mean(np.abs(self.alpha - old_alpha))
+        if verbose:
+            print 'U diff: {:.4f}\tsigma diff: {:.4f}\talpha diff: {:.4f}'.format(U_diff, sigma_diff, alpha_diff)
+        if np.any(np.isnan(U_diff)) or np.any(np.isnan(sigma_diff)) or np.any(np.isnan(alpha_diff)):
+            return True
         return False
 
     def update_u_batch(self, rho, disp):
