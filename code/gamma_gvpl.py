@@ -21,7 +21,6 @@ import scipy.special as special
 
 class SF_Dict(object):
     def __init__(self, W, L=10, smoothness=100, seed=None):
-        #self.V = np.log(W)
         self.W = W.copy()
         self.T, self.F = W.shape
         self.L = L
@@ -45,8 +44,7 @@ class SF_Dict(object):
     def _init_variational(self, smoothness):
         self.a = np.random.gamma(smoothness, 1./smoothness, size=(self.T, self.L))
         self.b = np.random.gamma(smoothness, 1./smoothness, size=(self.T, self.L))
-        #self.mu = self.a / b 
-        self.EA, self.EA2, self.ElogA = comp_expect(self.a, self.b)
+        self.EA, self.ElogA = comp_expect(self.a, self.b)
 
     def vb_e(self, cold_start=True, batch=True, smoothness=100, maxiter=500,
             atol=1e-3, rtol=1e-5, verbose=True, disp=0):
@@ -119,32 +117,29 @@ class SF_Dict(object):
 
     def update_theta_batch(self, t, disp):
         def f(theta):
-            a, mu = np.exp(theta[:self.L]), np.exp(theta[-self.L:])
-            Ea, Ea2, Eloga = comp_expect(a, mu)
+            a, b = np.exp(theta[:self.L]), np.exp(theta[-self.L:])
+            Ea, Eloga = comp_expect(a, b)
+            Eexpa = comp_exp_expect(a[:, np.newaxis], b[:, np.newaxis], self.U)
 
-            Ev = np.dot(Ea, self.U)
-            Ev2 = np.dot(Ea2, self.U**2) + Ev**2 - np.dot(Ea**2, self.U**2)
-
-            likeli = (2*self.V[t,:]*Ev - Ev2) * self.gamma/2
+            likeli = -self.W[t,:] * prod(Eexpa, axis=0) * self.gamma - np.dot(Ea, U) * self.gamma
             prior = (self.alpha - 1) * Eloga - self.alpha * Ea
-            ent = entropy(a, mu) 
+            ent = entropy(a, b) 
 
             return -(likeli.sum() + prior.sum() + ent.sum())
 
         def df(theta):
-            a, mu = np.exp(theta[:self.L]), np.exp(theta[-self.L:])
-            Ea, Ea2, _ = comp_expect(a, mu)
+            a, b = np.exp(theta[:self.L]), np.exp(theta[-self.L:])
+            Ea, _ = comp_expect(a, b)
+            Eexpa = comp_exp_expect(a[:, np.newaxis], b[:, np.newaxis], self.U)
 
             Eres = self.V[t,:] - np.dot(Ea, self.U) + self.U * Ea[:,np.newaxis]
             lcoef = np.sum(self.U * Eres * self.gamma, axis=1) - self.alpha 
             grad_a = a * (-mu**2/a**2 * qcoef/2 + (self.alpha - a) * special.polygamma(1, a) - self.alpha / a + 1)
-            grad_mu = mu * (lcoef + (mu + mu/a) * qcoef + self.alpha/mu) 
+            grad_b = b * (lcoef + (mu + mu/a) * qcoef + self.alpha/mu) 
 
-            return -np.hstack((grad_a, grad_mu))
+            return -np.hstack((grad_a, grad_b))
 
-        qcoef = -np.sum(self.U**2 * self.gamma, axis=1)
-
-        theta0 = np.hstack((np.log(self.a[t,:]), np.log(self.mu[t,:])))
+        theta0 = np.hstack((np.log(self.a[t,:]), np.log(self.b[t,:])))
         theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
         if disp and d['warnflag']:
             if d['warnflag'] == 2:
@@ -154,12 +149,12 @@ class SF_Dict(object):
             app_grad = approx_grad(f, theta_hat)
             for l in xrange(self.L):
                 print 'a[{}, {:3d}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[l], app_grad[l], df(theta_hat)[l], np.abs(app_grad[l] - df(theta_hat)[l]))
-                print 'mu[{}, {:3d}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[l + self.L], app_grad[l + self.L], df(theta_hat)[l + self.L], np.abs(app_grad[l + self.L] - df(theta_hat)[l + self.L]))
+                print 'b[{}, {:3d}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[l + self.L], app_grad[l + self.L], df(theta_hat)[l + self.L], np.abs(app_grad[l + self.L] - df(theta_hat)[l + self.L]))
 
-        self.a[t,:], self.mu[t,:] = np.exp(theta_hat[:self.L]), np.exp(theta_hat[-self.L:])
+        self.a[t,:], self.b[t,:] = np.exp(theta_hat[:self.L]), np.exp(theta_hat[-self.L:])
         assert(np.all(self.a[t,:] > 0))
-        assert(np.all(self.mu[t,:] > 0))
-        self.EA[t,:], self.EA2[t,:], self.ElogA[t,:] = comp_expect(self.a[t,:], self.mu[t,:])
+        assert(np.all(self.b[t,:] > 0))
+        self.EA[t,:], self.ElogA[t,:] = comp_expect(self.a[t,:], self.b[t,:])
 
     def update_theta(self, l, disp):                
         def f(theta):
@@ -328,14 +323,17 @@ class SF_Dict(object):
         self.obj += self.T * np.sum(self.alpha * np.log(self.alpha) - special.gammaln(self.alpha))
         self.obj += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
 
-
 def comp_expect(alpha, beta):
-    return (alpha/beta, (alpha/beta)**2 + alpha/(beta**2), special.psi(alpha) - np.log(beta))
+    return (alpha/beta, special.psi(alpha) - np.log(beta))
 
+def comp_exp_expect(alpha, beta, U):
+    # assume U has shape (L, F), alpha and beta should be shaped as (L, -1)
+    tmp = (1 + U/beta)**(-alpha)
+    tmp[U <= -beta] = np.inf
+    return tmp
 
 def entropy(alpha, beta):
     return (alpha - np.log(beta) + special.gammaln(alpha) + (1-alpha) * special.psi(alpha))
-
 
 def approx_grad(f, x, delta=1e-8, args=()):
     x = np.asarray(x).ravel()
@@ -344,5 +342,4 @@ def approx_grad(f, x, delta=1e-8, args=()):
     for i in xrange(x.size):
         grad[i] = (f(x + diff[i], *args) - f(x - diff[i], *args)) / (2*delta)
     return grad
-
 
