@@ -121,7 +121,7 @@ class SF_Dict(object):
             Ea, Eloga = comp_expect(a, b)
             Eexpa = comp_exp_expect(a[:, np.newaxis], b[:, np.newaxis], self.U)
 
-            likeli = -self.W[t,:] * prod(Eexpa, axis=0) * self.gamma - np.dot(Ea, U) * self.gamma
+            likeli = -self.W[t,:] * np.prod(Eexpa, axis=0) * self.gamma - np.dot(Ea, self.U) * self.gamma
             prior = (self.alpha - 1) * Eloga - self.alpha * Ea
             ent = entropy(a, b) 
 
@@ -132,11 +132,14 @@ class SF_Dict(object):
             Ea, _ = comp_expect(a, b)
             Eexpa = comp_exp_expect(a[:, np.newaxis], b[:, np.newaxis], self.U)
 
-            Eres = self.V[t,:] - np.dot(Ea, self.U) + self.U * Ea[:,np.newaxis]
-            lcoef = np.sum(self.U * Eres * self.gamma, axis=1) - self.alpha 
-            grad_a = a * (-mu**2/a**2 * qcoef/2 + (self.alpha - a) * special.polygamma(1, a) - self.alpha / a + 1)
-            grad_b = b * (lcoef + (mu + mu/a) * qcoef + self.alpha/mu) 
+            tmp = 1 + self.U/b[:, np.newaxis]
+            idx = (tmp > 0)
+            tmp1, tmp2 = np.zeros_like(tmp), np.zeros_like(tmp)
+            tmp1[idx], tmp1[-idx] = np.log(tmp[idx]), -np.inf
+            tmp2[idx], tmp2[-idx] = 1./tmp[idx], np.inf
 
+            grad_a = a * (np.sum(self.W[t,:] * tmp * np.prod(Eexpa, axis=0) * self.gamma - self.U/b[:, np.newaxis] * self.gamma , axis=1) + (self.alpha - a) * special.psi(a) + 1 - self.alpha / b)
+            grad_b = b * (a/b**2 * np.sum(-self.W[t,:] * tmp2 * np.prod(Eexpa, axis=0) * self.gamma + self.U * self.gamma, axis=1) + self.alpha * (a/b**2 - 1./b))
             return -np.hstack((grad_a, grad_b))
 
         theta0 = np.hstack((np.log(self.a[t,:]), np.log(self.b[t,:])))
