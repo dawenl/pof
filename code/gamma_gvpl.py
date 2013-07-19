@@ -297,17 +297,18 @@ class SF_Dict(object):
     def update_gamma(self, disp):
         def f(eta):
             gamma = np.exp(eta)
-            return -np.sum(gamma * (eta - np.dot(self.EA, self.U)) - special.gammaln(gamma) + (gamma - 1) * np.log(self.W) - self.W * gamma * Eexp)
+            return -(self.T * (gamma * eta - special.gammaln(gamma)) + np.sum(- gamma * np.dot(self.EA, self.U) + (gamma - 1) * np.log(self.W) - gamma * self.W  * Eexp))
 
         def df(eta):
             gamma = np.exp(eta)
-            return -np.sum(eta - np.dot(self.EA, self.U) + 1 -
-                    special.psi(gamma) + np.log(self.W) - self.W * Eexp, axis=0)
+            return -gamma * (self.T * (eta + 1 + special.psi(gamma)) + 
+                    np.sum(-np.dot(self.EA, self.U) + np.log(self.W) - 
+                        self.W * Eexp, axis=0))
 
         Eexp = 1
-        for k in xrange(self.L):
-            Eexp *= comp_exp_expect(self.a[:, k, np.newaxis], self.b[:, k,
-                np.newaxis], self.U[np.newaxis, k, :])
+        for l in xrange(self.L):
+            Eexp *= comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
+                np.newaxis], self.U[np.newaxis, l, :])
 
         eta0 = np.log(self.gamma)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)

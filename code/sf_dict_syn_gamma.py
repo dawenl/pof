@@ -159,6 +159,3 @@ plot(gamma)
 fig()
 plot(sfd.gamma)
 
-# <codecell>
-
-
