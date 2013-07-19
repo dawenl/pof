@@ -6,13 +6,6 @@ CREATED: 2013-07-12 11:09:44 by Dawen Liang <daliang@adobe.com>
 
 """
 
-"""
-CREATED: 2013-06-24 16:12:52 by Dawen Liang <daliang@adobe.com> 
-
-Source-filter dictionary prior learning with gamma variational distribution
-
-"""
-
 import sys, time
 
 import numpy as np
@@ -42,8 +35,10 @@ class SF_Dict(object):
         self._init_variational(smoothness)
 
     def _init_variational(self, smoothness):
-        self.a = smoothness * np.random.gamma(smoothness, 1./smoothness, size=(self.T, self.L))
-        self.b = smoothness * np.random.gamma(smoothness, 1./smoothness, size=(self.T, self.L))
+        self.a = smoothness * np.random.gamma(smoothness, 1./smoothness, 
+                                              size=(self.T, self.L))
+        self.b = smoothness * np.random.gamma(smoothness, 1./smoothness, 
+                                              size=(self.T, self.L))
         self.EA, self.ElogA = comp_expect(self.a, self.b)
 
     def vb_e(self, cold_start=True, batch=True, smoothness=100, maxiter=500,
@@ -109,7 +104,10 @@ class SF_Dict(object):
 
                 if verbose:
                     sys.stdout.write('\n')
-                    print 'Subiter: {:3d}\ta diff: {:.4f}\tmu diff: {:.4f}\tbound: {:.2f}\tbound improvement: {:.5f}\ttime: {:.2f}'.format(i, a_diff, mu_diff, self.bound, improvement, t)
+                    print('Subiter: {:3d}\ta diff: {:.4f}\tmu diff: {:.4f}\t'
+                          'bound: {:.2f}\tbound improvement: {:.5f}\t'
+                          'time: {:.2f}'.format(i, a_diff, mu_diff, self.bound,
+                                                improvement, t))
 
                 if improvement < rtol or (a_diff <= atol and mu_diff <= atol):
                     break
@@ -297,7 +295,9 @@ class SF_Dict(object):
     def update_gamma(self, disp):
         def f(eta):
             gamma = np.exp(eta)
-            return -(self.T * (gamma * eta - special.gammaln(gamma)) + np.sum(- gamma * np.dot(self.EA, self.U) + (gamma - 1) * np.log(self.W) - gamma * self.W  * Eexp))
+            return -(self.T * (gamma * eta - special.gammaln(gamma)) +
+                    np.sum(- gamma * np.dot(self.EA, self.U) + (gamma - 1) *
+                        np.log(self.W) - gamma * self.W  * Eexp))
 
         def df(eta):
             gamma = np.exp(eta)
@@ -330,7 +330,8 @@ class SF_Dict(object):
             return -(self.T * tmp1.sum() + tmp2.sum())
 
         def df(eta):
-            return -np.exp(eta) * (self.T * (eta + 1 - special.psi(np.exp(eta))) + np.sum(self.ElogA - self.EA, axis=0))
+            return -np.exp(eta) * (self.T * (eta + 1 - special.psi(np.exp(eta)))
+                    + np.sum(self.ElogA - self.EA, axis=0))
         
         eta0 = np.log(self.alpha)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
@@ -342,7 +343,8 @@ class SF_Dict(object):
                 print 'f={}, {}'.format(f(eta_hat), d['warnflag'])
             app_grad = approx_grad(f, eta_hat)
             for l in xrange(self.L):
-                print_gradient('Alpha[{:3d}]'.format(l), self.alpha[l], df(eta_hat)[l], app_grad[l])
+                print_gradient('Alpha[{:3d}]'.format(l), self.alpha[l], 
+                        df(eta_hat)[l], app_grad[l])
 
     def _vb_bound(self):
         #self.bound = np.sum(entropy(self.a, self.mu)) 
@@ -363,7 +365,9 @@ class SF_Dict(object):
 
 
 def print_gradient(name, val, grad, approx):
-    print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t| Diff |: {:.3f}'.format(name, val, grad, approx, np.abs(grad - approx)))
+    print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'
+            '| Diff |: {:.3f}'.format(name, val, grad, approx, 
+                np.abs(grad - approx)))
 
 def comp_expect(alpha, beta):
     return (alpha/beta, special.psi(alpha) - np.log(beta))
@@ -381,7 +385,8 @@ def comp_exp_expect(alpha, beta, U):
     return expect 
 
 def entropy(alpha, beta):
-    return (alpha - np.log(beta) + special.gammaln(alpha) + (1-alpha) * special.psi(alpha))
+    return (alpha - np.log(beta) + special.gammaln(alpha) + 
+            (1-alpha) * special.psi(alpha))
 
 def approx_grad(f, x, delta=1e-8, args=()):
     x = np.asarray(x).ravel()
