@@ -121,7 +121,7 @@ class SF_Dict(object):
             Ea, Eloga = comp_expect(a, b)
             Eexpa = comp_exp_expect(a[:, np.newaxis], b[:, np.newaxis], self.U)
 
-            likeli = -self.W[t,:] * np.prod(Eexpa, axis=0) * self.gamma - np.dot(Ea, self.U) * self.gamma
+            likeli = -(self.W[t,:] * np.prod(Eexpa, axis=0) - np.dot(Ea, self.U)) * self.gamma
             prior = (self.alpha - 1) * Eloga - self.alpha * Ea
             ent = entropy(a, b) 
 
@@ -133,26 +133,28 @@ class SF_Dict(object):
             Eexpa = comp_exp_expect(a[:, np.newaxis], b[:, np.newaxis], self.U)
 
             tmp = 1 + self.U/b[:, np.newaxis]
+            log_term, inv_term = np.empty_like(tmp), np.empty_like(tmp)
             idx = (tmp > 0)
-            tmp1, tmp2 = np.empty_like(tmp), np.empty_like(tmp)
-            tmp1[idx], tmp1[-idx] = np.log(tmp[idx]), -np.inf
-            tmp2[idx], tmp2[-idx] = 1./tmp[idx], np.inf
+            log_term[idx], log_term[-idx] = np.log(tmp[idx]), -np.inf
+            inv_term[idx], inv_term[-idx] = 1./tmp[idx], np.inf
 
-            grad_a = a * (np.sum(self.W[t,:] * tmp * np.prod(Eexpa, axis=0) * self.gamma - self.U/b[:, np.newaxis] * self.gamma , axis=1) + (self.alpha - a) * special.polygamma(1, a) + 1 - self.alpha / b)
-            grad_b = b * (a/b**2 * np.sum(-self.W[t,:] * tmp2 * np.prod(Eexpa, axis=0) * self.gamma + self.U * self.gamma, axis=1) + self.alpha * (a/b**2 - 1./b))
+            grad_a = a * (np.sum(self.W[t,:] * log_term * np.prod(Eexpa, axis=0) * self.gamma - self.U/b[:, np.newaxis] * self.gamma , axis=1) + (self.alpha - a) * special.polygamma(1, a) + 1 - self.alpha / b)
+            grad_b = b * (a/b**2 * np.sum(-self.U * self.W[t,:] * inv_term * np.prod(Eexpa, axis=0) * self.gamma + self.U * self.gamma, axis=1) + self.alpha * (a/b**2 - 1./b))
             return -np.hstack((grad_a, grad_b))
 
         theta0 = np.hstack((np.log(self.a[t,:]), np.log(self.b[t,:])))
         theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
-        if disp and d['warnflag']:
+        if disp: # and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'A[{}, :]: {}, f={}'.format(t, d['task'], f(theta_hat))
             else:
                 print 'A[{}, :]: {}, f={}'.format(t, d['warnflag'], f(theta_hat))
             app_grad = approx_grad(f, theta_hat)
             for l in xrange(self.L):
-                print 'a[{}, {:3d}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[l], app_grad[l], df(theta_hat)[l], np.abs(app_grad[l] - df(theta_hat)[l]))
-                print 'b[{}, {:3d}] = {:.3f}\tApproximated: {:.5f}\tGradient: {:.5f}\t|Approximated - True|: {:.5f}'.format(t, l, theta_hat[l + self.L], app_grad[l + self.L], df(theta_hat)[l + self.L], np.abs(app_grad[l + self.L] - df(theta_hat)[l + self.L]))
+                print_gradient('log_a[{}, {:3d}]'.format(t, l), theta_hat[l],
+                        df(theta_hat)[l], app_grad[l])
+                print_gradient('log_b[{}, {:3d}]'.format(t, l), theta_hat[l +
+                    self.L], df(theta_hat)[l + self.L], app_grad[l + self.L])
 
         self.a[t,:], self.b[t,:] = np.exp(theta_hat[:self.L]), np.exp(theta_hat[-self.L:])
         assert(np.all(self.a[t,:] > 0))
@@ -267,42 +269,58 @@ class SF_Dict(object):
 
     def update_u(self, l, disp):
         def f(u):
-            pass
+            Eexpa = comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l, np.newaxis], u[np.newaxis])
+            return np.sum(np.outer(self.EA[:,l], u) + self.W * Eexpa * Eres)
         
         def df(u):
-            pass
+            tmpEexp = comp_exp_expect(self.a[:, l, np.newaxis] + 1, self.b[:, l, np.newaxis], u) 
+            return np.sum(self.EA[:,l, np.newaxis] * (1 - self.W * Eres * tmpEexp), axis=0) 
 
-        Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
+        k_idx = np.delete(np.arange(self.L), l)
+        Eres = 1
+        for k in k_idx:
+            Eres *= comp_exp_expect(self.a[:, k, np.newaxis], self.b[:, k,
+                np.newaxis], self.U[np.newaxis, k, :])
+        assert(Eres.shape == (self.T, self.F))
         u0 = self.U[l,:]
         self.U[l,:], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
-        if disp and d['warnflag']:
+        if disp: #and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'U[{}, :]: {}, f={}'.format(l, d['task'], f(self.U[l,:]))
             else:
                 print 'U[{}, :]: {}, f={}'.format(l, d['warnflag'], f(self.U[l,:]))
-
             app_grad = approx_grad(f, self.U[l,:])
-            for idx in xrange(self.F):
-                print 'U[{}, {:3d}] = {:.2f}\tApproximated: {:.2f}\tGradient: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, idx, self.U[l,idx], app_grad[idx], df(self.U[l,:])[idx], np.abs(app_grad[idx] - df(self.U[l,:])[idx]))
+            for fr in xrange(self.F):
+                print_gradient('U[{}, {:3d}]'.format(l, fr), self.U[l, fr],
+                        df(self.U[l,:])[fr], app_grad[fr])
 
     def update_gamma(self, disp):
         def f(eta):
-            pass
+            gamma = np.exp(eta)
+            return -np.sum(gamma * (eta - np.dot(self.EA, self.U)) - special.gammaln(gamma) + (gamma - 1) * np.log(self.W) - self.W * gamma * Eexp)
 
         def df(eta):
-            pass
+            gamma = np.exp(eta)
+            return -np.sum(eta - np.dot(self.EA, self.U) + 1 -
+                    special.psi(gamma) + np.log(self.W) - self.W * Eexp, axis=0)
+
+        Eexp = 1
+        for k in xrange(self.L):
+            Eexp *= comp_exp_expect(self.a[:, k, np.newaxis], self.b[:, k,
+                np.newaxis], self.U[np.newaxis, k, :])
 
         eta0 = np.log(self.gamma)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
         self.gamma = np.exp(eta_hat)
-        if disp and d['warnflag']:
+        if disp: #and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'f={}, {}'.format(f(eta_hat), d['task'])
             else:
                 print 'f={}, {}'.format(f(eta_hat), d['warnflag'])
             app_grad = approx_grad(f, eta_hat)
             for idx in xrange(self.F):
-                print 'Gamma[{:3d}] = {:.2f}\tApproximated: {:.2f}\tGradient: {:.2f}\t|Approximated - True|: {:.3f}'.format(idx, self.gamma[idx], app_grad[idx], df(eta_hat)[idx], np.abs(app_grad[idx] - df(eta_hat)[idx]))
+                print_gradient('Gamma[{:3d}]'.format(idx), self.gamma[idx],
+                        df(eta_hat)[idx], app_grad[idx])
 
     def update_alpha(self, disp):
         def f(eta):
@@ -316,14 +334,14 @@ class SF_Dict(object):
         eta0 = np.log(self.alpha)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
         self.alpha = np.exp(eta_hat)
-        if disp and d['warnflag']:
+        if disp: #and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'f={}, {}'.format(f(eta_hat), d['task'])
             else:
                 print 'f={}, {}'.format(f(eta_hat), d['warnflag'])
             app_grad = approx_grad(f, eta_hat)
             for l in xrange(self.L):
-                print 'Alpha[{:3d}] = {:.2f}\tApproximated: {:.2f}\tGradient: {:.2f}\t|Approximated - True|: {:.3f}'.format(l, self.alpha[l], app_grad[l], df(eta_hat)[l], np.abs(app_grad[l] - df(eta_hat)[l]))
+                print_gradient('Alpha[{:3d}]'.format(l), self.alpha[l], df(eta_hat)[l], app_grad[l])
 
     def _vb_bound(self):
         #self.bound = np.sum(entropy(self.a, self.mu)) 
@@ -342,11 +360,21 @@ class SF_Dict(object):
         #self.obj += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
         pass
 
+
+def print_gradient(name, val, grad, approx):
+    print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t| Diff |: {:.3f}'.format(name, val, grad, approx, np.abs(grad - approx)))
+
 def comp_expect(alpha, beta):
     return (alpha/beta, special.psi(alpha) - np.log(beta))
 
 def comp_exp_expect(alpha, beta, U):
-    # U has shape (L, F), alpha and beta should be shaped as (L, -1)
+    # U has shape (L, -1), alpha and beta should be shaped as (L, -1)
+    # using Taylor expansion for large alpha (hence beta) for floating point
+    # precision consideration
+    #idx = (alpha < 1e8)
+    #expect = np.empty_like(U)
+    #expect[idx, :] = (1 + U[idx, :]/beta[idx, :])**(-alpha[idx, :])
+    #expect[-idx, :] = np.exp(-U[-idx,:] * alpha[-idx, :]/beta[-idx, :])
     expect = (1 + U/beta)**(-alpha)
     expect[U <= -beta] = np.inf
     return expect 
