@@ -11,7 +11,7 @@ from scikits.audiolab import Sndfile, Format
 from matplotlib.pyplot import *
 
 import librosa
-import gvpl as vpl
+import gamma_gvpl as vpl
 
 # <codecell>
 
@@ -82,7 +82,8 @@ pass
 
 # <codecell>
 
-threshold = 0.01
+reload(vpl)
+threshold = 0.001
 old_obj = -np.inf
 L = 10
 maxiter = 100
@@ -127,7 +128,7 @@ for l in xrange(L):
     plot(sfd.U[l])
     subplot(122)
     plot(np.exp(sfd.U[l]))
-tight_layout()
+    tight_layout()
 pass
 
 # <codecell>
@@ -135,15 +136,15 @@ pass
 figure()
 plot(sort(sfd.alpha), '-o')
 figure()
-plot(np.sqrt(1./sfd.gamma))
+#plot(np.sqrt(1./sfd.gamma))
+plot(sfd.gamma)
 pass
 
 # <codecell>
 
 sf_encoder = vpl.SF_Dict(np.abs(W_complex.T), L=L, seed=98765)
 sf_encoder.U, sf_encoder.gamma, sf_encoder.alpha = sfd.U, sfd.gamma, sfd.alpha
-batch = False
-sf_encoder.vb_e(batch=batch, maxiter=100)
+sf_encoder.vb_e(batch=True)
 A = sf_encoder.EA
 
 # <codecell>

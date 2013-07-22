@@ -54,27 +54,21 @@ pass
 reload(vpl)
 threshold = 0.005
 old_obj = -np.inf
-maxiter = 1
+maxiter = 5
 cold_start = False
 batch_e = True
 batch_m = False
 
 sfd = vpl.SF_Dict(W, L=L, seed=98765)
-sfd.EA = A
-sfd.ElogA = np.log(A)
-#sfd.U = U
-#sfd.alpha = alpha
-#sfd.gamma = gamma
+sfd.U = U
+sfd.alpha = alpha
+sfd.gamma = gamma
 obj = []
 
 for i in xrange(maxiter):
-    #sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=1)
+    sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=1)
     #if sfd.vb_m(batch=batch_m, disp=1, atol=1e-3):
     #    break
-    for l in xrange(L):
-        sfd.update_u(l, disp)
-    sfd.update_gamma(disp)
-    sfd.update_alpha(disp)
     #obj.append(sfd.obj)
     #improvement = (sfd.obj - old_obj) / abs(sfd.obj)
     #print 'After ITERATION: {}\tObjective Improvement: {:.4f}'.format(i, improvement)
@@ -85,6 +79,7 @@ for i in xrange(maxiter):
 # <codecell>
 
 plot(obj)
+print obj
 pass
 
 # <codecell>
@@ -128,7 +123,7 @@ def normalize_and_plot(A, U, normalize=False):
     title('U')
     colorbar()
     tight_layout()
-    
+
 normalize_and_plot(sfd.EA[:,idx_alpha_sfd], sfd.U[idx_alpha_sfd,:])
 normalize_and_plot(A[:,idx_alpha], U[idx_alpha,:])
 
@@ -142,7 +137,7 @@ subplot(312)
 specshow(np.log(W_rec.T))
 colorbar()
 subplot(313)
-specshow((W - W_rec).T)
+specshow((W_rec - W).T)
 colorbar()
 tight_layout()
 pass
@@ -158,4 +153,12 @@ fig()
 plot(gamma)
 fig()
 plot(sfd.gamma)
+
+# <codecell>
+
+print U[idx_alpha]
+print sfd.U[idx_alpha_sfd]
+
+# <codecell>
+
 

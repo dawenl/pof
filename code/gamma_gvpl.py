@@ -23,16 +23,14 @@ class SF_Dict(object):
         else:
             print 'Using fixed seed {}'.format(seed)
             np.random.seed(seed) 
-        self._init(smoothness=smoothness)
+        self._init(smoothness)
+        self._init_variational(smoothness)
 
-    def _init(self, smoothness=100):
+    def _init(self, smoothness):
         # model parameters
         self.U = np.random.randn(self.L, self.F)
         self.alpha = np.random.gamma(smoothness, 1./smoothness, size=(self.L,))
         self.gamma = np.random.gamma(smoothness, 1./smoothness, size=(self.F,))
-
-        # variational parameters and expectations
-        self._init_variational(smoothness)
 
     def _init_variational(self, smoothness):
         self.a = smoothness * np.random.gamma(smoothness, 1./smoothness, 
@@ -119,7 +117,7 @@ class SF_Dict(object):
             Ea, Eloga = comp_expect(a, b)
             Eexpa = comp_exp_expect(a[:, np.newaxis], b[:, np.newaxis], self.U)
 
-            likeli = -(self.W[t,:] * np.prod(Eexpa, axis=0) - np.dot(Ea, self.U)) * self.gamma
+            likeli = (-self.W[t,:] * np.prod(Eexpa, axis=0) - np.dot(Ea, self.U)) * self.gamma
             prior = (self.alpha - 1) * Eloga - self.alpha * Ea
             ent = entropy(a, b) 
 
@@ -142,7 +140,7 @@ class SF_Dict(object):
 
         theta0 = np.hstack((np.log(self.a[t,:]), np.log(self.b[t,:])))
         theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
-        if disp: # and d['warnflag']:
+        if disp and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'A[{}, :]: {}, f={}'.format(t, d['task'], f(theta_hat))
             else:
@@ -267,22 +265,21 @@ class SF_Dict(object):
 
     def update_u(self, l, disp):
         def f(u):
-            Eexpa = comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l, np.newaxis], u[np.newaxis])
+            Eexpa = comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l, np.newaxis], u)
             return np.sum(np.outer(self.EA[:,l], u) + self.W * Eexpa * Eres)
         
         def df(u):
-            tmpEexp = comp_exp_expect(self.a[:, l, np.newaxis] + 1, self.b[:, l, np.newaxis], u) 
-            return np.sum(self.EA[:,l, np.newaxis] * (1 - self.W * Eres * tmpEexp), axis=0) 
+            tmp = comp_exp_expect(self.a[:, l, np.newaxis] + 1, self.b[:, l, np.newaxis], u) 
+            return np.sum(self.EA[:,l, np.newaxis] * (1 - self.W * Eres * tmp), axis=0) 
 
         k_idx = np.delete(np.arange(self.L), l)
-        Eres = 1
+        Eres = 1.
         for k in k_idx:
             Eres *= comp_exp_expect(self.a[:, k, np.newaxis], self.b[:, k,
-                np.newaxis], self.U[np.newaxis, k, :])
-        assert(Eres.shape == (self.T, self.F))
+                np.newaxis], self.U[k, :])
         u0 = self.U[l,:]
         self.U[l,:], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
-        if disp: #and d['warnflag']:
+        if disp and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'U[{}, :]: {}, f={}'.format(l, d['task'], f(self.U[l,:]))
             else:
@@ -295,25 +292,25 @@ class SF_Dict(object):
     def update_gamma(self, disp):
         def f(eta):
             gamma = np.exp(eta)
-            return -(self.T * (gamma * eta - special.gammaln(gamma)) +
-                    np.sum(- gamma * np.dot(self.EA, self.U) + (gamma - 1) *
-                        np.log(self.W) - gamma * self.W  * Eexp))
+            return -(self.T * np.sum(gamma * eta - special.gammaln(gamma)) +
+                    np.sum(gamma * np.log(self.W) - gamma * np.dot(self.EA, 
+                        self.U) - gamma * self.W  * Eexp))
 
         def df(eta):
             gamma = np.exp(eta)
-            return -gamma * (self.T * (eta + 1 + special.psi(gamma)) + 
+            return -gamma * (self.T * (eta + 1 - special.psi(gamma)) + 
                     np.sum(-np.dot(self.EA, self.U) + np.log(self.W) - 
                         self.W * Eexp, axis=0))
 
-        Eexp = 1
+        Eexp = 1.
         for l in xrange(self.L):
             Eexp *= comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
-                np.newaxis], self.U[np.newaxis, l, :])
+                np.newaxis], self.U[l, :])
 
         eta0 = np.log(self.gamma)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
         self.gamma = np.exp(eta_hat)
-        if disp: #and d['warnflag']:
+        if disp and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'f={}, {}'.format(f(eta_hat), d['task'])
             else:
@@ -336,7 +333,7 @@ class SF_Dict(object):
         eta0 = np.log(self.alpha)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
         self.alpha = np.exp(eta_hat)
-        if disp: #and d['warnflag']:
+        if disp and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'f={}, {}'.format(f(eta_hat), d['task'])
             else:
@@ -355,14 +352,20 @@ class SF_Dict(object):
         pass
 
     def _objective(self):
-        #self.obj = 1./2 * self.T * np.sum(np.log(self.gamma))
-        #EV = np.dot(self.EA, self.U)
-        #EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
-        #self.obj -= 1./2 * np.sum((self.V**2 - 2 * self.V * EV + EV2) * self.gamma)
-        #self.obj += self.T * np.sum(self.alpha * np.log(self.alpha) - special.gammaln(self.alpha))
-        #self.obj += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
+        Eexp = 1.
+        for l in xrange(self.L):
+            Eexp *= comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
+                np.newaxis], self.U[l, :])
+        # E[log P(w|a)]
+        self.obj = self.T * np.sum(self.gamma * np.log(self.gamma) -
+                special.gammaln(self.gamma))
+        self.obj += np.sum(-self.gamma * np.dot(self.EA, self.U) + (self.gamma -
+            1) * np.log(self.W) - self.W * Eexp * self.gamma)
+        # E[log P(a)]
+        self.obj += self.T * np.sum(self.alpha * np.log(self.alpha) - 
+                special.gammaln(self.alpha))
+        self.obj += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
         pass
-
 
 def print_gradient(name, val, grad, approx):
     print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'
