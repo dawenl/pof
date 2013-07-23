@@ -66,7 +66,7 @@ sfd = vpl.SF_Dict(W, L=L, seed=98765)
 obj = []
 
 for i in xrange(maxiter):
-    #sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=1)
+    sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=1)
     if sfd.vb_m(batch=batch_m, disp=1, atol=1e-3):
         break
     obj.append(sfd.obj)
@@ -157,12 +157,4 @@ fig()
 plot(gamma)
 fig()
 plot(sfd.gamma)
-
-# <codecell>
-
-print U[idx_alpha]
-print sfd.U[idx_alpha_sfd]
-
-# <codecell>
-
 
