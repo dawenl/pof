@@ -1,4 +1,5 @@
 import numpy as np
+from matplotlib import pyplot as plt
 
 import _gap
 
@@ -56,22 +57,91 @@ class GaP_NMF:
         pass
 
     def update_w(self):
-        pass
+        goodk = self.goodk()
+        xxtwidinvsq = (self.X * self._xtwid(goodk)) ** (-2)
+        xbarinv = self._xbar(goodk) ** (-1)
+        dEt = self.Et[goodk]
+        dEtinvinv = self.Etinvinv[goodk]
+        self.rhow[:, goodk] = self.a + np.dot(xbarinv, dEt * self.Eh[goodk,
+            :].T)
+        self.tauw[:, goodk] = self.Ewinvinv[:, goodk]**2 * \
+                np.dot(xxtwidinvsq, dEtinvinv * self.Ehinvinv[goodk, :].T)
+        self.tauw[self.tauw < 1e-100] = 0
+        self.Ew[:, goodk], self.Ewinv[:, goodk] = _gap.compute_gig_expectations(
+                self.a, self.rhow[:, goodk], self.tauw[:, goodk])
+        self.Ewinvinv[:, goodk] = 1./self.Ewinv[:, goodk]
 
     def update_h(self):
-        pass
+        goodk = self.goodk()
+        xxtwidinvsq = (self.X * self._xtwid(goodk)) ** (-2)
+        xbarinv = self._xbar(goodk) ** (-1)
+        dEt = self.Et[goodk]
+        dEtinvinv = self.Etinvinv[goodk]
+        self.rhoh[goodk, :] = self.b + np.dot(dEt[:, np.newaxis] * self.Ew[:,
+            goodk].T, xbarinv) 
+        self.tauh[goodk, :] = self.Ehinvinv[goodk, :]**2 * \
+                np.dot(dEtinvinv[:, np.newaxis] * self.Ewinvinv[:, goodk].T,
+                        xxtwidinvsq)
+        self.tauh[self.tauh < 1e-100] = 0
+        self.Eh[goodk, :], self.Ehinv[goodk, :] = _gap.compute_gig_expectations(
+                self.b, self.rhoh[goodk, :], self.tauh[goodk, :])
+        self.Ehinvinv[goodk, :] = 1./self.Ehinv[goodk, :]
 
     def update_theta(self):
-        pass
+        goodk = self.goodk()
+        xxtwidinvsq = (self.X * self._xtwid(goodk)) ** (-2)
+        xbarinv = self._xbar(goodk) ** (-1)
+        self.rhot[goodk] = self.alpha + np.sum(np.dot(self.Ew[:, goodk].T,
+            xbarinv) * self.Eh[goodk, :], axis=1)
+        self.taut[goodk] = self.Etinvinv[goodk]**2 * \
+                np.sum(np.dot(self.Ewinvinv[:, goodk].T, xxtwidinvsq) *
+                        self.Ehinvinv[goodk, :], axis=1)
+        self.taut[self.taut < 1e-100] = 0
+        self.Et[goodk], self.Etinv[goodk] = _gap.compute_gig_expectations(
+                self.alpha/self.K, self.rhot[goodk], self.taut[goodk])
+        self.Etinvinv[goodk] = 1./self.Etinv[goodk]
 
-    def good_k(self):
-        pass
+    def goodk(self, cut_off=None):
+        if cut_off is None:
+            cut_off = 1e-10 * np.amax(self.X)
+
+        powers = self.Et * np.amax(self.Ew, axis=0) * np.amax(self.Eh, axis=1)
+        sorted = np.flipud(np.argsort(powers))
+        idx = np.where(powers[sorted] > cut_off * np.amax(powers))[0]
+        goodk = sorted[:(idx[-1] + 1)]
+        if powers[goodk[-1]] < cut_off:
+            np.delete(goodk, -1)
+        return goodk
 
     def clear_badk(self):
+        goodk = self.goodk()
+        badk = np.setdiff1d(np.arange(self.K), goodk)
+        self.rhow[:, badk] = self.a
+        self.tauw[:, badk] = 0
+        self.rhoh[badk, :] = self.b
+        self.tauh[badk, :] = 0
+        self.compute_gig_expectations()
+
+    def figures(self):
         pass
 
     def bound(self):
-        pass
+        score = 0
+        goodk = self.goodk()
+
+        xbar = self._xbar(goodk)
+        xtwid = self._xtwid(goodk)
+        score -= np.sum(self.X / xtwid + np.log(xbar))
+        score += _gap.gig_gamma_term(self.Ew, self.Ewinv, self.rhow, self.tauw,
+                self.a, self.a)
+        score += _gap.gig_gamma_term(self.Eh, self.Ehinv, self.rhoh, self.tauh,
+                self.b, self.b)
+        score += _gap.gig_gamma_term(self.Et, self.Etinv, self.rhot, self.taut,
+                self.alpha/self.K, self.alpha)
+        return score
+
+    def _xbar(self, goodk):
+        return np.dot(self.Ew[:, goodk], self.Et[goodk] * self.Eh[goodk, :])
 
     def _xtwid(self, goodk):
         return np.dot(self.Ewinvinv[:, goodk], self.Etinvinv[goodk] * 

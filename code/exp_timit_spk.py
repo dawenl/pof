@@ -11,7 +11,7 @@ from scikits.audiolab import Sndfile, Format
 from matplotlib.pyplot import *
 
 import librosa
-import gvpl as vpl
+import gamma_gvpl as vpl
 
 # <codecell>
 
@@ -88,7 +88,7 @@ pass
 
 # <codecell>
 
-threshold = 0.01
+threshold = 0.005
 old_obj = -np.inf
 L = 50
 maxiter = 100
