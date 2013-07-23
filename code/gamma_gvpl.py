@@ -294,7 +294,7 @@ class SF_Dict(object):
             gamma = np.exp(eta)
             return -(self.T * np.sum(gamma * eta - special.gammaln(gamma)) +
                     np.sum(gamma * np.log(self.W) - gamma * np.dot(self.EA, 
-                        self.U) - gamma * self.W  * Eexp))
+                        self.U) - gamma * self.W * Eexp))
 
         def df(eta):
             gamma = np.exp(eta)
