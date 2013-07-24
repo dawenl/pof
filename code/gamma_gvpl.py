@@ -264,7 +264,7 @@ class SF_Dict(object):
             if verbose:
                 obj = self.bound()
                 diff_str = '+' if obj > last_score else '-'
-                print('Update (alpha)\tBefore: {:.2f}\tAfter: '
+                print('Update (alpha)\tBefore: {:.2f}\tAfter:'
                         ' {:.2f}\t{}'.format(last_score, obj, diff_str))
         
         t = time.time() - start_t

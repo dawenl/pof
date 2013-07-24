@@ -54,7 +54,7 @@ pass
 reload(vpl)
 threshold = 0.005
 old_obj = -np.inf
-maxiter = 4
+maxiter = 5
 cold_start = False
 batch_e = True
 batch_m = False
@@ -91,14 +91,6 @@ legend(["alpha", "beta"])
 fig()
 hist(sfd.EA.ravel(), bins=100)
 print(amax(sfd.a), amax(sfd.b))
-pass
-
-# <codecell>
-
-fig()
-hist(sfd.a.ravel(), bins=50)
-fig()
-hist(sfd.b.ravel(), bins=50)
 pass
 
 # <codecell>
