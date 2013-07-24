@@ -123,7 +123,7 @@ class SF_Dict(object):
         def f(theta):
             a, b = np.exp(theta[:self.L]), np.exp(theta[-self.L:])
             Ea, Eloga = comp_expect(a, b)
-            Eexpa = comp_exp_expect(a[:, np.newaxis], b[:, np.newaxis], self.U)
+            Eexpa = self.comp_exp_expect(a[:, np.newaxis], b[:, np.newaxis], self.U)
 
             likeli = (-self.W[t,:] * np.prod(Eexpa, axis=0) - np.dot(Ea, self.U)) * self.gamma
             prior = (self.alpha - 1) * Eloga - self.alpha * Ea
@@ -134,7 +134,7 @@ class SF_Dict(object):
         def df(theta):
             a, b = np.exp(theta[:self.L]), np.exp(theta[-self.L:])
             Ea, _ = comp_expect(a, b)
-            Eexpa = comp_exp_expect(a[:, np.newaxis], b[:, np.newaxis], self.U)
+            Eexpa = self.comp_exp_expect(a[:, np.newaxis], b[:, np.newaxis], self.U)
 
             tmp = 1 + self.U/b[:, np.newaxis]
             log_term, inv_term = np.empty_like(tmp), np.empty_like(tmp)
@@ -283,7 +283,7 @@ class SF_Dict(object):
             U = u.reshape(self.L, self.F) 
             Eexp = 1.
             for l in xrange(self.L):
-                Eexp *= comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
+                Eexp *= self.comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
                     np.newaxis], U[l, :])
             grad_U = np.zeros_like(U)
             for l in xrange(self.L):
@@ -306,17 +306,17 @@ class SF_Dict(object):
 
     def update_u(self, l, disp):
         def f(u):
-            Eexpa = comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l, np.newaxis], u)
+            Eexpa = self.comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l, np.newaxis], u)
             return np.sum(np.outer(self.EA[:,l], u) + self.W * Eexpa * Eres)
         
         def df(u):
-            tmp = comp_exp_expect(self.a[:, l, np.newaxis] + 1, self.b[:, l, np.newaxis], u) 
+            tmp = self.comp_exp_expect(self.a[:, l, np.newaxis] + 1, self.b[:, l, np.newaxis], u) 
             return np.sum(self.EA[:,l, np.newaxis] * (1 - self.W * Eres * tmp), axis=0) 
 
         k_idx = np.delete(np.arange(self.L), l)
         Eres = 1.
         for k in k_idx:
-            Eres *= comp_exp_expect(self.a[:, k, np.newaxis], self.b[:, k,
+            Eres *= self.comp_exp_expect(self.a[:, k, np.newaxis], self.b[:, k,
                 np.newaxis], self.U[k, :])
         u0 = self.U[l,:]
         self.U[l,:], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
@@ -345,7 +345,7 @@ class SF_Dict(object):
 
         Eexp = 1.
         for l in xrange(self.L):
-            Eexp *= comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
+            Eexp *= self.comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
                 np.newaxis], self.U[l, :])
 
         eta0 = np.log(self.gamma)
@@ -385,25 +385,51 @@ class SF_Dict(object):
                         df(eta_hat)[l], app_grad[l])
 
     def _vb_bound(self):
-        bound = self.bound()
-        bound = bound + np.sum(entropy(self.a, self.b))
-        return bound
+        vbound = self.bound()
+        vbound += np.sum(entropy(self.a, self.b))
+        return vbound
 
     def bound(self):
         Eexp = 1.
         for l in xrange(self.L):
-            Eexp *= comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
+            Eexp *= self.comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
                 np.newaxis], self.U[l, :])
         # E[log P(w|a)]
-        obj = self.T * np.sum(self.gamma * np.log(self.gamma) -
+        bound = self.T * np.sum(self.gamma * np.log(self.gamma) -
                 special.gammaln(self.gamma))
-        obj = obj + np.sum(-self.gamma * np.dot(self.EA, self.U) + (self.gamma -
+        bound = bound + np.sum(-self.gamma * np.dot(self.EA, self.U) + (self.gamma -
             1) * np.log(self.W) - self.W * Eexp * self.gamma)
         # E[log P(a)]
-        obj = obj + self.T * np.sum(self.alpha * np.log(self.alpha) - 
+        bound = bound + self.T * np.sum(self.alpha * np.log(self.alpha) - 
                 special.gammaln(self.alpha))
-        obj = obj + np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
-        return obj
+        bound = bound + np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
+        return bound 
+
+    def comp_exp_expect(self, alpha, beta, U):
+        ''' Compute E[exp(-au)] where a ~ Gamma(alpha, beta) and u constant
+            
+        This function makes extensive use of broadcast, thus the dimension of 
+        input arguments can only be one of the following two situations:
+             1) U has shape (L, F), alpha and beta have shape (L, 1)
+                --> output shape (L, F)
+             2) U has shape (F, ), alpha and beta have shape (T, 1)
+                --> output shape (T, F)
+        '''
+        # using Taylor expansion for large alpha (hence beta) for floating point
+        # precision consideration
+        idx = np.logical_and(alpha < 1e10, beta < 1e10).ravel()
+        if alpha.size == self.L:
+            expect = np.empty_like(U)
+            expect[idx] = (1 + U[idx]/beta[idx])**(-alpha[idx])
+            expect[-idx] = np.exp(-U[-idx] * alpha[-idx]/beta[-idx])
+        elif alpha.size == self.T:
+            expect = np.empty((self.T, self.F))
+            expect[idx] = (1 + U/beta[idx])**(-alpha[idx])
+            expect[-idx] = np.exp(-U * alpha[-idx]/beta[-idx])
+        else:
+            raise ValueError('wrong dimension')
+        expect[U <= -beta] = np.inf
+        return expect
 
 def print_gradient(name, val, grad, approx):
     print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'
@@ -412,18 +438,6 @@ def print_gradient(name, val, grad, approx):
 
 def comp_expect(alpha, beta):
     return (alpha/beta, special.psi(alpha) - np.log(beta))
-
-def comp_exp_expect(alpha, beta, U):
-    # U has shape (L, -1), alpha and beta should be shaped as (L, -1)
-    # using Taylor expansion for large alpha (hence beta) for floating point
-    # precision consideration
-    #idx = (alpha < 1e8)
-    #expect = np.empty_like(U)
-    #expect[idx, :] = (1 + U[idx, :]/beta[idx, :])**(-alpha[idx, :])
-    #expect[-idx, :] = np.exp(-U[-idx,:] * alpha[-idx, :]/beta[-idx, :])
-    expect = (1 + U/beta)**(-alpha)
-    expect[U <= -beta] = np.inf
-    return expect 
 
 def entropy(alpha, beta):
     return (alpha - np.log(beta) + special.gammaln(alpha) + 
