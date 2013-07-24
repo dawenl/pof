@@ -1,3 +1,10 @@
+"""
+Utils for GaP-NMF
+
+CREATED: 2013-07-23 14:20:10 by Dawen Liang <daliang@adobe.com> 
+
+"""
+
 import numpy as np
 import scipy.special as special
 
@@ -51,10 +58,10 @@ def gig_gamma_term(Ex, Exinv, rho, tau, a, b):
 
     score -= np.sum(non_zero_tau) * log(0.5)
     score += np.sum(tau[non_zero_tau] * Exinv[non_zero_tau])
-    score -= 0.5 * a * np.sum(np.log(rho[non_zero_tau] - np.log(tau[non_zero_tau])))
+    score -= 0.5 * a * np.sum(np.log(rho[non_zero_tau]) - np.log(tau[non_zero_tau]))
     # It's numerically safer to use scaled version of besselk
     score += np.sum(np.log(special.kve(a, 2 * np.sqrt(rho[non_zero_tau] *
-        tau[non_zero_tau])) - 2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau])))
+        tau[non_zero_tau]))) - 2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau]))
 
     score += np.sum(-a * np.log(rho[zero_tau]) + special.gammaln(a))
     return score

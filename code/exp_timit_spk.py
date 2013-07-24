@@ -93,16 +93,17 @@ old_obj = -np.inf
 L = 50
 maxiter = 100
 cold_start = False
-batch = True
+batch_e = True
+batch_m = True
 
 sfd = vpl.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, batch=batch, disp=0)
-    if sfd.vb_m(disp=1):
+    sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=0)
+    if sfd.vb_m(batch=batch_m, disp=1):
         break
     obj.append(sfd.obj)
-    improvement = (sfd.obj - old_obj) / abs(sfd.obj)
+    improvement = (sfd.obj - old_obj) / abs(old_obj)
     print 'After ITERATION: {}\tObjective: {:.2f}\tOld objective: {:.2f}\tImprovement: {:.4f}'.format(i, sfd.obj, old_obj, improvement)
     if improvement < threshold:
         break

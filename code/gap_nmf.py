@@ -1,15 +1,52 @@
+"""
+Python translation of MATALB code for GaP-NMF as in:
+
+    Bayesian Nonparametric Matrix Factorization for Recorded Music
+
+    by Matthew D. Hoffman et al. in ICML2010
+
+The original MATLAB code: http://www.cs.princeton.edu/~mdhoffma/code/gapnmfmatlab.tar
+    
+CREATED: 2013-07-23 14:16:41 by Dawen Liang <daliang@adobe.com> 
+
+"""
+
+import functools, time
+
 import numpy as np
 from matplotlib import pyplot as plt
 
 import _gap
 
+specshow = functools.partial(plt.imshow, cmap=plt.cm.jet, origin='lower',
+        aspect='auto', interpolation='nearest')
+
 class GaP_NMF:
     def __init__(self, X, K=100, smoothness=100, seed=None, **kwargs):
+        """ gap = GaP_NMF(X, K=100, smoothness=100, seed=None, a=0.1, b=0.1,
+                          alpha=1.)
+
+        Required arguments:
+            X:              F-by-T nonnegative matrix (numpy.ndarray)
+                            the data to be factorized
+
+        Optional arguments:
+            K:              the size of the initial components
+
+            smoothness:     control the concentration of the variational
+                            parameters 
+
+            seed:           random seed if None
+
+            a, b, alpha:    hyperparameters
+        
+        """
+
         self.X = X / np.mean(X)
         self.K = K 
-        F, T = X.shape
+        self.F, self.T = X.shape
         if seed is None:
-            print 'Using random seed.'
+            print 'Using random seed'
             np.random.seed()
         else:
             print 'Using fixed seed {}'.format(seed)
@@ -49,12 +86,13 @@ class GaP_NMF:
         self.Etinvinv = 1./self.Etinv
 
     def update(self):
+        ''' Do optimization for one iteration
+        '''
         self.update_h()
         self.update_w()
         self.update_theta()
-
+        # truncate unused components
         self.clear_badk()
-        pass
 
     def update_w(self):
         goodk = self.goodk()
@@ -110,20 +148,54 @@ class GaP_NMF:
         idx = np.where(powers[sorted] > cut_off * np.amax(powers))[0]
         goodk = sorted[:(idx[-1] + 1)]
         if powers[goodk[-1]] < cut_off:
-            np.delete(goodk, -1)
+            goodk = np.delete(goodk, -1)
         return goodk
 
     def clear_badk(self):
+        ''' Set unsued components' posteriors equal to their priors
+        '''
         goodk = self.goodk()
         badk = np.setdiff1d(np.arange(self.K), goodk)
         self.rhow[:, badk] = self.a
         self.tauw[:, badk] = 0
         self.rhoh[badk, :] = self.b
         self.tauh[badk, :] = 0
-        self.compute_gig_expectations()
+        self.compute_expectations()
 
     def figures(self):
-        pass
+        ''' Animation-type of figures can only be created with PyGTK backend
+        '''
+        plt.subplot(3, 2, 1)
+        specshow(np.log(self.Ew))
+        plt.title('E[W]')
+        plt.xlabel('component index')
+        plt.ylabel('frequency')
+
+        plt.subplot(3, 2, 2)
+        specshow(np.log(self.Eh))
+        plt.title('E[H]')
+        plt.xlabel('time')
+        plt.ylabel('component index')
+
+        plt.subplot(3, 2, 3)
+        plt.bar(np.arange(self.K), self.Et)
+        plt.title('E[theta]')
+        plt.xlabel('component index')
+        plt.ylabel('E[theta]')
+
+        plt.subplot(3, 2, 5)
+        specshow(np.log(self.X))
+        plt.title('Original Spectrogram')
+        plt.xlabel('time')
+        plt.ylabel('frequency')
+
+        plt.subplot(3, 2, 6)
+        specshow(np.log(self._xbar()))
+        plt.title('Reconstructed Spectrogram')
+        plt.xlabel('time')
+        plt.ylabel('frequency')
+
+        time.sleep(0.000001)
 
     def bound(self):
         score = 0
@@ -140,11 +212,15 @@ class GaP_NMF:
                 self.alpha/self.K, self.alpha)
         return score
 
-    def _xbar(self, goodk):
-        return np.dot(self.Ew[:, goodk], self.Et[goodk] * self.Eh[goodk, :])
+    def _xbar(self, goodk=None):
+        if goodk is None:
+            goodk = np.arange(self.K)
+        dEt = self.Et[goodk]
+        return np.dot(self.Ew[:, goodk], dEt[:, np.newaxis] * self.Eh[goodk, :])
 
     def _xtwid(self, goodk):
-        return np.dot(self.Ewinvinv[:, goodk], self.Etinvinv[goodk] * 
+        dEtinvinv = self.Etinvinv[goodk]
+        return np.dot(self.Ewinvinv[:, goodk], dEtinvinv[:, np.newaxis] * 
                 self.Ehinvinv[goodk, :])
 
 

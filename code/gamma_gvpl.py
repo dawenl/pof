@@ -97,19 +97,18 @@ class SF_Dict(object):
                 a_diff = np.mean(np.abs(old_a - self.a))
                 mu_diff = np.mean(np.abs(old_mu - self.mu))
 
-                self._vb_bound()
-                improvement = (self.bound - old_bound) / np.abs(self.bound)
+                bound = self._vb_bound()
+                improvement = (bound - old_bound) / np.abs(old_bound)
 
                 if verbose:
                     sys.stdout.write('\n')
                     print('Subiter: {:3d}\ta diff: {:.4f}\tmu diff: {:.4f}\t'
                           'bound: {:.2f}\tbound improvement: {:.5f}\t'
-                          'time: {:.2f}'.format(i, a_diff, mu_diff, self.bound,
+                          'time: {:.2f}'.format(i, a_diff, mu_diff, bound,
                                                 improvement, t))
-
                 if improvement < rtol or (a_diff <= atol and mu_diff <= atol):
                     break
-                old_bound = self.bound
+                old_bound = bound
 
     def update_theta_batch(self, t, disp):
         def f(theta):
@@ -130,9 +129,10 @@ class SF_Dict(object):
 
             tmp = 1 + self.U/b[:, np.newaxis]
             log_term, inv_term = np.empty_like(tmp), np.empty_like(tmp)
-            idx = (tmp > 0)
-            log_term[idx], log_term[-idx] = np.log(tmp[idx]), -np.inf
-            inv_term[idx], inv_term[-idx] = 1./tmp[idx], np.inf
+            idx_pos = (tmp > 0)
+            idx_nz = (tmp != 0)
+            log_term[idx_pos], log_term[-idx_pos] = np.log(tmp[idx_pos]), -np.inf
+            inv_term[idx_nz], inv_term[-idx_nz] = 1./tmp[idx_nz], np.inf
 
             grad_a = a * (np.sum(self.W[t,:] * log_term * np.prod(Eexpa, axis=0) * self.gamma - self.U/b[:, np.newaxis] * self.gamma , axis=1) + (self.alpha - a) * special.polygamma(1, a) + 1 - self.alpha / b)
             grad_b = b * (a/b**2 * np.sum(-self.U * self.W[t,:] * inv_term * np.prod(Eexpa, axis=0) * self.gamma + self.U * self.gamma, axis=1) + self.alpha * (a/b**2 - 1./b))
@@ -220,48 +220,80 @@ class SF_Dict(object):
         old_U = self.U.copy()
         old_gamma = self.gamma.copy()
         old_alpha = self.alpha.copy()
+        start_t = time.time()
+        if verbose:
+            last_score = self.bound()
+            print('Update (initial)\tObj: {:.2f}'.format(last_score))
         if batch:
             self.update_u_batch(disp) 
+            if verbose:
+                obj = self.bound()
+                diff_str = '+' if obj > last_score else '-'
+                print('Update (U)\tBefore: {:.2f}\tAfter: {:.2f}\t{}'.format(last_score,
+                    obj, diff_str))
+                last_score = obj
         else:
             for l in xrange(self.L):
                 self.update_u(l, disp)
+                if verbose:
+                    obj = self.bound()
+                    diff_str = '+' if obj > last_score else '-'
+                    print('Update (U[{}])\tBefore: {:.2f}\tAfter:'
+                            ' {:.2f}\t{}'.format(l, last_score, obj, diff_str))
+                    last_score = obj
         self.update_gamma(disp)
+        
+        if verbose:
+            obj = self.bound()
+            diff_str = '+' if obj > last_score else '-' 
+            print('Update (gamma)\tBefore: {:.2f}\tAfter:'
+                    ' {:.2f}\t{}'.format(last_score, obj, diff_str))
+            last_score = obj
+
         if update_alpha:
             self.update_alpha(disp)
-        self._objective()
+            if verbose:
+                obj = self.bound()
+                diff_str = '+' if obj > last_score else '-'
+                print('Update (alpha)\tBefore: {:.2f}\tAfter: '
+                        ' {:.2f}\t{}'.format(last_score, obj, diff_str))
+        
+        t = time.time() - start_t
         U_diff = np.mean(np.abs(self.U - old_U))
         sigma_diff = np.mean(np.abs(np.sqrt(1./self.gamma) - np.sqrt(1./old_gamma)))
         alpha_diff = np.mean(np.abs(self.alpha - old_alpha))
         if verbose:
-            print 'U increment: {:.4f}\tsigma increment: {:.4f}\talpha increment: {:.4f}'.format(U_diff, sigma_diff, alpha_diff)
+            print('U diff: {:.4f}\tsigma dff: {:.4f}\talpha diff: {:.4f}\t'
+                    'time: {:.2f}'.format(U_diff, sigma_diff, alpha_diff, t))
         if U_diff < atol and sigma_diff < atol and alpha_diff < atol:
             return True
         return False
 
     def update_u_batch(self, disp):
-        #def f(u):
-        #    U = u.reshape(self.L, self.F) 
-        #    EV = np.dot(self.EA, U)
-        #    EV2 = np.dot(self.EA2, U**2) + EV**2 - np.dot(self.EA**2, U**2)
-        #    return -np.sum(2*self.V * EV - EV2)
+        def f_df(u):
+            U = u.reshape(self.L, self.F) 
+            Eexp = 1.
+            for l in xrange(self.L):
+                Eexp *= comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
+                    np.newaxis], U[l, :])
+            grad_U = np.zeros_like(U)
+            for l in xrange(self.L):
+                tmp = 1 + U[l, :]/self.b[:, l, np.newaxis]
+                inv_term = np.empty_like(tmp)
+                idx = (tmp > 0)
+                inv_term[idx], inv_term[-idx] = 1./tmp[idx], np.inf
+                grad_U[l, :] = np.sum(self.EA[:, l, np.newaxis] * (1 - self.W *
+                    Eexp * inv_term))
+            return (np.sum(np.dot(self.EA, U) + self.W * Eexp), grad_U.ravel())
 
-        #def df(u):
-        #    U = u.reshape(self.L, self.F)
-        #    grad_U = np.zeros_like(U)
-        #    for l in xrange(self.L):
-        #        Eres = self.V - np.dot(self.EA, U) + np.outer(self.EA[:,l], U[l,:])
-        #        grad_U[l,:] = np.sum(np.outer(self.EA2[:,l], U[l,:]) - Eres * self.EA[:,l][np.newaxis].T, axis=0)
-        #    return grad_U.ravel()
-
-        #u0 = self.U.ravel()
-        #u_hat, _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
-        #self.U = u_hat.reshape(self.L, self.F)
-        #if disp and d['warnflag']:
-        #    if d['warnflag'] == 2:
-        #        print 'U: {}, f={}'.format(d['task'], f(u_hat))
-        #    else:
-        #        print 'U: {}, f={}'.format(d['warnflag'], f(u_hat))
-        raise NotImplementedError()
+        u0 = self.U.ravel()
+        u_hat, _, d = optimize.fmin_l_bfgs_b(f_df, u0, disp=0)
+        self.U = u_hat.reshape(self.L, self.F)
+        if disp and d['warnflag']:
+            if d['warnflag'] == 2:
+                print 'U: {}, f={}'.format(d['task'], f_df(u_hat)[0])
+            else:
+                print 'U: {}, f={}'.format(d['warnflag'], f_df(u_hat)[0])
 
     def update_u(self, l, disp):
         def f(u):
@@ -344,28 +376,28 @@ class SF_Dict(object):
                         df(eta_hat)[l], app_grad[l])
 
     def _vb_bound(self):
-        #self.bound = np.sum(entropy(self.a, self.mu)) 
-        #self.bound += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
+        #bound = np.sum(entropy(self.a, self.mu)) 
+        #bound = bound + np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
         #EV = np.dot(self.EA, self.U)
         #EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
-        #self.bound += 1./2 * np.sum((2 * EV * self.V - EV2) * self.gamma)
-        pass
+        #bound = bound + 1./2 * np.sum((2 * EV * self.V - EV2) * self.gamma)
+        return bound
 
-    def _objective(self):
+    def bound(self):
         Eexp = 1.
         for l in xrange(self.L):
             Eexp *= comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
                 np.newaxis], self.U[l, :])
         # E[log P(w|a)]
-        self.obj = self.T * np.sum(self.gamma * np.log(self.gamma) -
+        obj = self.T * np.sum(self.gamma * np.log(self.gamma) -
                 special.gammaln(self.gamma))
-        self.obj += np.sum(-self.gamma * np.dot(self.EA, self.U) + (self.gamma -
+        obj = obj + np.sum(-self.gamma * np.dot(self.EA, self.U) + (self.gamma -
             1) * np.log(self.W) - self.W * Eexp * self.gamma)
         # E[log P(a)]
-        self.obj += self.T * np.sum(self.alpha * np.log(self.alpha) - 
+        obj = obj + self.T * np.sum(self.alpha * np.log(self.alpha) - 
                 special.gammaln(self.alpha))
-        self.obj += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
-        pass
+        obj = obj + np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
+        return obj
 
 def print_gradient(name, val, grad, approx):
     print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'

@@ -57,24 +57,22 @@ old_obj = -np.inf
 maxiter = 5
 cold_start = False
 batch_e = True
-batch_m = False
+batch_m = True
 
 sfd = vpl.SF_Dict(W, L=L, seed=98765)
-#sfd.U = U
-#sfd.alpha = alpha
-#sfd.gamma = gamma
 obj = []
 
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=1)
-    if sfd.vb_m(batch=batch_m, disp=1, atol=1e-3):
+    sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=0)
+    if sfd.vb_m(batch=batch_m, disp=0):
         break
-    obj.append(sfd.obj)
-    #improvement = (sfd.obj - old_obj) / abs(sfd.obj)
-    #print 'After ITERATION: {}\tObjective Improvement: {:.4f}'.format(i, improvement)
-    #if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
+    score = sfd.bound()
+    obj.append(score)
+    improvement = (score - old_obj) / abs(old_obj)
+    print 'After ITERATION: {}\tObjective Improvement: {:.4f}'.format(i, improvement)
+    #if improvement < threshold:
     #    break
-    #old_obj = sfd.obj
+    old_obj = score
 
 # <codecell>
 
@@ -93,6 +91,14 @@ legend(["alpha", "beta"])
 fig()
 hist(sfd.EA.ravel(), bins=100)
 print(amax(sfd.a), amax(sfd.b))
+pass
+
+# <codecell>
+
+fig()
+hist(sfd.a.ravel(), bins=50)
+fig()
+hist(sfd.b.ravel(), bins=50)
 pass
 
 # <codecell>
@@ -129,10 +135,6 @@ normalize_and_plot(A[:,idx_alpha], U[idx_alpha,:])
 
 # <codecell>
 
-normalize_and_plot(sfd.EA, sfd.U[1:])
-
-# <codecell>
-
 W_rec = np.exp(np.dot(sfd.EA, sfd.U))
 subplot(311)
 specshow(np.log(W.T))
@@ -157,4 +159,12 @@ fig()
 plot(gamma)
 fig()
 plot(sfd.gamma)
+
+# <codecell>
+
+print U[idx_alpha]
+print sfd.U[idx_alpha_sfd]
+
+# <codecell>
+
 
