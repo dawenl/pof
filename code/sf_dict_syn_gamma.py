@@ -64,7 +64,7 @@ obj = []
 
 for i in xrange(maxiter):
     sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=0)
-    if sfd.vb_m(batch=batch_m, disp=0):
+    if sfd.vb_m(batch=batch_m, disp=1):
         break
     score = sfd.bound()
     obj.append(score)
@@ -164,7 +164,4 @@ plot(sfd.gamma)
 
 print U[idx_alpha]
 print sfd.U[idx_alpha_sfd]
-
-# <codecell>
-
 

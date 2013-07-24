@@ -73,6 +73,10 @@ class SF_Dict(object):
             # re-initialize all the variational parameters
             self._init_variational(smoothness)
 
+        if verbose:
+            last_score = self._vb_bound()
+            print('Update (initial)\tObj: {:.2f}'.format(last_score))
+
         if batch:
             start_t = time.time()
             for t in xrange(self.T):
@@ -109,6 +113,11 @@ class SF_Dict(object):
                 if improvement < rtol or (a_diff <= atol and mu_diff <= atol):
                     break
                 old_bound = bound
+        if verbose:
+            obj = self._vb_bound()
+            diff_str = '+' if obj > last_score else '-' 
+            print('Update (A)\tBefore: {:.2f}\tAfter: {:.2f}\t{}'.format(last_score, obj, diff_str))
+
 
     def update_theta_batch(self, t, disp):
         def f(theta):
@@ -376,11 +385,8 @@ class SF_Dict(object):
                         df(eta_hat)[l], app_grad[l])
 
     def _vb_bound(self):
-        #bound = np.sum(entropy(self.a, self.mu)) 
-        #bound = bound + np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
-        #EV = np.dot(self.EA, self.U)
-        #EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
-        #bound = bound + 1./2 * np.sum((2 * EV * self.V - EV2) * self.gamma)
+        bound = self.bound()
+        bound = bound + np.sum(entropy(self.a, self.b))
         return bound
 
     def bound(self):
