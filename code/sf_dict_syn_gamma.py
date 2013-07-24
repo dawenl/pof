@@ -54,10 +54,10 @@ pass
 reload(vpl)
 threshold = 0.005
 old_obj = -np.inf
-maxiter = 5
+maxiter = 4
 cold_start = False
 batch_e = True
-batch_m = True
+batch_m = False
 
 sfd = vpl.SF_Dict(W, L=L, seed=98765)
 obj = []

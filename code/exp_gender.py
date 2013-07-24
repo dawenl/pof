@@ -11,7 +11,7 @@ from scikits.audiolab import Sndfile, Format
 from matplotlib.pyplot import *
 
 import librosa
-import gvpl as vpl
+import gamma_gvpl as vpl
 
 # <codecell>
 
@@ -102,20 +102,22 @@ old_obj = -np.inf
 L = 50
 maxiter = 200
 cold_start = False
-batch = True
+batch_e = True
+batch_m = False
 
 sfd = vpl.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, batch=batch, disp=0)
-    if sfd.vb_m(disp=1):
+    sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=0)
+    if sfd.vb_m(batch=batch_m, disp=0):
         break
-    obj.append(sfd.obj)
-    improvement = (sfd.obj - old_obj) / abs(sfd.obj)
-    print 'After ITERATION: {}\tObjective: {:.2f}\tOld objective: {:.2f}\tImprovement: {:.4f}'.format(i, sfd.obj, old_obj, improvement)
+    score = sfd.bound()
+    obj.append(score)
+    improvement = (score - old_obj) / abs(old_obj)
+    print 'After ITERATION: {}\tObjective: {:.2f}\tOld objective: {:.2f}\tImprovement: {:.4f}'.format(i, score, old_obj, improvement)
     if improvement < threshold:
         break
-    old_obj = sfd.obj
+    old_obj = score
 
 # <codecell>
 

@@ -111,7 +111,7 @@ for i in xrange(maxiter):
 
 # <codecell>
 
-plot(obj)
+plot(obj[:40])
 pass
 
 # <codecell>
