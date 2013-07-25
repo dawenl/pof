@@ -128,7 +128,7 @@ normalize_and_plot(A[:,idx_alpha], U[idx_alpha,:])
 # <codecell>
 
 W_rec = np.exp(np.dot(sfd.EA, sfd.U))
-W_rec[W_rec > W.max()] = W.max()
+#W_rec[W_rec > W.max()] = W.max()
 
 subplot(311)
 specshow(np.log(W.T))
