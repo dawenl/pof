@@ -34,6 +34,17 @@ for t in xrange(T):
 
 # <codecell>
 
+#W = W / np.mean(W)
+print W.min(), W.max(), W.min() / W.max()
+#W = np.minimum(W, 1e8 * W.min())
+#hist(W.ravel(), bins=100)
+#pass
+sortedW = np.sort(W.ravel())
+print sortedW[:30]
+print sortedW[-30:]
+
+# <codecell>
+
 subplot(311)
 specshow(U.T)
 title('U')
