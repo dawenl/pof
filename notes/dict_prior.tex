@@ -53,7 +53,7 @@ Objective:
 \subsection{E-step}
 \begin{itemize}
 \item Reparametrize $v_{tf} \equiv \log w_{tf}$ and $\phi_{tl} \equiv \log a_{tl}$.
-\item Approximate posterior $P(\bm{a}_t | \mathbf{U}, \bm{w}_t, \bm{\alpha}, \bm{\gamma}) = \prod_{l} q(a_{tl})$, where $q(\log a_{tl}) \equiv q(\phi_{tl}) = \mathcal{N}(\mu_{tl}, \sigma_{tl}^2)$.
+\item Approximate posterior $P(\bm{a}_t | \mathbf{U}, \bm{w}_t, \bm{\alpha}, \bm{\gamma}) = \prod_{l} q(a_{tl})$.
 \end{itemize}
 
 \subsubsection{Laplace Approximation:} 
@@ -78,15 +78,20 @@ Search for the local maximum $\hat{\phi}_{tl}$ of $f(\phi_{tl})$:
 
  The variational bound is:
 \begin{align*}
-\mathcal{L}(\bm{\mu}, \bm{\sigma}) =& \sum_t \biggl\{  \langle \log P(\bm{w}_t, \bm{a}_t | \mathbf{U}, \bm{\alpha}, \bm{\gamma}) \rangle + \sum_l H_q (a_{tl}) \biggl\}
+\mathcal{L}=& \sum_t \biggl\{  \langle \log P(\bm{w}_t, \bm{a}_t | \mathbf{U}, \bm{\alpha}, \bm{\gamma}) \rangle + \sum_l H_q (a_{tl}) \biggl\}
 \end{align*}
 where
 \begin{align*}
  \langle \log P(\bm{w}_t, \bm{a}_t | \mathbf{U}, \bm{\alpha}, \bm{\gamma}) \rangle  \propto & \sum_f \langle -\frac{1}{2} \gamma_f (v_{tf} - \sum_k a_{tk} u_{kf})^2 \rangle + \sum_l  (\alpha_l - 1) \langle \log a_{tl} \rangle - \alpha_l \langle a_{tl} \rangle
 \end{align*}
-and 
+
+Depending on which variational distribution we choose to use, $H_q(a_{tl})$ can take on different forms. If $q(\log a_{tl}) = \mathcal{N}(\mu_{tl}, \sigma_{tl}^2)$: 
 \begin{align*}
 H_q (a_{tl}) \propto \frac{1}{2}\log ( \sigma_{tl}^2) + \mu_{tl}
+\end{align*}
+else if $q(a_{tl}) = \Gamma(k_{tl}, \mu_{tl})$ (a gamma distribution with shape $k_{tl}$ and mean $\mu_{tl}$):
+\begin{align*}
+H_q (a_{tl}) = k_{tl} - \log \biggl(\frac{k_{tl}}{\mu_{tl}}\biggl) + \log \Gamma(k_{tl}) + (1 - k_{tl})\psi(k_{tl})
 \end{align*}
 Furthermore,
 \begin{align*}
@@ -95,25 +100,42 @@ Furthermore,
 \end{align*}
 
 All the expectations can be computed as:
-\begin{align*}
-&\langle a_{tl} \rangle = \exp(\mu_{tl} + \frac{1}{2} \sigma_{tl}^2)\\
-&\langle a_{tl}^2 \rangle = \exp(2\mu_{tl} + 2\sigma_{tl}^2)\\
-&\langle \log a_{tl} \rangle = \mu_{tl}
-\end{align*}
+\begin{center}
+\begin{tabular} { c || c | c }
+& $q(\log a_{tl}) = \mathcal{N}(\mu_{tl}, \sigma_{tl}^2)$ & $q(a_{tl}) = \Gamma(k_{tl}, \mu_{tl})$ \\ \hline
+$\langle a_{tl} \rangle$  & $\exp(\mu_{tl} + \frac{1}{2} \sigma_{tl}^2)$ & $\mu_{tl}$ \\ \hline
+$\langle a_{tl}^2 \rangle$ & $\exp(2\mu_{tl} + 2\sigma_{tl}^2)$ & $\mu_{tl}^2 + \frac{\mu_{tl}^2}{k_{tl}}$\\ \hline
+$\langle \log a_{tl} \rangle$ & $\mu_{tl}$ & $\psi(k_{tl}) - \log \biggl( \frac{k_{tl}}{\mu_{tl}} \biggl)$ \\
+\end{tabular}
+\end{center}
 
-Therefore, we can optimize $\mathcal{L}$ w.r.t. $\bm{\mu}_l$ and $\bm{\sigma}_l^2$ jointly for $l\in [L]$. The objective function is:
+Therefore, we can optimize $\mathcal{L}$ with respect to variational parameters for $l\in [L]$. The objective function is:
 \begin{align*}
-\mathcal{L}(\bm{\mu}_l, \bm{\sigma}^2_l) 
-\propto \sum_t \biggl\{  \langle a_{tl} \rangle (\sum_f \gamma_f u_{lf} \hat{v}_{tf}^{-l} -\alpha_l) - \frac{1}{2} \langle a_{tl}^2 \rangle \sum_f \gamma_f u_{lf}^2
-+ (\alpha_l - 1) \langle \log a_{tl} \rangle  + \frac{1}{2}\log (\sigma_{tl}^2) + \mu_{tl} \biggl\} 
+\mathcal{L}_l
+\propto \sum_t \biggl\{ \langle a_{tl} \rangle (\sum_f \gamma_f u_{lf} \hat{v}_{tf}^{-l} -\alpha_l) - \frac{1}{2} \langle a_{tl}^2 \rangle \sum_f \gamma_f u_{lf}^2
++ (\alpha_l - 1) \langle \log a_{tl} \rangle  + H_q(a_{tl}) \biggl\} 
 \end{align*}
-The gradient of $\mathcal{L}(\bm{\mu}_l, \bm{\sigma}^2_l)$: 
+The gradient of $\mathcal{L}_l$ under log-normal variational distribution: 
 \[
-\frac{\partial \mathcal{L}}{\partial \mu_{tl}} = \langle a_{tl} \rangle (\sum_f \gamma_f u_{lf} \hat{v}_{tf}^{-l} - \alpha_l) - \langle a_{tl}^2 \rangle \sum_f \gamma_f u_{lf}^2  + \alpha_l  
+\frac{\partial \mathcal{L}_l}{\partial \mu_{tl}} = \langle a_{tl} \rangle (\sum_f \gamma_f u_{lf} \hat{v}_{tf}^{-l} - \alpha_l) - \langle a_{tl}^2 \rangle \sum_f \gamma_f u_{lf}^2  + \alpha_l  
 \]
 \[
-\frac{\partial \mathcal{L}}{\partial (\sigma^2_{tl})} = \frac{1}{2} \langle a_{tl} \rangle  (\sum_f \gamma_f u_{lf} \hat{v}_{tf}^{-l} - \alpha_l) - \langle a_{tl}^2 \rangle \sum_f \gamma_f  u_{lf}^2 + \frac{1}{2\sigma_{tl}^2}
+\frac{\partial \mathcal{L}_l}{\partial (\sigma^2_{tl})} = \frac{1}{2} \langle a_{tl} \rangle  (\sum_f \gamma_f u_{lf} \hat{v}_{tf}^{-l} - \alpha_l) - \langle a_{tl}^2 \rangle \sum_f \gamma_f  u_{lf}^2 + \frac{1}{2\sigma_{tl}^2}
 \]
+The gradient of $\mathcal{L}_l$ under gamma variational distribution: 
+\[
+\frac{\partial \mathcal{L}_l}{\partial k_{tl}} = \frac{\mu_{tl}^2}{2 k^2_{tl}}  \sum_f \gamma_f  u_{lf}^2 + (\alpha_l - k_{tl}) \psi_1(k_{tl}) - \frac{\alpha_l}{k_{tl}} + 1
+\]
+\[
+\frac{\partial \mathcal{L}_l}{\partial \mu_{tl}} =  (\sum_f \gamma_f u_{lf} \hat{v}_{tf}^{-l} - \alpha_l) - (\mu_{tl} + \frac{\mu_{tl}}{k_{tl}})\sum_f \gamma_f u_{lf}^2 + \frac{\alpha_l}{\mu_{tl}}
+\]
+While doing optimization, L-BFGS can be adopted. Note that since we are alternating across independent directions $l \in [L]$, multiple sweeps are required until convergence. On the other hand, we can optimize $\mathcal{L}$ for $t \in [T]$ which can be done via L-BFGS only once. The objective function is:
+\begin{align*}
+\mathcal{L}_t 
+\propto  \sum_f \frac{1}{2} \gamma_f \biggl\{ 2 v_{tf} \sum_k \langle a_{tk} \rangle u_{kf} -  \langle \big(\sum_k a_{tk} u_{kf}\big)^2 \rangle \biggl\}
++ \sum_l \biggl\{(\alpha_l - 1) \langle \log a_{tl} \rangle  - \alpha_l \langle a_{tl} \rangle \biggl\} + \sum_l H_q (a_{tl})
+\end{align*}
+The elements of gradient for $\mathcal{L}_t$ are essentially the same as the corresponding ones of $\mathcal{L}_l$.
 
 \subsection{M-step:}
 
@@ -143,5 +165,72 @@ While for $U$ and $\alpha$, L-BFGS can be applied to find a local optimum. Note 
 \[
 \frac{\partial \mathcal{L}}{\partial \eta_l} = \frac{\partial \mathcal{L}}{\partial \alpha_l} \cdot \frac{\partial \alpha_l}{\partial \eta_l} = \alpha_l \frac{\partial \mathcal{L}}{\partial \alpha_l} 
 \]
+
+\section{Gamma noise model}
+
+To better adopt for NMF setting, it would be appropriate to model $\bm{w}_t$ with a gamma noise model instead of a log-normal noise model:
+\[
+w_{tf} \sim \Gamma\Big(\gamma_f, \gamma_f  \prod_l \exp(-a_{tl} u_{lf})\Big)
+\]
+and keep the rest of the model unchanged. The variational distribution in this setting is $q(a_{tl}) = \Gamma(k_{tl}, \beta_{tl})$ which is a gamma distribution with shape $k_{tl}$ and rate $\beta_{tl}$. Directly optimizing the variational bound:
+\begin{align*}
+\mathcal{L}_t=&  \langle \log P(\bm{w}_t, \bm{a}_t | \mathbf{U}, \bm{\alpha}, \bm{\gamma}) \rangle + \sum_l H_q (a_{tl})
+\end{align*}
+where
+\begin{align*}
+ \langle \log P(\bm{w}_t, \bm{a}_t | \mathbf{U}, \bm{\alpha}, \bm{\gamma}) \rangle  \propto & \sum_f \gamma_f \biggl\{-w_{tf} \prod_{l} \langle \exp(-a_{tl} u_{lf}) \rangle - \sum_l \langle a_{tl} \rangle u_{lf} \biggl\}  + \sum_l  \biggl\{ (\alpha_l - 1) \langle \log a_{tl} \rangle - \alpha_l \langle a_{tl} \rangle \biggl\}
+\end{align*}
+
+All the expectations can be computed as:
+\begin{center}
+\begin{tabular} { c || c  }
+& $q(a_{tl}) = \Gamma(k_{tl}, \beta_{tl})$ \\ \hline
+$\langle a_{tl} \rangle$  &  $\frac{k_{tl}}{\beta_{tl}}$ \\ \hline
+$\langle \exp(-a_{tl}u_{lf} \rangle$ & $(1 + \frac{u_{lf}}{\beta_{tl}})^{-k_{tl}}$ if $\beta_{tl} > -u_{lf}$, $+\infty$ otherwise.\\ \hline
+$\langle \log a_{tl} \rangle$ & $\psi(k_{tl}) - \log \beta_{tl}$ \\
+\end{tabular}
+\end{center}
+
+Take the derivative of $\mathcal{L}_t$ w.r.t. $k_{tl}$ and $\beta_{tl}$:
+\begin{align*}
+\frac{\partial \mathcal{L}_t}{\partial k_{tl}} &= \sum_f \biggl\{ w_{tf} \gamma_f \log(1 + \frac{u_{lf}}{\beta_{tl}}) \prod_{k} \langle \exp(-a_{tk} u_{kf}) \rangle - \gamma_f \frac{u_{lf}}{\beta_{tl}} \biggl\} + (\alpha_l - k_{tl}) \psi_1(k_{tl}) + 1 - \frac{\alpha_l}{\beta_{tl}}\\
+\frac{\partial \mathcal{L}_t}{\partial \beta_{tl}} &= \frac{k_{tl}}{\beta_{tl}^2} \sum_f \biggl\{ -w_{tf} \gamma_f (1 + \frac{u_{lf}}{\beta_{tl}})^{-1} u_{lf} \prod_{k} \langle \exp(-a_{tk} u_{kf}) \rangle + \gamma_f u_{lf} \biggl\} + \alpha_l (\frac{k_{tl}}{\beta_{tl}^2} - \frac{1}{\beta_{tl}})
+\end{align*}
+
+\subsection{M-step}
+The objective function for M-step is:
+\begin{align*}
+\mathcal{L}(\mathbf{U}, \bm{\alpha}, \bm{\gamma}) &= \sum_t \langle \log P(\bm{w}_t, \bm{a}_t | \mathbf{U}, \bm{\alpha}, \bm{\gamma}) \rangle \\
+&= \sum_t  \biggl\{ \sum_f \Big( \gamma_f \log \gamma_f - \gamma_ f \sum_l \langle a_{tl} \rangle u_{lf} - \log\Gamma(\gamma_f) + (\gamma_f - 1)\log w_{tf} - w_{tf} \gamma_f \prod_l \langle \exp(-a_{tl} u_{lf}) \rangle \Big)  \\
+&+ \sum_l  \Big( \alpha_l \log \alpha_l - \log \Gamma(\alpha_l) + (\alpha_l - 1)\langle \log a_{tl} \rangle - \alpha_l \langle a_{tl}  \rangle \Big) \biggl\}
+\end{align*}
+
+Take the derivative w.r.t. $\mathbf{U}, \bm{\alpha}, \bm{\gamma}$, respectively:
+\begin{align*}
+\frac{\partial \mathcal{L}}{\partial u_{lf}} &= \sum_t \biggl( - \langle a_{tl} \rangle + w_{tf} \langle a_{tl} \rangle (1 + \frac{u_{lf}}{\beta_{tl}})^{-(k_{tl}+1)}  \prod_{k \neq l} \langle \exp(-a_{tk} u_{kf}) \rangle \biggl)\\
+\frac{\partial \mathcal{L}}{\partial \alpha_l} &=  \sum_t \biggl( \log \alpha_l + 1 - \psi(\alpha_l) + \langle \log a_{tl} \rangle - \langle a_{tl} \rangle \biggl)\\
+\frac{\partial \mathcal{L}}{\partial \gamma_f} &= \sum_t \biggl( \log \gamma_f - \sum_l \langle a_{tl} \rangle u_{lf} + 1 - \psi(\gamma_f) + \log w_{tf} - w_{tf} \prod_l \langle \exp(-a_{tl} u_{lf}) \rangle \biggl)
+\end{align*}
+
+\section{Full NMF model}
+\begin{figure}[ht]
+  \centering
+      \input{nmf}
+  \caption{Full NMF model}
+\label{fig:plate}
+\end{figure}
+
+Model formulation:
+\begin{align*}
+a_{lk} &\sim \Gamma(\alpha_l, \alpha_l)\\
+W_{fk} &\sim \Gamma\Big(\gamma_f, \gamma_f \prod_l \exp(-U_{fl} a_{lk})\Big)\\
+H_{kt} &\sim \Gamma(b, b)\\
+\theta_k &\sim \Gamma(\beta/K, c)\\
+X_{ft} &\sim \text{Exp}\Big(\sum_k \theta_k W_{fk} H_{kt}\Big)\\
+\biggl(\text{or } X_{ft} &\sim \text{Poisson}\Big(\sum_k \theta_k W_{fk} H_{kt}\Big)\biggl)
+\end{align*}
+
+Let's begin with GaP-NMF.
+
 
 \end{document}

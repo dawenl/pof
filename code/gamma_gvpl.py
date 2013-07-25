@@ -361,6 +361,11 @@ class SF_Dict(object):
                 print_gradient('Gamma[{:3d}]'.format(idx), self.gamma[idx],
                         df(eta_hat)[idx], app_grad[idx])
 
+    def update_u_gamma(self, disp):
+        def f(eta):
+            pass
+        pass
+
     def update_alpha(self, disp):
         def f(eta):
             tmp1 = np.exp(eta) * eta - special.gammaln(np.exp(eta))
@@ -408,8 +413,8 @@ class SF_Dict(object):
     def comp_exp_expect(self, alpha, beta, U):
         ''' Compute E[exp(-au)] where a ~ Gamma(alpha, beta) and u constant
             
-        This function makes extensive use of broadcast, thus the dimension of 
-        input arguments can only be one of the following two situations:
+        This function makes extensive use of broadcasting, thus the dimension 
+        of input arguments can only be one of the following two situations:
              1) U has shape (L, F), alpha and beta have shape (L, 1)
                 --> output shape (L, F)
              2) U has shape (F, ), alpha and beta have shape (T, 1)
