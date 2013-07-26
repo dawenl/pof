@@ -420,8 +420,8 @@ class SF_Dict(object):
              2) U has shape (F, ), alpha and beta have shape (T, 1)
                 --> output shape (T, F)
         '''
-        # using Taylor expansion for large alpha (hence beta) to better compute
-        # (1 + u/beta)**(-alpha) 
+        # using Taylor expansion for large alpha (hence beta) to more 
+        # accurately compute (1 + u/beta)**(-alpha) 
         idx = np.logical_and(alpha < 1e10, beta < 1e10).ravel()
         if alpha.size == self.L:
             expect = np.empty_like(U)

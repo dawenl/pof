@@ -13,6 +13,8 @@ from math import log
 def compute_gig_expectations(alpha, beta, gamma):
     if np.asarray(alpha).size == 1:
         alpha = alpha * np.ones_like(beta)
+    elif np.asarray(alpha).ndim == 1:
+        alpha = alpha[:, np.newaxis] * np.ones_like(beta)
 
     Ex, Exinv = np.zeros_like(beta), np.zeros_like(beta)
 
