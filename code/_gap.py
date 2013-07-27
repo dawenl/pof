@@ -11,10 +11,8 @@ import scipy.special as special
 from math import log
 
 def compute_gig_expectations(alpha, beta, gamma):
-    if np.asarray(alpha).size == 1:
+    if np.asarray(alpha).size == 1 or beta.shape[0]:
         alpha = alpha * np.ones_like(beta)
-    elif np.asarray(alpha).ndim == 1:
-        alpha = alpha[:, np.newaxis] * np.ones_like(beta)
 
     Ex, Exinv = np.zeros_like(beta), np.zeros_like(beta)
 
@@ -49,6 +47,9 @@ def compute_gig_expectations(alpha, beta, gamma):
     Exinv[Exinv < 0] = np.inf
 
     return (Ex, Exinv)
+
+def compute_gamma_expectation(alpha, beta):
+    return (alpha/beta, special.psi(alpha) - np.log(beta))
 
 def gig_gamma_term(Ex, Exinv, rho, tau, a, b):
     score = 0

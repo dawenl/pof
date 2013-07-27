@@ -19,6 +19,9 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         self.U = U.copy()
         self.alpha = alpha.copy()
         self.gamma = gamma.copy()
+        # check if gamma is in the shape of (F, 1) for broadcasting with (F, K)
+        if self.gamma.ndim == 1:
+            self.gamma = self.gamma[:, np.newaxis]
         
         self.F, self.T = X.shape
         self.L = alpha.size 
@@ -48,14 +51,14 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
                 size=(self.K, ))
         self.taut = 1./self.K * 10000 * np.random.gamma(smoothness,
                 1./smoothness, size=(self.K, ))
-        self.gama = 10000 * np.random.gamma(smoothness, 1./smoothness,
+        self.nua = 10000 * np.random.gamma(smoothness, 1./smoothness,
                 size=(self.L, self.K))
         self.rhoa = 10000 * np.random.gamma(smoothness, 1./smoothness,
                 size=(self.L, self.K))
         self.compute_expectations()
 
     def compute_expectations(self):
-        self.Ew, self.Ewinv = _gap.compute_gig_expectations(self.alpha, self.rhow,
+        self.Ew, self.Ewinv = _gap.compute_gig_expectations(self.gamma, self.rhow,
                 self.tauw)
         self.Ewinvinv = 1./self.Ewinv
         self.Eh, self.Ehinv = _gap.compute_gig_expectations(self.b, self.rhoh,
@@ -64,40 +67,52 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         self.Et, self.Etinv = _gap.compute_gig_expectations(self.beta/self.K,
                 self.rhot, self.taut)
         self.Etinvinv = 1./self.Etinv
-
+        self.Ea, self.Eloga = _gap.compute_gamma_expectation(self.nua, self.rhoa) 
 
     def update(self):
         ''' Do optimization for one iteration
         '''
         self.update_h()
-        self.update_a()
+        goodk = self.goodk()
+        for k in goodk:
+            self.update_a(k)
         self.update_w()
         self.update_theta()
         # truncate unused components
         self.clear_badk()
 
+    def update_a(self, k):
+        def f(theta):
+            pass
 
-    def update_a(self):
+        def df(theta):
+            pass
         pass
 
     def update_w(self):
         goodk = self.goodk()
-        xxtwidinvsq = (self.X * self._xtwid(goodk)) ** (-2)
+        xxtwidinvsq = self.X * self._xtwid(goodk)**(-2)
         xbarinv = self._xbar(goodk) ** (-1)
         dEt = self.Et[goodk]
         dEtinvinv = self.Etinvinv[goodk]
-        self.rhow[:, goodk] = self.a + np.dot(xbarinv, dEt * self.Eh[goodk,
-            :].T)
+        
+        Eexp = 1.
+        for l in xrange(self.L):
+            Eexp *= self.comp_exp_expect(self.nua[l, np.newaxis, :],
+                    self.rhoa[l, np.newaxis, :], self.U[:, l])
+
+        self.rhow[:, goodk] = self.gamma * Eexp + np.dot(xbarinv, dEt * 
+                self.Eh[goodk, :].T)
         self.tauw[:, goodk] = self.Ewinvinv[:, goodk]**2 * \
                 np.dot(xxtwidinvsq, dEtinvinv * self.Ehinvinv[goodk, :].T)
         self.tauw[self.tauw < 1e-100] = 0
         self.Ew[:, goodk], self.Ewinv[:, goodk] = _gap.compute_gig_expectations(
-                self.a, self.rhow[:, goodk], self.tauw[:, goodk])
+                self.gamma, self.rhow[:, goodk], self.tauw[:, goodk])
         self.Ewinvinv[:, goodk] = 1./self.Ewinv[:, goodk]
 
     def update_h(self):
         goodk = self.goodk()
-        xxtwidinvsq = (self.X * self._xtwid(goodk)) ** (-2)
+        xxtwidinvsq = self.X * self._xtwid(goodk)**(-2)
         xbarinv = self._xbar(goodk) ** (-1)
         dEt = self.Et[goodk]
         dEtinvinv = self.Etinvinv[goodk]
@@ -113,7 +128,7 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
 
     def update_theta(self):
         goodk = self.goodk()
-        xxtwidinvsq = (self.X * self._xtwid(goodk)) ** (-2)
+        xxtwidinvsq = self.X * self._xtwid(goodk)**(-2)
         xbarinv = self._xbar(goodk) ** (-1)
         self.rhot[goodk] = self.beta + np.sum(np.dot(self.Ew[:, goodk].T,
             xbarinv) * self.Eh[goodk, :], axis=1)
@@ -142,10 +157,12 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         '''
         goodk = self.goodk()
         badk = np.setdiff1d(np.arange(self.K), goodk)
-        self.rhow[:, badk] = self.a
+        self.rhow[:, badk] = self.gamma
         self.tauw[:, badk] = 0
         self.rhoh[badk, :] = self.b
         self.tauh[badk, :] = 0
+        self.nua[:, badk] = self.alpha
+        self.rhoa[:, badk] = self.alpha
         self.compute_expectations()
 
     def bound(self):
@@ -155,13 +172,40 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         xbar = self._xbar(goodk)
         xtwid = self._xtwid(goodk)
         score -= np.sum(self.X / xtwid + np.log(xbar))
+        Eexp = 1.
         score += _gap.gig_gamma_term(self.Ew, self.Ewinv, self.rhow, self.tauw,
-                self.a, self.a)
+                self.gamma, self.gamma/Eexpa)
         score += _gap.gig_gamma_term(self.Eh, self.Ehinv, self.rhoh, self.tauh,
                 self.b, self.b)
         score += _gap.gig_gamma_term(self.Et, self.Etinv, self.rhot, self.taut,
                 self.beta/self.K, self.beta)
         return score
+
+    def comp_exp_expect(self, alpha, beta, U):
+        ''' Compute E[exp(-au)] where a ~ Gamma(alpha, beta) and u constant
+            
+        This function makes extensive use of broadcasting, thus the dimension 
+        of input arguments can only be the following two situations:
+             1) U has shape (F, L), alpha and beta have shape (L, )
+                --> output shape (F, L)
+             2) U has shape (F, ), alpha and beta have shape (T, 1)
+                --> output shape (T, F)
+        '''
+        # using Taylor expansion for large alpha (hence beta) to more 
+        # accurately compute (1 + u/beta)**(-alpha) 
+        idx = np.logical_and(alpha < 1e10, beta < 1e10).ravel()
+        if alpha.size == self.L:
+            expect = np.empty_like(U)
+            expect[idx] = (1 + U[idx]/beta[idx])**(-alpha[idx])
+            expect[-idx] = np.exp(-U[-idx] * alpha[-idx]/beta[-idx])
+        elif alpha.size == self.T:
+            expect = np.empty((self.T, self.F))
+            expect[idx] = (1 + U/beta[idx])**(-alpha[idx])
+            expect[-idx] = np.exp(-U * alpha[-idx]/beta[-idx])
+        else:
+            raise ValueError('wrong dimension')
+        expect[U <= -beta] = np.inf
+        return expect
 
     def _xbar(self, goodk=None):
         if goodk is None:
