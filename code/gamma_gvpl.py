@@ -2,7 +2,7 @@
 
 Source-filter dictionary prior learning for gamma noise model
 
-CREATED: 2013-07-12 11:09:44 by Dawen Liang <daliang@adobe.com> 
+CREATED: 2013-07-12 11:09:44 by Dawen Liang <daliang@adobe.com>
 
 """
 
@@ -22,7 +22,7 @@ class SF_Dict(object):
             np.random.seed()
         else:
             print 'Using fixed seed {}'.format(seed)
-            np.random.seed(seed) 
+            np.random.seed(seed)
         self._init(smoothness)
         self._init_variational(smoothness)
 
@@ -33,22 +33,22 @@ class SF_Dict(object):
         self.gamma = np.random.gamma(smoothness, 1./smoothness, size=(self.F,))
 
     def _init_variational(self, smoothness):
-        self.a = smoothness * np.random.gamma(smoothness, 1./smoothness, 
+        self.a = smoothness * np.random.gamma(smoothness, 1./smoothness,
                                               size=(self.T, self.L))
-        self.b = smoothness * np.random.gamma(smoothness, 1./smoothness, 
+        self.b = smoothness * np.random.gamma(smoothness, 1./smoothness,
                                               size=(self.T, self.L))
         self.EA, self.ElogA = comp_expect(self.a, self.b)
 
     def vb_e(self, cold_start=True, batch=True, smoothness=100, maxiter=500,
             atol=1e-3, rtol=1e-5, verbose=True, disp=0):
         """ Perform one variational E-step, which may have one sub-iteration or
-        multiple sub-iterations if e_converge is set to True, to appxorimate the 
+        multiple sub-iterations if e_converge is set to True, to appxorimate the
         posterior P(A | -)
 
         Parameters
         ----------
         cold_start: bool
-            Do e-step with fresh start, otherwise just do e-step with 
+            Do e-step with fresh start, otherwise just do e-step with
             previous values as initialization.
         batch: bool
             Do e-step as a whole optimization if true. Otherwise, do multiple
@@ -58,8 +58,8 @@ class SF_Dict(object):
             lead to more concentrated initialization.
         maxiter: int
             Maximal number of sub-iterations in one e-step.
-        atol: float 
-            Absolute convergence threshold. 
+        atol: float
+            Absolute convergence threshold.
         rtol: float
             Relative increase convergence threshold.
         verbose: bool
@@ -115,7 +115,7 @@ class SF_Dict(object):
                 old_bound = bound
         if verbose:
             obj = self._vb_bound()
-            diff_str = '+' if obj > last_score else '-' 
+            diff_str = '+' if obj > last_score else '-'
             print('Update (A)\tBefore: {:.2f}\tAfter: {:.2f}\t{}'.format(last_score, obj, diff_str))
 
 
@@ -127,7 +127,7 @@ class SF_Dict(object):
 
             likeli = (-self.W[t,:] * np.prod(Eexpa, axis=0) - np.dot(Ea, self.U)) * self.gamma
             prior = (self.alpha - 1) * Eloga - self.alpha * Ea
-            ent = entropy(a, b) 
+            ent = entropy(a, b)
 
             return -(likeli.sum() + prior.sum() + ent.sum())
 
@@ -166,19 +166,19 @@ class SF_Dict(object):
         assert(np.all(self.b[t,:] > 0))
         self.EA[t,:], self.ElogA[t,:] = comp_expect(self.a[t,:], self.b[t,:])
 
-    def update_theta(self, l, disp):                
+    def update_theta(self, l, disp):
         #def f(theta):
         #    a, mu = np.exp(theta[:self.T]), np.exp(theta[-self.T:])
         #    Ea, Ea2, Eloga = comp_expect(a, mu)
 
-        #    const = (self.alpha[l] - 1) * Eloga + entropy(a, mu) 
+        #    const = (self.alpha[l] - 1) * Eloga + entropy(a, mu)
         #    return -np.sum(const + Ea * lcoef + Ea2 * qcoef)
-        #        
+        #
         #def df(theta):
         #    a, mu = np.exp(theta[:self.T]), np.exp(theta[-self.T:])
 
         #    grad_a = a * (-mu**2/a**2 * qcoef + (self.alpha[l] - a) * special.polygamma(1, a) - self.alpha[l] / a + 1)
-        #    grad_mu = mu * (lcoef + 2 * (mu + mu/a) * qcoef + self.alpha[l]/mu) 
+        #    grad_mu = mu * (lcoef + 2 * (mu + mu/a) * qcoef + self.alpha[l]/mu)
         #    return -np.hstack((grad_a, grad_mu))
 
         #Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
@@ -234,7 +234,7 @@ class SF_Dict(object):
             last_score = self.bound()
             print('Update (initial)\tObj: {:.2f}'.format(last_score))
         if batch:
-            self.update_u_batch(disp) 
+            self.update_u_batch(disp)
             if verbose:
                 obj = self.bound()
                 diff_str = '+' if obj > last_score else '-'
@@ -251,10 +251,10 @@ class SF_Dict(object):
                             ' {:.2f}\t{}'.format(l, last_score, obj, diff_str))
                     last_score = obj
         self.update_gamma(disp)
-        
+
         if verbose:
             obj = self.bound()
-            diff_str = '+' if obj > last_score else '-' 
+            diff_str = '+' if obj > last_score else '-'
             print('Update (gamma)\tBefore: {:.2f}\tAfter:'
                     ' {:.2f}\t{}'.format(last_score, obj, diff_str))
             last_score = obj
@@ -266,7 +266,7 @@ class SF_Dict(object):
                 diff_str = '+' if obj > last_score else '-'
                 print('Update (alpha)\tBefore: {:.2f}\tAfter:'
                         ' {:.2f}\t{}'.format(last_score, obj, diff_str))
-        
+
         t = time.time() - start_t
         U_diff = np.mean(np.abs(self.U - old_U))
         sigma_diff = np.mean(np.abs(np.sqrt(1./self.gamma) - np.sqrt(1./old_gamma)))
@@ -280,7 +280,7 @@ class SF_Dict(object):
 
     def update_u_batch(self, disp):
         def f_df(u):
-            U = u.reshape(self.L, self.F) 
+            U = u.reshape(self.L, self.F)
             Eexp = 1.
             for l in xrange(self.L):
                 Eexp *= self.comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l,
@@ -308,10 +308,10 @@ class SF_Dict(object):
         def f(u):
             Eexpa = self.comp_exp_expect(self.a[:, l, np.newaxis], self.b[:, l, np.newaxis], u)
             return np.sum(np.outer(self.EA[:,l], u) + self.W * Eexpa * Eres)
-        
+
         def df(u):
-            tmp = self.comp_exp_expect(self.a[:, l, np.newaxis] + 1, self.b[:, l, np.newaxis], u) 
-            return np.sum(self.EA[:,l, np.newaxis] * (1 - self.W * Eres * tmp), axis=0) 
+            tmp = self.comp_exp_expect(self.a[:, l, np.newaxis] + 1, self.b[:, l, np.newaxis], u)
+            return np.sum(self.EA[:,l, np.newaxis] * (1 - self.W * Eres * tmp), axis=0)
 
         k_idx = np.delete(np.arange(self.L), l)
         Eres = 1.
@@ -334,13 +334,13 @@ class SF_Dict(object):
         def f(eta):
             gamma = np.exp(eta)
             return -(self.T * np.sum(gamma * eta - special.gammaln(gamma)) +
-                    np.sum(gamma * np.log(self.W) - gamma * np.dot(self.EA, 
+                    np.sum(gamma * np.log(self.W) - gamma * np.dot(self.EA,
                         self.U) - gamma * self.W * Eexp))
 
         def df(eta):
             gamma = np.exp(eta)
-            return -gamma * (self.T * (eta + 1 - special.psi(gamma)) + 
-                    np.sum(-np.dot(self.EA, self.U) + np.log(self.W) - 
+            return -gamma * (self.T * (eta + 1 - special.psi(gamma)) +
+                    np.sum(-np.dot(self.EA, self.U) + np.log(self.W) -
                         self.W * Eexp, axis=0))
 
         Eexp = 1.
@@ -375,7 +375,7 @@ class SF_Dict(object):
         def df(eta):
             return -np.exp(eta) * (self.T * (eta + 1 - special.psi(np.exp(eta)))
                     + np.sum(self.ElogA - self.EA, axis=0))
-        
+
         eta0 = np.log(self.alpha)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
         self.alpha = np.exp(eta_hat)
@@ -386,7 +386,7 @@ class SF_Dict(object):
                 print 'f={}, {}'.format(f(eta_hat), d['warnflag'])
             app_grad = approx_grad(f, eta_hat)
             for l in xrange(self.L):
-                print_gradient('Alpha[{:3d}]'.format(l), self.alpha[l], 
+                print_gradient('Alpha[{:3d}]'.format(l), self.alpha[l],
                         df(eta_hat)[l], app_grad[l])
 
     def _vb_bound(self):
@@ -405,23 +405,23 @@ class SF_Dict(object):
         bound = bound + np.sum(-self.gamma * np.dot(self.EA, self.U) + (self.gamma -
             1) * np.log(self.W) - self.W * Eexp * self.gamma)
         # E[log P(a)]
-        bound = bound + self.T * np.sum(self.alpha * np.log(self.alpha) - 
+        bound = bound + self.T * np.sum(self.alpha * np.log(self.alpha) -
                 special.gammaln(self.alpha))
         bound = bound + np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
-        return bound 
+        return bound
 
     def comp_exp_expect(self, alpha, beta, U):
         ''' Compute E[exp(-au)] where a ~ Gamma(alpha, beta) and u constant
-            
-        This function makes extensive use of broadcasting, thus the dimension 
+
+        This function makes extensive use of broadcasting, thus the dimension
         of input arguments can only be one of the following two situations:
              1) U has shape (L, F), alpha and beta have shape (L, 1)
                 --> output shape (L, F)
              2) U has shape (F, ), alpha and beta have shape (T, 1)
                 --> output shape (T, F)
         '''
-        # using Taylor expansion for large alpha (hence beta) to more 
-        # accurately compute (1 + u/beta)**(-alpha) 
+        # using Taylor expansion for large alpha (hence beta) to more
+        # accurately compute (1 + u/beta)**(-alpha)
         idx = np.logical_and(alpha < 1e10, beta < 1e10).ravel()
         if alpha.size == self.L:
             expect = np.empty_like(U)
@@ -438,14 +438,14 @@ class SF_Dict(object):
 
 def print_gradient(name, val, grad, approx):
     print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'
-            '| Diff |: {:.3f}'.format(name, val, grad, approx, 
+            '| Diff |: {:.3f}'.format(name, val, grad, approx,
                 np.abs(grad - approx)))
 
 def comp_expect(alpha, beta):
     return (alpha/beta, special.psi(alpha) - np.log(beta))
 
 def entropy(alpha, beta):
-    return (alpha - np.log(beta) + special.gammaln(alpha) + 
+    return (alpha - np.log(beta) + special.gammaln(alpha) +
             (1-alpha) * special.psi(alpha))
 
 def approx_grad(f, x, delta=1e-8, args=()):
