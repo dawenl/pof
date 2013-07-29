@@ -238,9 +238,9 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         xbar = self._xbar(goodk)
         xtwid = self._xtwid(goodk)
         score -= np.sum(self.X / xtwid + np.log(xbar))
-        Eexp = 1.
         score += _gap.gig_gamma_term(self.Ew, self.Ewinv, self.rhow, self.tauw,
-                                     self.gamma, self.gamma/Eexp)
+                                     self.gamma, self.gamma /
+                                     np.prod(self.Eexpa, axis=1))
         score += _gap.gig_gamma_term(self.Eh, self.Ehinv, self.rhoh, self.tauh,
                                      self.b, self.b)
         score += _gap.gig_gamma_term(self.Et, self.Etinv, self.rhot, self.taut,
@@ -268,10 +268,10 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         if goodk is None:
             goodk = np.arange(self.K)
         dEt = self.Et[goodk]
-        return np.dot(self.Ew[:, goodk], dEt[:, np.newaxis] *
-                      self.Eh[goodk, :])
+        return np.dot(self.Ew[:, goodk],
+                      dEt[:, np.newaxis] * self.Eh[goodk, :])
 
     def _xtwid(self, goodk):
         dEtinvinv = self.Etinvinv[goodk]
-        return np.dot(self.Ewinvinv[:, goodk], dEtinvinv[:, np.newaxis] *
-                      self.Ehinvinv[goodk, :])
+        return np.dot(self.Ewinvinv[:, goodk],
+                      dEtinvinv[:, np.newaxis] * self.Ehinvinv[goodk, :])
