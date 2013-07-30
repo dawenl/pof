@@ -12,6 +12,7 @@ import gvpl as vpl
 
 # <codecell>
 
+fig = functools.partial(figure, figsize=(16, 4))
 specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower', interpolation='nearest')
 
 # <codecell>
@@ -56,22 +57,21 @@ threshold = 0.005
 old_obj = -np.inf
 maxiter = 50
 cold_start = False
-batch_e = True
 batch_m = False
 
 sfd = vpl.SF_Dict(W, L=L, seed=98765)
 obj = []
 
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=1)
-    if sfd.vb_m(batch=batch_m, disp=1, atol=1e-3):
+    sfd.vb_e(cold_start=cold_start, disp=1)
+    sfd.vb_m(batch=batch_m, disp=1)
+    score = sfd.bound()
+    obj.append(score)
+    improvement = (score - old_obj) / abs(old_obj)
+    print 'After ITERATION: {}\tObjective: {:.2f}\tOld objective: {:.2f}\tImprovement: {:.4f}'.format(i, score, old_obj, improvement)
+    if improvement < threshold:
         break
-    obj.append(sfd.obj)
-    improvement = (sfd.obj - old_obj) / abs(sfd.obj)
-    print 'After ITERATION: {}\tObjective Improvement: {:.4f}'.format(i, improvement)
-    if (sfd.obj - old_obj) / abs(sfd.obj) < threshold:
-        break
-    old_obj = sfd.obj
+    old_obj = score
 
 # <codecell>
 
@@ -80,7 +80,16 @@ pass
 
 # <codecell>
 
-hist(sfd.a.ravel(), bins=100)
+b = sfd.a / sfd.mu
+fig()
+mab = max(amax(sfd.a), amax(b))
+bins = linspace(0, mab, 100)
+hist(sfd.a.ravel(), bins, alpha=0.5)
+hist(b.ravel(), bins, alpha=0.5)
+legend(["alpha", "beta"])
+fig()
+hist(sfd.EA.ravel(), bins=100)
+print(amax(sfd.a), amax(b))
 pass
 
 # <codecell>

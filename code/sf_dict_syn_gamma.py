@@ -23,7 +23,7 @@ L = 20
 T = 100
 seed = 3579
 np.random.seed(seed)
-U = 0.1 * np.random.randn(L, F)
+U = 0.3 * (np.random.randn(L, F) - 0.5)
 alpha = np.random.gamma(1, size=(L,))
 gamma = np.random.gamma(100, 1./10, size=(F,))
 A = np.empty((T, L))
@@ -31,17 +31,6 @@ W = np.empty((T, F))
 for t in xrange(T):
     A[t,:] = np.random.gamma(alpha, scale=1./alpha)
     W[t,:] = np.random.gamma(gamma, scale=np.exp(np.dot(A[t,:], U))/gamma)
-
-# <codecell>
-
-#W = W / np.mean(W)
-print W.min(), W.max(), W.min() / W.max()
-#W = np.minimum(W, 1e8 * W.min())
-#hist(W.ravel(), bins=100)
-#pass
-sortedW = np.sort(W.ravel())
-print sortedW[:30]
-print sortedW[-30:]
 
 # <codecell>
 
@@ -65,22 +54,20 @@ pass
 reload(vpl)
 threshold = 0.001
 old_obj = -np.inf
-maxiter = 20
+maxiter = 200
 cold_start = False
-batch_e = True
 batch_m = False
 
 sfd = vpl.SF_Dict(W, L=L, seed=98765)
 obj = []
 
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=1)
-    if sfd.vb_m(batch=batch_m, disp=1):
-        break
+    sfd.vb_e(cold_start=cold_start, disp=1)
+    sfd.vb_m(batch=batch_m, disp=1)
     score = sfd.bound()
     obj.append(score)
     improvement = (score - old_obj) / abs(old_obj)
-    print 'After ITERATION: {}\tObjective Improvement: {:.4f}'.format(i, improvement)
+    print 'After ITERATION: {}\tObjective: {:.2f}\tOld objective: {:.2f}\tImprovement: {:.4f}'.format(i, score, old_obj, improvement)
     if improvement < threshold:
         break
     old_obj = score
@@ -163,6 +150,7 @@ fig()
 plot(gamma)
 fig()
 plot(sfd.gamma)
+pass
 
 # <codecell>
 

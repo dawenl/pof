@@ -31,18 +31,23 @@ class SF_Dict(object):
     def _init(self, smoothness):
         # model parameters
         self.U = np.random.randn(self.L, self.F)
-        self.alpha = np.random.gamma(smoothness, 1./smoothness, size=(self.L,))
-        self.gamma = np.random.gamma(smoothness, 1./smoothness, size=(self.F,))
+        self.alpha = np.random.gamma(smoothness,
+                                     1. / smoothness,
+                                     size=(self.L,))
+        self.gamma = np.random.gamma(smoothness,
+                                     1. / smoothness,
+                                     size=(self.F,))
 
     def _init_variational(self, smoothness):
-        self.a = smoothness * np.random.gamma(smoothness, 1./smoothness,
+        self.a = smoothness * np.random.gamma(smoothness,
+                                              1. / smoothness,
                                               size=(self.T, self.L))
-        self.b = smoothness * np.random.gamma(smoothness, 1./smoothness,
+        self.b = smoothness * np.random.gamma(smoothness,
+                                              1. / smoothness,
                                               size=(self.T, self.L))
         self.EA, self.ElogA = comp_expect(self.a, self.b)
 
-    def vb_e(self, cold_start=True, batch=True, smoothness=100,
-             verbose=True, disp=0):
+    def vb_e(self, cold_start=True, smoothness=100, verbose=True, disp=0):
         """ Perform one variational E-step, which may have one sub-iteration or
         multiple sub-iterations if e_converge is set to True, to appxorimate
         the posterior P(A | -)
@@ -52,9 +57,6 @@ class SF_Dict(object):
         cold_start: bool
             Do e-step with fresh start, otherwise just do e-step with
             previous values as initialization.
-        batch: bool
-            Do e-step as a whole optimization if true. Otherwise, do multiple
-            sub-iterations until convergence.
         smoothness: float
             Smootheness of the variational initialization, larger value will
             lead to more concentrated initialization.
@@ -90,11 +92,11 @@ class SF_Dict(object):
         def f(theta):
             a, b = np.exp(theta[:self.L]), np.exp(theta[-self.L:])
             Ea, Eloga = comp_expect(a, b)
-            Eexpa = self.comp_exp_expect(a[:, np.newaxis],
-                                         b[:, np.newaxis],
-                                         self.U)
+            Eexp = self.comp_exp_expect(a[:, np.newaxis],
+                                        b[:, np.newaxis],
+                                        self.U)
 
-            likeli = (-self.W[t,:] * np.prod(Eexpa, axis=0)
+            likeli = (-self.W[t] * np.prod(Eexp, axis=0)
                       - np.dot(Ea, self.U)) * self.gamma
             prior = (self.alpha - 1) * Eloga - self.alpha * Ea
             ent = entropy(a, b)
@@ -104,9 +106,9 @@ class SF_Dict(object):
         def df(theta):
             a, b = np.exp(theta[:self.L]), np.exp(theta[-self.L:])
             Ea, _ = comp_expect(a, b)
-            Eexpa = self.comp_exp_expect(a[:, np.newaxis],
-                                         b[:, np.newaxis],
-                                         self.U)
+            Eexp = self.comp_exp_expect(a[:, np.newaxis],
+                                        b[:, np.newaxis],
+                                        self.U)
 
             tmp = self.U / b[:, np.newaxis]
             log_term, inv_term = np.empty_like(tmp), np.empty_like(tmp)
@@ -117,15 +119,15 @@ class SF_Dict(object):
             log_term[idx_napp] = np.log(1. + tmp[idx_napp])
             log_term[idx_app] = tmp[idx_app]
             log_term[-idx] = -np.inf
-            inv_term[idx], inv_term[-idx] = 1./(1. + tmp[idx]), np.inf
+            inv_term[idx], inv_term[-idx] = 1. / (1. + tmp[idx]), np.inf
 
-            grad_a = np.sum(self.W[t] * log_term * np.prod(Eexpa, axis=0) *
+            grad_a = np.sum(self.W[t] * log_term * np.prod(Eexp, axis=0) *
                             self.gamma - self.U / b[:, np.newaxis] *
                             self.gamma, axis=1)
             grad_a = grad_a + (self.alpha - a) * special.polygamma(1, a)
             grad_a = grad_a + 1 - self.alpha / b
-            grad_b = a/b**2 * np.sum(-self.U * self.W[t,:] * inv_term *
-                                     np.prod(Eexpa, axis=0) * self.gamma +
+            grad_b = a/b**2 * np.sum(-self.U * self.W[t] * inv_term *
+                                     np.prod(Eexp, axis=0) * self.gamma +
                                      self.U * self.gamma, axis=1)
             grad_b = grad_b + self.alpha * (a/b**2 - 1./b)
             return -np.hstack((a * grad_a, b * grad_b))
@@ -142,25 +144,24 @@ class SF_Dict(object):
                                                   d['warnflag'],
                                                   f(theta_hat))
             app_grad = approx_grad(f, theta_hat)
+            ana_grad = df(theta_hat)
             for l in xrange(self.L):
                 print_gradient('log_a[{}, {:3d}]'.format(t, l),
                                theta_hat[l],
-                               df(theta_hat)[l],
+                               ana_grad[l],
                                app_grad[l])
                 print_gradient('log_b[{}, {:3d}]'.format(t, l),
                                theta_hat[l + self.L],
-                               df(theta_hat)[l + self.L],
+                               ana_grad[l + self.L],
                                app_grad[l + self.L])
-            #import ipdb; ipdb.set_trace() # XXX BREAKPOINT
 
-        self.a[t,:], self.b[t,:] = np.exp(theta_hat[:self.L]), np.exp(
+        self.a[t], self.b[t] = np.exp(theta_hat[:self.L]), np.exp(
             theta_hat[-self.L:])
-        assert(np.all(self.a[t,:] > 0))
-        assert(np.all(self.b[t,:] > 0))
-        self.EA[t,:], self.ElogA[t,:] = comp_expect(self.a[t,:], self.b[t,:])
+        assert(np.all(self.a[t] > 0))
+        assert(np.all(self.b[t] > 0))
+        self.EA[t], self.ElogA[t] = comp_expect(self.a[t], self.b[t])
 
-    def vb_m(self, batch=False, atol=1e-3, verbose=True, disp=0,
-             update_alpha=True):
+    def vb_m(self, batch=False, verbose=True, disp=0, update_alpha=True):
         """ Perform one M-step, update the model parameters with A fixed
         from E-step
 
@@ -169,8 +170,6 @@ class SF_Dict(object):
         batch: bool
             Update U as a whole optimization if true. Otherwise, update U
             across different basis.
-        atol: float
-            Absolute convergence threshold.
         verbose: bool
             Output log if ture.
         disp: int
@@ -181,13 +180,13 @@ class SF_Dict(object):
         """
 
         print 'Variational M-step...'
-        old_U = self.U.copy()
-        old_gamma = self.gamma.copy()
-        old_alpha = self.alpha.copy()
-        start_t = time.time()
         if verbose:
+            old_U = self.U.copy()
+            old_gamma = self.gamma.copy()
+            old_alpha = self.alpha.copy()
             last_score = self.bound()
             print('Update (initial)\tObj: {:.2f}'.format(last_score))
+            start_t = time.time()
         if batch:
             self.update_u_batch(disp)
             if verbose:
@@ -208,7 +207,6 @@ class SF_Dict(object):
                           ' {:.2f}\t{}'.format(l, last_score, obj, diff_str))
                     last_score = obj
         self.update_gamma(disp)
-
         if verbose:
             obj = self.bound()
             diff_str = '+' if obj > last_score else '-'
@@ -224,34 +222,31 @@ class SF_Dict(object):
                 print('Update (alpha)\tBefore: {:.2f}\tAfter:'
                       ' {:.2f}\t{}'.format(last_score, obj, diff_str))
 
-        t = time.time() - start_t
-        U_diff = np.mean(np.abs(self.U - old_U))
-        sigma_diff = np.mean(np.abs(np.sqrt(1./self.gamma) -
-                                    np.sqrt(1./old_gamma)))
-        alpha_diff = np.mean(np.abs(self.alpha - old_alpha))
         if verbose:
+            t = time.time() - start_t
+            U_diff = np.mean(np.abs(self.U - old_U))
+            sigma_diff = np.mean(np.abs(np.sqrt(1. / self.gamma) -
+                                        np.sqrt(1. / old_gamma)))
+            alpha_diff = np.mean(np.abs(self.alpha - old_alpha))
             print('U diff: {:.4f}\tsigma dff: {:.4f}\talpha diff: {:.4f}\t'
                   'time: {:.2f}'.format(U_diff, sigma_diff, alpha_diff, t))
-        if U_diff < atol and sigma_diff < atol and alpha_diff < atol:
-            return True
-        return False
 
     def update_u_batch(self, disp):
         def f_df(u):
             U = u.reshape(self.L, self.F)
             Eexp = 1.
             for l in xrange(self.L):
-                Eexp *= self.comp_exp_expect(self.a[:, l, np.newaxis],
-                                             self.b[:, l, np.newaxis],
-                                             U[l, :])
+                Eexp = Eexp * self.comp_exp_expect(self.a[:, l, np.newaxis],
+                                                   self.b[:, l, np.newaxis],
+                                                   U[l, :])
             grad_U = np.zeros_like(U)
             for l in xrange(self.L):
-                tmp = 1 + U[l, :]/self.b[:, l, np.newaxis]
+                tmp = 1 + U[l] / self.b[:, l, np.newaxis]
                 inv_term = np.empty_like(tmp)
                 idx = (tmp > 0)
-                inv_term[idx], inv_term[-idx] = 1./tmp[idx], np.inf
-                grad_U[l, :] = np.sum(self.EA[:, l, np.newaxis] *
-                                      (1 - self.W * Eexp * inv_term))
+                inv_term[idx], inv_term[-idx] = 1. / tmp[idx], np.inf
+                grad_U[l] = np.sum(self.EA[:, l, np.newaxis] *
+                                   (1 - self.W * Eexp * inv_term))
             return (np.sum(np.dot(self.EA, U) + self.W * Eexp), grad_U.ravel())
 
         u0 = self.U.ravel()
@@ -265,10 +260,10 @@ class SF_Dict(object):
 
     def update_u(self, l, disp):
         def f(u):
-            Eexpa = self.comp_exp_expect(self.a[:, l, np.newaxis],
-                                         self.b[:, l, np.newaxis],
-                                         u)
-            return np.sum(np.outer(self.EA[:, l], u) + self.W * Eexpa * Eres)
+            Eexp = self.comp_exp_expect(self.a[:, l, np.newaxis],
+                                        self.b[:, l, np.newaxis],
+                                        u)
+            return np.sum(np.outer(self.EA[:, l], u) + self.W * Eexp * Eres)
 
         def df(u):
             tmp = self.comp_exp_expect(self.a[:, l, np.newaxis] + 1,
@@ -280,26 +275,26 @@ class SF_Dict(object):
         k_idx = np.delete(np.arange(self.L), l)
         Eres = 1.
         for k in k_idx:
-            Eres *= self.comp_exp_expect(self.a[:, k, np.newaxis],
-                                         self.b[:, k, np.newaxis],
-                                         self.U[k, :])
-        #import ipdb; ipdb.set_trace() # XXX BREAKPOINT
+            Eres = Eres * self.comp_exp_expect(self.a[:, k, np.newaxis],
+                                               self.b[:, k, np.newaxis],
+                                               self.U[k])
 
-        u0 = self.U[l,:]
-        self.U[l,:], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
+        u0 = self.U[l]
+        self.U[l], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
         if disp and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'U[{}, :]: {}, f={}'.format(l,
                                                   d['task'],
-                                                  f(self.U[l,:]))
+                                                  f(self.U[l]))
             else:
                 print 'U[{}, :]: {}, f={}'.format(l,
                                                   d['warnflag'],
-                                                  f(self.U[l,:]))
-            app_grad = approx_grad(f, self.U[l,:])
+                                                  f(self.U[l]))
+            app_grad = approx_grad(f, self.U[l])
+            ana_grad = df(self.U[l])
             for fr in xrange(self.F):
                 print_gradient('U[{}, {:3d}]'.format(l, fr), self.U[l, fr],
-                               df(self.U[l,:])[fr], app_grad[fr])
+                               ana_grad[fr], app_grad[fr])
 
     def update_gamma(self, disp):
         def f(eta):
@@ -316,9 +311,9 @@ class SF_Dict(object):
 
         Eexp = 1.
         for l in xrange(self.L):
-            Eexp *= self.comp_exp_expect(self.a[:, l, np.newaxis],
-                                         self.b[:, l, np.newaxis],
-                                         self.U[l, :])
+            Eexp = Eexp * self.comp_exp_expect(self.a[:, l, np.newaxis],
+                                               self.b[:, l, np.newaxis],
+                                               self.U[l])
 
         eta0 = np.log(self.gamma)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
@@ -329,9 +324,10 @@ class SF_Dict(object):
             else:
                 print 'f={}, {}'.format(f(eta_hat), d['warnflag'])
             app_grad = approx_grad(f, eta_hat)
+            ana_grad = df(eta_hat)
             for idx in xrange(self.F):
                 print_gradient('Gamma[{:3d}]'.format(idx), self.gamma[idx],
-                               df(eta_hat)[idx], app_grad[idx])
+                               ana_grad[idx], app_grad[idx])
 
     def update_alpha(self, disp):
         def f(eta):
@@ -353,16 +349,17 @@ class SF_Dict(object):
             else:
                 print 'f={}, {}'.format(f(eta_hat), d['warnflag'])
             app_grad = approx_grad(f, eta_hat)
+            ana_grad = df(eta_hat)
             for l in xrange(self.L):
                 print_gradient('Alpha[{:3d}]'.format(l), self.alpha[l],
-                               df(eta_hat)[l], app_grad[l])
+                               ana_grad[l], app_grad[l])
 
     def bound(self):
         Eexp = 1.
         for l in xrange(self.L):
             Eexp = Eexp * self.comp_exp_expect(self.a[:, l, np.newaxis],
                                                self.b[:, l, np.newaxis],
-                                               self.U[l, :])
+                                               self.U[l])
         # E[log P(w|a)]
         bound = self.T * np.sum(self.gamma * np.log(self.gamma) -
                                 special.gammaln(self.gamma))
