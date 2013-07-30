@@ -54,7 +54,7 @@ pass
 reload(vpl)
 threshold = 0.001
 old_obj = -np.inf
-maxiter = 200
+maxiter = 50
 cold_start = False
 batch_m = False
 
