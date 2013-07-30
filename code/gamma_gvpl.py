@@ -413,6 +413,7 @@ class SF_Dict(object):
         log_exp[U <= -beta] = np.inf
         return log_exp
 
+
 def print_gradient(name, val, grad, approx):
     print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'
           '| Diff |: {:.3f}'.format(name, val, grad, approx,
