@@ -23,7 +23,7 @@ L = 20
 T = 100
 seed = 3579
 np.random.seed(seed)
-U = np.random.randn(L, F)
+U = 0.1 * np.random.randn(L, F)
 alpha = np.random.gamma(1, size=(L,))
 gamma = np.random.gamma(100, 1./10, size=(F,))
 A = np.empty((T, L))
@@ -63,9 +63,9 @@ pass
 # <codecell>
 
 reload(vpl)
-threshold = 0.005
+threshold = 0.001
 old_obj = -np.inf
-maxiter = 5
+maxiter = 20
 cold_start = False
 batch_e = True
 batch_m = False
@@ -74,21 +74,20 @@ sfd = vpl.SF_Dict(W, L=L, seed=98765)
 obj = []
 
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=0)
+    sfd.vb_e(cold_start=cold_start, batch=batch_e, disp=1)
     if sfd.vb_m(batch=batch_m, disp=1):
         break
     score = sfd.bound()
     obj.append(score)
     improvement = (score - old_obj) / abs(old_obj)
     print 'After ITERATION: {}\tObjective Improvement: {:.4f}'.format(i, improvement)
-    #if improvement < threshold:
-    #    break
+    if improvement < threshold:
+        break
     old_obj = score
 
 # <codecell>
 
 plot(obj)
-print obj
 pass
 
 # <codecell>
@@ -167,6 +166,4 @@ plot(sfd.gamma)
 
 # <codecell>
 
-print U[idx_alpha]
-print sfd.U[idx_alpha_sfd]
 

@@ -1,15 +1,17 @@
 """
-CREATED: 2013-06-24 16:12:52 by Dawen Liang <daliang@adobe.com> 
+CREATED: 2013-06-24 16:12:52 by Dawen Liang <daliang@adobe.com>
 
 Source-filter dictionary prior learning with gamma variational distribution
 
 """
 
-import sys, time
+import sys
+import time
 
 import numpy as np
 import scipy.optimize as optimize
 import scipy.special as special
+
 
 class SF_Dict(object):
     def __init__(self, W, L=10, smoothness=100, seed=None):
@@ -21,7 +23,7 @@ class SF_Dict(object):
             np.random.seed()
         else:
             print 'Using fixed seed {}'.format(seed)
-            np.random.seed(seed) 
+            np.random.seed(seed)
         self._init(smoothness=smoothness)
 
     def _init(self, smoothness=100):
@@ -36,19 +38,19 @@ class SF_Dict(object):
     def _init_variational(self, smoothness):
         self.a = np.random.gamma(smoothness, 1./smoothness, size=(self.T, self.L))
         b = np.random.gamma(smoothness, 1./smoothness, size=(self.T, self.L))
-        self.mu = self.a / b 
+        self.mu = self.a / b
         self.EA, self.EA2, self.ElogA = comp_expect(self.a, self.mu)
 
     def vb_e(self, cold_start=True, batch=True, smoothness=100, maxiter=500,
             atol=1e-3, rtol=1e-5, verbose=True, disp=0):
         """ Perform one variational E-step, which may have one sub-iteration or
-        multiple sub-iterations if e_converge is set to True, to appxorimate the 
+        multiple sub-iterations if e_converge is set to True, to appxorimate the
         posterior P(A | -)
 
         Parameters
         ----------
         cold_start: bool
-            Do e-step with fresh start, otherwise just do e-step with 
+            Do e-step with fresh start, otherwise just do e-step with
             previous values as initialization.
         batch: bool
             Do e-step as a whole optimization if true. Otherwise, do multiple
@@ -58,8 +60,8 @@ class SF_Dict(object):
             lead to more concentrated initialization.
         maxiter: int
             Maximal number of sub-iterations in one e-step.
-        atol: float 
-            Absolute convergence threshold. 
+        atol: float
+            Absolute convergence threshold.
         rtol: float
             Relative increase convergence threshold.
         verbose: bool
@@ -118,7 +120,7 @@ class SF_Dict(object):
 
             likeli = (2*self.V[t,:]*Ev - Ev2) * self.gamma/2
             prior = (self.alpha - 1) * Eloga - self.alpha * Ea
-            ent = entropy(a, mu) 
+            ent = entropy(a, mu)
 
             return -(likeli.sum() + prior.sum() + ent.sum())
 
@@ -127,9 +129,9 @@ class SF_Dict(object):
             Ea, Ea2, _ = comp_expect(a, mu)
 
             Eres = self.V[t,:] - np.dot(Ea, self.U) + self.U * Ea[:,np.newaxis]
-            lcoef = np.sum(self.U * Eres * self.gamma, axis=1) - self.alpha 
+            lcoef = np.sum(self.U * Eres * self.gamma, axis=1) - self.alpha
             grad_a = a * (-mu**2/a**2 * qcoef/2 + (self.alpha - a) * special.polygamma(1, a) - self.alpha / a + 1)
-            grad_mu = mu * (lcoef + (mu + mu/a) * qcoef + self.alpha/mu) 
+            grad_mu = mu * (lcoef + (mu + mu/a) * qcoef + self.alpha/mu)
 
             return -np.hstack((grad_a, grad_mu))
 
@@ -152,19 +154,19 @@ class SF_Dict(object):
         assert(np.all(self.mu[t,:] > 0))
         self.EA[t,:], self.EA2[t,:], self.ElogA[t,:] = comp_expect(self.a[t,:], self.mu[t,:])
 
-    def update_theta(self, l, disp):                
+    def update_theta(self, l, disp):
         def f(theta):
             a, mu = np.exp(theta[:self.T]), np.exp(theta[-self.T:])
             Ea, Ea2, Eloga = comp_expect(a, mu)
 
-            const = (self.alpha[l] - 1) * Eloga + entropy(a, mu) 
+            const = (self.alpha[l] - 1) * Eloga + entropy(a, mu)
             return -np.sum(const + Ea * lcoef + Ea2 * qcoef)
-                
+
         def df(theta):
             a, mu = np.exp(theta[:self.T]), np.exp(theta[-self.T:])
 
             grad_a = a * (-mu**2/a**2 * qcoef + (self.alpha[l] - a) * special.polygamma(1, a) - self.alpha[l] / a + 1)
-            grad_mu = mu * (lcoef + 2 * (mu + mu/a) * qcoef + self.alpha[l]/mu) 
+            grad_mu = mu * (lcoef + 2 * (mu + mu/a) * qcoef + self.alpha[l]/mu)
             return -np.hstack((grad_a, grad_mu))
 
         Eres = self.V - np.dot(self.EA, self.U) + np.outer(self.EA[:,l], self.U[l,:])
@@ -215,7 +217,7 @@ class SF_Dict(object):
         old_gamma = self.gamma.copy()
         old_alpha = self.alpha.copy()
         if batch:
-            self.update_u_batch(disp) 
+            self.update_u_batch(disp)
         else:
             for l in xrange(self.L):
                 self.update_u(l, disp)
@@ -234,7 +236,7 @@ class SF_Dict(object):
 
     def update_u_batch(self, disp):
         def f(u):
-            U = u.reshape(self.L, self.F) 
+            U = u.reshape(self.L, self.F)
             EV = np.dot(self.EA, U)
             EV2 = np.dot(self.EA2, U**2) + EV**2 - np.dot(self.EA**2, U**2)
             return -np.sum(2*self.V * EV - EV2)
@@ -259,7 +261,7 @@ class SF_Dict(object):
     def update_u(self, l, disp):
         def f(u):
             return np.sum(np.outer(self.EA2[:,l], u**2) - 2*np.outer(self.EA[:,l], u) * Eres)
-        
+
         def df(u):
             tmp = self.EA[:,l]  # for broad-casting
             return np.sum(np.outer(self.EA2[:,l], u) - Eres * tmp[np.newaxis].T, axis=0)
@@ -290,7 +292,7 @@ class SF_Dict(object):
 
         def df(eta):
             return -np.exp(eta) * (self.T * (eta + 1 - special.psi(np.exp(eta))) + np.sum(self.ElogA - self.EA, axis=0))
-        
+
         eta0 = np.log(self.alpha)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
         self.alpha = np.exp(eta_hat)
@@ -305,7 +307,7 @@ class SF_Dict(object):
 
 
     def _vb_bound(self):
-        self.bound = np.sum(entropy(self.a, self.mu)) 
+        self.bound = np.sum(entropy(self.a, self.mu))
         self.bound += np.sum(self.ElogA * (self.alpha - 1) - self.EA * self.alpha)
         EV = np.dot(self.EA, self.U)
         EV2 = np.dot(self.EA2, self.U**2) + EV**2 - np.dot(self.EA**2, self.U**2)
