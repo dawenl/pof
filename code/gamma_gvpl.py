@@ -47,7 +47,8 @@ class SF_Dict(object):
                                               size=(self.T, self.L))
         self.EA, self.ElogA = comp_expect(self.a, self.b)
 
-    def vb_e(self, cold_start=True, smoothness=100, verbose=True, disp=0):
+    def vb_e(self, cold_start=True, smoothness=100,
+             verbose=True, disp=0):
         """ Perform one variational E-step, which may have one sub-iteration or
         multiple sub-iterations if e_converge is set to True, to appxorimate
         the posterior P(A | -)
@@ -401,6 +402,17 @@ class SF_Dict(object):
         expect[U <= -beta] = np.inf
         return expect
 
+    def comp_log_exp(self, alpha, beta, U):
+        tmp = U / beta
+        idx = (np.abs(tmp) < 1e-15)
+        if alpha.size == self.L:
+            log_exp = np.empty_like(U)
+        elif alpha.size == self.T:
+            log_exp = np.empty((self.T, self.F))
+        log_exp[idx] = (alpha * tmp)[idx]
+        log_exp[-idx] = (alpha * np.log(1. + tmp))[-idx]
+        log_exp[U <= -beta] = np.inf
+        return log_exp
 
 def print_gradient(name, val, grad, approx):
     print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'

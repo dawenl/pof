@@ -43,28 +43,28 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
 
     def _init(self, smoothness):
         self.rhow = 10000 * np.random.gamma(smoothness,
-                                            1./smoothness,
+                                            1. / smoothness,
                                             size=(self.F, self.K))
         self.tauw = 10000 * np.random.gamma(smoothness,
-                                            1./smoothness,
+                                            1. / smoothness,
                                             size=(self.F, self.K))
         self.rhoh = 10000 * np.random.gamma(smoothness,
-                                            1./smoothness,
+                                            1. / smoothness,
                                             size=(self.K, self.T))
         self.tauh = 10000 * np.random.gamma(smoothness,
-                                            1./smoothness,
+                                            1. / smoothness,
                                             size=(self.K, self.T))
         self.rhot = self.K * 10000 * np.random.gamma(smoothness,
-                                                     1./smoothness,
+                                                     1. / smoothness,
                                                      size=(self.K, ))
-        self.taut = 1./self.K * 10000 * np.random.gamma(smoothness,
-                                                        1./smoothness,
-                                                        size=(self.K, ))
+        self.taut = 1. / self.K * 10000 * np.random.gamma(smoothness,
+                                                          1. / smoothness,
+                                                          size=(self.K, ))
         self.nua = 10000 * np.random.gamma(smoothness,
-                                           1./smoothness,
+                                           1. / smoothness,
                                            size=(self.L, self.K))
         self.rhoa = 10000 * np.random.gamma(smoothness,
-                                            1./smoothness,
+                                            1. / smoothness,
                                             size=(self.L, self.K))
         self.compute_expectations()
         self.Eexpa = np.empty((self.F, self.L, self.K))
@@ -73,15 +73,15 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         self.Ew, self.Ewinv = _gap.compute_gig_expectations(self.gamma,
                                                             self.rhow,
                                                             self.tauw)
-        self.Ewinvinv = 1./self.Ewinv
+        self.Ewinvinv = 1. / self.Ewinv
         self.Eh, self.Ehinv = _gap.compute_gig_expectations(self.b,
                                                             self.rhoh,
                                                             self.tauh)
-        self.Ehinvinv = 1./self.Ehinv
+        self.Ehinvinv = 1. / self.Ehinv
         self.Et, self.Etinv = _gap.compute_gig_expectations(self.beta/self.K,
                                                             self.rhot,
                                                             self.taut)
-        self.Etinvinv = 1./self.Etinv
+        self.Etinvinv = 1. / self.Etinv
         self.Ea, self.Eloga = _gap.compute_gamma_expectation(self.nua,
                                                              self.rhoa)
 
@@ -172,7 +172,7 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             self.gamma,
             self.rhow[:, goodk],
             self.tauw[:, goodk])
-        self.Ewinvinv[:, goodk] = 1./self.Ewinv[:, goodk]
+        self.Ewinvinv[:, goodk] = 1. / self.Ewinv[:, goodk]
 
     def update_h(self):
         goodk = self.goodk()
@@ -180,8 +180,8 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         xbarinv = self._xbar(goodk) ** (-1)
         dEt = self.Et[goodk]
         dEtinvinv = self.Etinvinv[goodk]
-        self.rhoh[goodk, :] = self.b + np.dot(dEt[:, np.newaxis] * self.Ew[:,
-            goodk].T, xbarinv)
+        self.rhoh[goodk, :] = self.b + np.dot(dEt[:, np.newaxis] *
+                                              self.Ew[:, goodk].T, xbarinv)
         self.tauh[goodk, :] = self.Ehinvinv[goodk, :]**2 * \
                 np.dot(dEtinvinv[:, np.newaxis] * self.Ewinvinv[:, goodk].T,
                         xxtwidinvsq)
@@ -190,21 +190,22 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             self.b,
             self.rhoh[goodk, :],
             self.tauh[goodk, :])
-        self.Ehinvinv[goodk, :] = 1./self.Ehinv[goodk, :]
+        self.Ehinvinv[goodk, :] = 1. / self.Ehinv[goodk, :]
 
     def update_theta(self):
         goodk = self.goodk()
         xxtwidinvsq = self.X * self._xtwid(goodk)**(-2)
         xbarinv = self._xbar(goodk) ** (-1)
         self.rhot[goodk] = self.beta + np.sum(np.dot(self.Ew[:, goodk].T,
-            xbarinv) * self.Eh[goodk, :], axis=1)
+                                                     xbarinv) *
+                                              self.Eh[goodk, :], axis=1)
         self.taut[goodk] = self.Etinvinv[goodk]**2 * \
                 np.sum(np.dot(self.Ewinvinv[:, goodk].T, xxtwidinvsq) *
-                        self.Ehinvinv[goodk, :], axis=1)
+                       self.Ehinvinv[goodk, :], axis=1)
         self.taut[self.taut < 1e-100] = 0
         self.Et[goodk], self.Etinv[goodk] = _gap.compute_gig_expectations(
-                self.beta/self.K, self.rhot[goodk], self.taut[goodk])
-        self.Etinvinv[goodk] = 1./self.Etinv[goodk]
+            self.beta/self.K, self.rhot[goodk], self.taut[goodk])
+        self.Etinvinv[goodk] = 1. / self.Etinv[goodk]
 
     def goodk(self, cut_off=None):
         if cut_off is None:
@@ -259,7 +260,7 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         # accurately compute (1 + u/beta)**(-alpha)
         idx = np.logical_and(alpha < 1e10, beta < 1e10)
         expect = np.empty_like(U)
-        expect[idx] = (1 + U[idx]/beta[idx])**(-alpha[idx])
+        expect[idx] = (1 + U[idx] / beta[idx])**(-alpha[idx])
         expect[-idx] = np.exp(-U[-idx] * alpha[-idx] / beta[-idx])
         expect[U <= -beta] = np.inf
         return expect
