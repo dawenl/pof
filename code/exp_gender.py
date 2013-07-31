@@ -97,18 +97,22 @@ pass
 
 # <codecell>
 
+reload(vpl)
 threshold = 0.0001
 old_obj = -np.inf
 L = 50
 maxiter = 200
 cold_start = False
+maxiter_e = 5
+maxiter_m = 30
 batch_m = False
 
 sfd = vpl.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
+
 for i in xrange(maxiter):
-    sfd.vb_e(cold_start=cold_start, disp=0)
-    sfd.vb_m(batch=batch_m, disp=0)
+    sfd.vb_e(cold_start=cold_start, maxiter=maxiter_e, disp=0)
+    sfd.vb_m(batch=batch_m, maxiter=maxiter_m, disp=0)
     score = sfd.bound()
     obj.append(score)
     improvement = (score - old_obj) / abs(old_obj)
@@ -208,4 +212,7 @@ w_rec = librosa.istft(W_rec, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(w_rec, 'rec_gen{}_fit_L{}_F{}_H{}_{}.wav'.format(gender, L, n_fft, hop_length, str_cold_start))
 w_rec_org = librosa.istft(W_complex_test, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(w_rec_org, 'rec_gen{}_org.wav'.format(gender))
+
+# <codecell>
+
 

@@ -47,10 +47,10 @@ class SF_Dict(object):
                                               size=(self.T, self.L))
         self.EA, self.ElogA = comp_expect(self.a, self.b)
 
-    def vb_e(self, cold_start=True, smoothness=100, verbose=True, disp=0):
-        """ Perform one variational E-step, which may have one sub-iteration or
-        multiple sub-iterations if e_converge is set to True, to appxorimate
-        the posterior P(A | -)
+    def vb_e(self, cold_start=True, smoothness=100, maxiter=15000,
+             verbose=True, disp=0):
+        """ Perform one variational E-step to appxorimate the posterior
+        P(A | -)
 
         Parameters
         ----------
@@ -76,7 +76,7 @@ class SF_Dict(object):
             print('Update (initial)\tObj: {:.2f}'.format(last_score))
             start_t = time.time()
         for t in xrange(self.T):
-            self.update_theta_batch(t, disp)
+            self.update_theta_batch(t, maxiter, disp)
             if verbose and not t % 100:
                 sys.stdout.write('.')
         if verbose:
@@ -86,12 +86,12 @@ class SF_Dict(object):
             score = self.bound()
             print_increment('A', last_score, score)
 
-    def update_theta_batch(self, t, disp):
+    def update_theta_batch(self, t, maxiter, disp):
         def f(theta):
             a, b = np.exp(theta[:self.L]), np.exp(theta[-self.L:])
             Ea, Eloga = comp_expect(a, b)
-            logEexp = self.comp_log_exp(a[:, np.newaxis],
-                                        b[:, np.newaxis], self.U)
+            logEexp = comp_log_exp(a[:, np.newaxis],
+                                   b[:, np.newaxis], self.U)
             likeli = (-self.W[t] * np.exp(np.sum(logEexp, axis=0))
                       - np.dot(Ea, self.U)) * self.gamma
             prior = (self.alpha - 1) * Eloga - self.alpha * Ea
@@ -101,9 +101,8 @@ class SF_Dict(object):
 
         def df(theta):
             a, b = np.exp(theta[:self.L]), np.exp(theta[-self.L:])
-            Ea, _ = comp_expect(a, b)
-            logEexp = self.comp_log_exp(a[:, np.newaxis],
-                                        b[:, np.newaxis], self.U)
+            logEexp = comp_log_exp(a[:, np.newaxis],
+                                   b[:, np.newaxis], self.U)
 
             tmp = self.U / b[:, np.newaxis]
             log_term, inv_term = np.empty_like(tmp), np.empty_like(tmp)
@@ -129,7 +128,8 @@ class SF_Dict(object):
             return -np.hstack((a * grad_a, b * grad_b))
 
         theta0 = np.hstack((np.log(self.a[t]), np.log(self.b[t])))
-        theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
+        theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df,
+                                                 maxiter=maxiter, disp=0)
         if disp and d['warnflag']:
             if d['warnflag'] == 2:
                 print 'A[{}, :]: {}, f={}'.format(t,
@@ -157,7 +157,7 @@ class SF_Dict(object):
         assert(np.all(self.b[t] > 0))
         self.EA[t], self.ElogA[t] = comp_expect(self.a[t], self.b[t])
 
-    def vb_m(self, batch=False, verbose=True, disp=0):
+    def vb_m(self, batch=False, maxiter=15000, verbose=True, disp=0):
         """ Perform one M-step, update the model parameters with A fixed
         from E-step
 
@@ -184,14 +184,14 @@ class SF_Dict(object):
             print('Update (initial)\tObj: {:.2f}'.format(last_score))
             start_t = time.time()
         if batch:
-            self.update_u_batch(disp)
+            self.update_u_batch(maxiter, disp)
             if verbose:
                 score = self.bound()
                 print_increment('U', last_score, score)
                 last_score = score
         else:
             for l in xrange(self.L):
-                self.update_u(l, disp)
+                self.update_u(l, maxiter, disp)
                 if verbose:
                     score = self.bound()
                     print_increment('U[{}]'.format(l), last_score, score)
@@ -216,13 +216,13 @@ class SF_Dict(object):
             print('U diff: {:.4f}\tsigma dff: {:.4f}\talpha diff: {:.4f}\t'
                   'time: {:.2f}'.format(U_diff, sigma_diff, alpha_diff, t))
 
-    def update_u_batch(self, disp):
+    def update_u_batch(self, maxiter, disp):
         def f_df(u):
             U = u.reshape(self.L, self.F)
             Eexp = 0.
             for l in xrange(self.L):
-                Eexp = Eexp + self.comp_log_exp(self.a[:, l, np.newaxis],
-                                                self.b[:, l, np.newaxis], U[l])
+                Eexp = Eexp + comp_log_exp(self.a[:, l, np.newaxis],
+                                           self.b[:, l, np.newaxis], U[l])
             Eexp = np.exp(Eexp)
             grad_U = np.zeros_like(U)
             for l in xrange(self.L):
@@ -235,7 +235,7 @@ class SF_Dict(object):
             return (np.sum(np.dot(self.EA, U) + self.W * Eexp), grad_U.ravel())
 
         u0 = self.U.ravel()
-        u_hat, _, d = optimize.fmin_l_bfgs_b(f_df, u0, disp=0)
+        u_hat, _, d = optimize.fmin_l_bfgs_b(f_df, u0, maxiter=maxiter, disp=0)
         self.U = u_hat.reshape(self.L, self.F)
         if disp and d['warnflag']:
             if d['warnflag'] == 2:
@@ -243,36 +243,35 @@ class SF_Dict(object):
             else:
                 print 'U: {}, f={}'.format(d['warnflag'], f_df(u_hat)[0])
 
-    def update_u(self, l, disp):
+    def update_u(self, l, maxiter, disp):
         def f(u):
-            Eexp = np.exp(self.comp_log_exp(self.a[:, l, np.newaxis],
-                                            self.b[:, l, np.newaxis], u))
+            Eexp = np.exp(comp_log_exp(self.a[:, l, np.newaxis],
+                                       self.b[:, l, np.newaxis], u))
             return np.sum(np.outer(self.EA[:, l], u) + self.W * Eexp * Eres)
 
         def df(u):
-            tmp = np.exp(self.comp_log_exp(self.a[:, l, np.newaxis] + 1,
-                                           self.b[:, l, np.newaxis], u))
+            tmp = np.exp(comp_log_exp(self.a[:, l, np.newaxis] + 1.,
+                                      self.b[:, l, np.newaxis], u))
             return np.sum(self.EA[:, l, np.newaxis] *
                           (1 - self.W * Eres * tmp), axis=0)
 
         k_idx = np.delete(np.arange(self.L), l)
         Eres = 0.
         for k in k_idx:
-            Eres = Eres + self.comp_log_exp(self.a[:, k, np.newaxis],
-                                            self.b[:, k, np.newaxis],
-                                            self.U[k])
+            Eres = Eres + comp_log_exp(self.a[:, k, np.newaxis],
+                                       self.b[:, k, np.newaxis],
+                                       self.U[k])
         Eres = np.exp(Eres)
 
         u0 = self.U[l]
-        self.U[l], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
+        self.U[l], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df,
+                                                 maxiter=maxiter, disp=0)
         if disp and d['warnflag']:
             if d['warnflag'] == 2:
-                print 'U[{}, :]: {}, f={}'.format(l,
-                                                  d['task'],
+                print 'U[{}, :]: {}, f={}'.format(l, d['task'],
                                                   f(self.U[l]))
             else:
-                print 'U[{}, :]: {}, f={}'.format(l,
-                                                  d['warnflag'],
+                print 'U[{}, :]: {}, f={}'.format(l, d['warnflag'],
                                                   f(self.U[l]))
             app_grad = approx_grad(f, self.U[l])
             ana_grad = df(self.U[l])
@@ -295,9 +294,9 @@ class SF_Dict(object):
 
         Eexp = 0.
         for l in xrange(self.L):
-            Eexp = Eexp + self.comp_log_exp(self.a[:, l, np.newaxis],
-                                            self.b[:, l, np.newaxis],
-                                            self.U[l])
+            Eexp = Eexp + comp_log_exp(self.a[:, l, np.newaxis],
+                                       self.b[:, l, np.newaxis],
+                                       self.U[l])
         Eexp = np.exp(Eexp)
 
         eta0 = np.log(self.gamma)
@@ -342,9 +341,9 @@ class SF_Dict(object):
     def bound(self):
         Eexp = 0.
         for l in xrange(self.L):
-            Eexp = Eexp + self.comp_log_exp(self.a[:, l, np.newaxis],
-                                            self.b[:, l, np.newaxis],
-                                            self.U[l])
+            Eexp = Eexp + comp_log_exp(self.a[:, l, np.newaxis],
+                                       self.b[:, l, np.newaxis],
+                                       self.U[l])
         Eexp = np.exp(Eexp)
         # E[log P(w|a)]
         bound = self.T * np.sum(self.gamma * np.log(self.gamma) -
@@ -388,30 +387,6 @@ class SF_Dict(object):
     #    expect[U <= -beta] = np.inf
     #    return expect
 
-    def comp_log_exp(self, alpha, beta, U):
-        ''' Compute log(E[exp(-au)]) where a ~ Gamma(alpha, beta) and u as a
-        constant:
-            log(E[exp(-au)]) = -alpha * log(1 + u / beta)
-        Like self.comp_exp_expect (deprecated), this function makes extensive
-        use of broadcasting. Therefore, the dimension of the input arguments
-        (at least by design) can only be one of the following two situations:
-            1) U: (L, F)    alpha: (L, 1) OR scalar     beta: (L, 1)
-                --> output: (L, F)
-            2) U: (F, )     alpha: (T, 1) OR scalar     beta: (T, 1)
-                --> oupput: (T, F)
-        '''
-        tmp = U / beta
-        log_exp = np.empty_like(tmp)
-        idx = (tmp > -1)
-        # log(1 + x) is better approximated as x if x is sufficiently small
-        # otherwise, it can be directly computed
-        idx_dir = np.logical_and(idx, np.abs(tmp) > 1e-12)
-        idx_app = (np.abs(tmp) <= 1e-12)
-        log_exp[idx_dir] = (-alpha * np.log(1. + tmp))[idx_dir]
-        log_exp[idx_app] = (-alpha * tmp)[idx_app]
-        log_exp[-idx] = np.inf
-        return log_exp
-
 
 def print_gradient(name, val, grad, approx):
     print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'
@@ -432,6 +407,31 @@ def comp_expect(alpha, beta):
 def entropy(alpha, beta):
     return (alpha - np.log(beta) + special.gammaln(alpha) +
             (1 - alpha) * special.psi(alpha))
+
+
+def comp_log_exp(alpha, beta, U):
+    ''' Compute log(E[exp(-au)]) where a ~ Gamma(alpha, beta) and u as a
+    constant:
+        log(E[exp(-au)]) = -alpha * log(1 + u / beta)
+    Like self.comp_exp_expect (deprecated), this function makes extensive
+    use of broadcasting. Therefore, the dimension of the input arguments
+    (at least by design) can only be one of the following two situations:
+        1) U: (L, F)    alpha, beta: (L, 1)
+            --> output: (L, F)
+        2) U: (F, )     alpha, beta: (T, 1)
+            --> oupput: (T, F)
+    '''
+    tmp = U / beta
+    log_exp = np.empty_like(tmp)
+    idx = (tmp > -1)
+    # log(1 + x) is better approximated as x if x is sufficiently small
+    # otherwise, it can be directly computed
+    idx_dir = np.logical_and(idx, np.abs(tmp) > 1e-12)
+    idx_app = (np.abs(tmp) <= 1e-12)
+    log_exp[idx_dir] = (-alpha * np.log(1. + tmp))[idx_dir]
+    log_exp[idx_app] = (-alpha * tmp)[idx_app]
+    log_exp[-idx] = np.inf
+    return log_exp
 
 
 def approx_grad(f, x, delta=1e-8, args=()):

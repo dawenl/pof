@@ -12,8 +12,8 @@ from math import log
 
 
 def compute_gig_expectations(alpha, beta, gamma):
-    if np.asarray(alpha).size == 1 or beta.shape[0]:
-        alpha = alpha * np.ones_like(beta)
+    #if np.asarray(alpha).size == 1 or beta.shape[0]:
+    alpha = alpha * np.ones_like(beta)
 
     Ex, Exinv = np.zeros_like(beta), np.zeros_like(beta)
 
@@ -50,22 +50,63 @@ def compute_gig_expectations(alpha, beta, gamma):
     return (Ex, Exinv)
 
 
+def compute_gamma_expectation(alpha, beta):
+    return (alpha / beta, special.psi(alpha) - np.log(beta))
+
+
+def comp_log_exp(alpha, beta, U):
+    ''' Compute log(E[exp(-au)]) where a ~ Gamma(alpha, beta) and u as a
+    constant:
+        log(E[exp(-au)]) = -alpha * log(1 + u / beta)
+    '''
+    tmp = U / beta
+    log_exp = np.empty_like(tmp)
+    idx = (tmp > -1)
+    # log(1 + x) is better approximated as x if x is sufficiently small
+    # otherwise, it can be directly computed
+    idx_dir = np.logical_and(idx, np.abs(tmp) > 1e-12)
+    idx_app = (np.abs(tmp) <= 1e-12)
+    log_exp[idx_dir] = (-alpha * np.log(1. + tmp))[idx_dir]
+    log_exp[idx_app] = (-alpha * tmp)[idx_app]
+    log_exp[-idx] = np.inf
+    return log_exp
+
+
 def gig_gamma_term(Ex, Exinv, rho, tau, a, b):
+    ''' Compute E_q[log p(x)] - E_q[log q(x)] where:
+        p(x) = Gamma(a, b), q(x) = GIG(a, rho, tau)
+    '''
     score = 0
     cut_off = 1e-200
     zero_tau = (tau <= cut_off)
     non_zero_tau = (tau > cut_off)
-    score += Ex.size * (a * log(b) - special.gammaln(a))
-    score -= np.sum((b - rho) * Ex)
+    if np.asarray(a).size == 1:
+        score = score + Ex.size * (a * log(b) - special.gammaln(a))
+    else:
+        # shape(a) = (F, )  shape(b) = (F, K)
+        score = score + np.sum(a * np.log(b) - special.gammaln(a))
+    score = score - np.sum((b - rho) * Ex)
 
-    score -= np.sum(non_zero_tau) * log(0.5)
-    score += np.sum(tau[non_zero_tau] * Exinv[non_zero_tau])
-    score -= 0.5 * a * np.sum(np.log(rho[non_zero_tau]) -
-                              np.log(tau[non_zero_tau]))
+    score = score - np.sum(non_zero_tau) * log(.5)
+    score = score + np.sum(tau[non_zero_tau] * Exinv[non_zero_tau])
+    score = score - .5 * np.sum(a * (np.log(rho[non_zero_tau]) -
+                                     np.log(tau[non_zero_tau])))
     # It's numerically safer to use scaled version of besselk
-    score += np.sum(np.log(special.kve(a, 2 * np.sqrt(rho[non_zero_tau] *
-                                                      tau[non_zero_tau]))) -
-                    2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau]))
+    score = score + np.sum(np.log(special.kve(
+        a, 2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau]))) -
+        2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau]))
 
-    score += np.sum(-a * np.log(rho[zero_tau]) + special.gammaln(a))
+    score = score + np.sum(-a * np.log(rho[zero_tau]) + special.gammaln(a))
+    return score
+
+def gamma_term(Ex, Elogx, nu, rho, a):
+    ''' Compute E_q[log p(x)] - E_q [log q(x)] where:
+        p(x) = Gamma(a, a), q(x) = Gamma(nu, rho)
+    '''
+    score = 0
+    ca = a[:, np.newaxis]
+    score = score + np.sum((ca - nu) * Elogx)
+    score = score - np.sum((ca - rho) * Ex)
+    score = score + np.sum(special.gammaln(nu) - special.gammaln(ca))
+    score = score + np.sum(ca * np.log(ca) - nu * np.log(rho))
     return score
