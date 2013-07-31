@@ -213,6 +213,3 @@ write_wav(w_rec, 'rec_gen{}_fit_L{}_F{}_H{}_{}.wav'.format(gender, L, n_fft, hop
 w_rec_org = librosa.istft(W_complex_test, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(w_rec_org, 'rec_gen{}_org.wav'.format(gender))
 
-# <codecell>
-
-
