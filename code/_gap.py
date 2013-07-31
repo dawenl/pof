@@ -12,7 +12,6 @@ from math import log
 
 
 def compute_gig_expectations(alpha, beta, gamma):
-    #if np.asarray(alpha).size == 1 or beta.shape[0]:
     alpha = alpha * np.ones_like(beta)
 
     Ex, Exinv = np.zeros_like(beta), np.zeros_like(beta)
@@ -98,6 +97,7 @@ def gig_gamma_term(Ex, Exinv, rho, tau, a, b):
 
     score = score + np.sum(-a * np.log(rho[zero_tau]) + special.gammaln(a))
     return score
+
 
 def gamma_term(Ex, Elogx, nu, rho, a):
     ''' Compute E_q[log p(x)] - E_q [log q(x)] where:

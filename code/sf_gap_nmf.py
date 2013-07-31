@@ -232,7 +232,7 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         '''
         goodk = self.goodk()
         badk = np.setdiff1d(np.arange(self.K), goodk)
-        self.rhow[:, badk] = self.gamma
+        self.rhow[:, badk] = self.gamma.ravel()
         self.tauw[:, badk] = 0
         self.rhoh[badk, :] = self.b
         self.tauh[badk, :] = 0
