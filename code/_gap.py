@@ -79,23 +79,33 @@ def gig_gamma_term(Ex, Exinv, rho, tau, a, b):
     cut_off = 1e-200
     zero_tau = (tau <= cut_off)
     non_zero_tau = (tau > cut_off)
-    if np.asarray(a).size == 1:
-        score = score + Ex.size * (a * log(b) - special.gammaln(a))
-    else:
-        # shape(a) = (F, )  shape(b) = (F, K)
-        score = score + np.sum(a * np.log(b) - special.gammaln(a))
-    score = score - np.sum((b - rho) * Ex)
 
+    score = score - np.sum((b - rho) * Ex)
     score = score - np.sum(non_zero_tau) * log(.5)
     score = score + np.sum(tau[non_zero_tau] * Exinv[non_zero_tau])
-    score = score - .5 * np.sum(a * (np.log(rho[non_zero_tau]) -
+    if np.asarray(a).size == 1:
+        score = score + Ex.size * (a * log(b) - special.gammaln(a))
+        score = score - .5 * a * np.sum(np.log(rho[non_zero_tau]) -
+                                        np.log(tau[non_zero_tau]))
+        # It's numerically safer to use scaled version of besselk
+        score = score + np.sum(np.log(special.kve(
+            a, 2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau]))) -
+            2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau]))
+        score = score + np.sum(-a * np.log(rho[zero_tau]) + special.gammaln(a))
+    else:
+        # shape(a) = (F, )  shape(b) = (F, K)
+        tmpA = a * np.ones_like(b)
+        score = score + np.sum(a * np.log(b) - special.gammaln(a))
+        score = score - .5 * np.sum(tmpA[non_zero_tau] *
+                                    (np.log(rho[non_zero_tau]) -
                                      np.log(tau[non_zero_tau])))
-    # It's numerically safer to use scaled version of besselk
-    score = score + np.sum(np.log(special.kve(
-        a, 2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau]))) -
-        2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau]))
-
-    score = score + np.sum(-a * np.log(rho[zero_tau]) + special.gammaln(a))
+        # It's numerically safer to use scaled version of besselk
+        score = score + np.sum(np.log(special.kve(
+            tmpA[non_zero_tau],
+            2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau]))) -
+            2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau]))
+        score = score + np.sum(-tmpA[zero_tau] * np.log(rho[zero_tau]) +
+                               special.gammaln(tmpA[zero_tau]))
     return score
 
 

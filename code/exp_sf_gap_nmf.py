@@ -3,7 +3,7 @@
 
 # <codecell>
 
-import functools, glob, pickle
+import functools, glob
 
 from scikits.audiolab import Sndfile, Format
 
@@ -19,15 +19,16 @@ def logspec(X, amin=1e-10, dbdown=80):
     logX = 20 * np.log10(np.maximum(X, amin))
     return np.maximum(logX, logX.max() - dbdown)
 
-def save_object(obj, filename):
-    with open(filename, 'wb') as output:
-        pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
+def load_timit(wav_dir):
+    f = Sndfile(wav_dir, 'r')
+    wav = f.read_frames(f.nframes)
+    return (wav, f.samplerate)
+    
+def write_wav(w, filename, channels=1, samplerate=16000):
+    f_out = Sndfile(filename, 'w', format=Format(), channels=channels, samplerate=samplerate)
+    f_out.write_frames(w)
+    f_out.close()
     pass
-
-def load_object(filename):
-    with open(filename, 'r') as output:
-        obj = pickle.load(output)
-    return obj 
 
 # <codecell>
 
@@ -52,19 +53,6 @@ pass
 # <codecell>
 
 TIMIT_DIR = '../../timit/train/'
-
-# <codecell>
-
-def load_timit(wav_dir):
-    f = Sndfile(wav_dir, 'r')
-    wav = f.read_frames(f.nframes)
-    return (wav, f.samplerate)
-    
-def write_wav(w, filename, channels=1, samplerate=16000):
-    f_out = Sndfile(filename, 'w', format=Format(), channels=channels, samplerate=samplerate)
-    f_out.write_frames(w)
-    f_out.close()
-    pass
 
 # <codecell>
 
@@ -103,6 +91,10 @@ specshow(logspec(X))
 colorbar()
 pass
 
+# <headingcell level=1>
+
+# Source-filter GaP-NMF
+
 # <codecell>
 
 reload(sf_gap_nmf)
@@ -110,27 +102,44 @@ sf_gap = sf_gap_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=50, seed=98765)
 
 score = -np.inf
 criterion = 0.0005
-for i in xrange(5):
-    sf_gap.update()
-    lastscore = score
-    score = sf_gap.bound()
-    improvement = (score - lastscore) / np.abs(lastscore)
-    print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
-    if improvement < criterion:
-        break
+for i in xrange(1000):
+    #sf_gap.update(disp=1)
+    sf_gap.update_h()
+    goodk = sf_gap.goodk()
+    print goodk
+    for k in goodk:
+        sf_gap.update_a(k, 1)
+    
+    #lastscore = score
+    #score = sf_gap.bound()
+    #improvement = (score - lastscore) / np.abs(lastscore)
+    #print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
+    #if improvement < criterion:
+    #    break
 
 # <codecell>
 
-i
-
-# <codecell>
-
-fig(figsize=(16, 10))
 sf_gap.figures()
 
 # <codecell>
 
-reload(gap_nmf)
+X_rec_sfgap_amp = np.mean(X) * sf_gap._xbar()
+X_rec_sfgap = X_rec_sfgap_amp * np.exp(1j * np.angle(X_complex)) 
+
+# <codecell>
+
+x_rec_sfgap = librosa.istft(X_rec_sfgap, n_fft=n_fft, hop_length=hop_length, hann_w=0)
+write_wav(x_rec_sfgap, 'rec_sfgap.wav')
+x_org = librosa.istft(X_complex, n_fft=n_fft, hop_length=hop_length, hann_w=0)
+write_wav(x_org, 'rec_org.wav')
+
+# <headingcell level=1>
+
+# GaP-NMF
+
+# <codecell>
+
+#reload(gap_nmf)
 gap = gap_nmf.GaP_NMF(X, K=50, seed=98765)
 
 score = -np.inf
@@ -146,7 +155,6 @@ for i in xrange(1000):
 
 # <codecell>
 
-fig(figsize=(16, 10))
 gap.figures()
 
 # <codecell>
@@ -156,28 +164,40 @@ X_rec_gap = X_rec_gap_amp * np.exp(1j * np.angle(X_complex))
 
 # <codecell>
 
-fig(figsize=(8, 8))
-subplot(311)
-specshow(logspec(X))
-title('Original')
-colorbar()
-subplot(312)
-specshow(logspec(X_rec_gap_amp))
-title('Reconstruction')
-colorbar()
-subplot(313)
-specshow(X_rec_gap_amp - X)
-title('Reconstruction Error')
-colorbar()
-tight_layout()
-pass
-
-# <codecell>
-
 x_rec_gap = librosa.istft(X_rec_gap, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(x_rec_gap, 'rec_gap.wav')
 x_org = librosa.istft(X_complex, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(x_org, 'rec_org.wav')
+
+# <headingcell level=1>
+
+# SF GaP-NMF v.s. GaP-NMF
+
+# <codecell>
+
+fig(figsize=(16, 8))
+subplot(321)
+specshow(logspec(X))
+title('Original')
+colorbar()
+subplot(323)
+specshow(logspec(X_rec_sfgap_amp))
+title('SF GaP-NMF')
+colorbar()
+subplot(324)
+specshow(logspec(X_rec_gap_amp))
+title('GaP-NMF')
+colorbar()
+subplot(325)
+specshow(X_rec_sfgap_amp - X)
+title('Error')
+colorbar()
+subplot(326)
+specshow(X_rec_gap_amp - X)
+title('Error')
+colorbar()
+tight_layout()
+pass
 
 # <codecell>
 

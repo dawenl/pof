@@ -17,8 +17,8 @@ import scipy.optimize as optimize
 class SF_GaP_NMF(gap_nmf.GaP_NMF):
     def __init__(self, X, U, gamma, alpha, K=100, smoothness=100,
                  seed=None, **kwargs):
-        #self.X = X / np.mean(X)
-        self.X = X.copy()
+        self.X = X / np.mean(X)
+        #self.X = X.copy()
         self.K = K
         self.U = U.copy()
         self.alpha = alpha.copy()
@@ -89,18 +89,14 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
     def update(self, disp=0):
         ''' Do optimization for one iteration
         '''
-        print 'Update H...'
         self.update_h()
-        #goodk = self.goodk()
-        #for k in goodk:
-        #    print k
-        #    self.update_a(k, disp)
-        print 'Update W...'
+        goodk = self.goodk()
+        print goodk
+        for k in goodk:
+            self.update_a(k, disp)
         self.update_w()
-        print 'Update theta...'
         self.update_theta()
         # truncate unused components
-        print 'Clear bad k...'
         self.clear_badk()
 
     def update_a(self, k, disp):
@@ -155,14 +151,14 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             else:
                 print 'A[:, {}]: {}, f={}'.format(k, d['warnflag'],
                                                   f(theta_hat))
-            app_grad = approx_grad(f, theta_hat)
-            ana_grad = df(theta_hat)
-            for l in xrange(self.L):
-                print_gradient('log_a[{}, {:3d}]'.format(l, k), theta_hat[l],
-                               ana_grad[l], app_grad[l])
-                print_gradient('log_b[{}, {:3d}]'.format(l, k),
-                               theta_hat[l + self.L], ana_grad[l + self.L],
-                               app_grad[l + self.L])
+#            app_grad = approx_grad(f, theta_hat)
+#            ana_grad = df(theta_hat)
+#            for l in xrange(self.L):
+#                print_gradient('log_a[{}, {:3d}]'.format(l, k), theta_hat[l],
+#                               ana_grad[l], app_grad[l])
+#                print_gradient('log_b[{}, {:3d}]'.format(l, k),
+#                               theta_hat[l + self.L], ana_grad[l + self.L],
+#                               app_grad[l + self.L])
 
         self.nua[:, k], self.rhoa[:, k] = np.exp(theta_hat[:self.L]), np.exp(
             theta_hat[-self.L:])
@@ -233,7 +229,6 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         powers = self.Et * np.amax(self.Ew, axis=0) * np.amax(self.Eh, axis=1)
         sorted = np.flipud(np.argsort(powers))
         idx = np.where(powers[sorted] > cut_off * np.amax(powers))[0]
-        print idx
         goodk = sorted[:(idx[-1] + 1)]
         if powers[goodk[-1]] < cut_off:
             goodk = np.delete(goodk, -1)
@@ -272,22 +267,6 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
                                         self.rhoa, self.alpha)
         return score
 
-    #def comp_exp_expect(self, alpha, beta, U):
-    #    ''' Compute E[exp(-au)] where a ~ Gamma(alpha, beta) and u constant
-
-    #    This function makes extensive use of broadcasting, thus the dimension
-    #    of input arguments can only be the following situation:
-    #          U has shape (F, L), alpha and beta have shape (L, )
-    #            --> output shape (F, L)
-    #    '''
-    #    # using Taylor expansion for large alpha (hence beta) to more
-    #    # accurately compute (1 + u/beta)**(-alpha)
-    #    idx = np.logical_and(alpha < 1e10, beta < 1e10)
-    #    expect = np.empty_like(U)
-    #    expect[idx] = (1 + U[idx] / beta[idx])**(-alpha[idx])
-    #    expect[-idx] = np.exp(-U[-idx] * alpha[-idx] / beta[-idx])
-    #    expect[U <= -beta] = np.inf
-    #    return expect
 
     def _xbar(self, goodk=None):
         if goodk is None:
