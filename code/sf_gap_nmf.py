@@ -17,7 +17,8 @@ import scipy.optimize as optimize
 class SF_GaP_NMF(gap_nmf.GaP_NMF):
     def __init__(self, X, U, gamma, alpha, K=100, smoothness=100,
                  seed=None, **kwargs):
-        self.X = X / np.mean(X)
+        #self.X = X / np.mean(X)
+        self.X = X.copy()
         self.K = K
         self.U = U.copy()
         self.alpha = alpha.copy()
@@ -88,14 +89,18 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
     def update(self, disp=0):
         ''' Do optimization for one iteration
         '''
+        print 'Update H...'
         self.update_h()
-        goodk = self.goodk()
-        for k in goodk:
-            print k
-            self.update_a(k, disp)
+        #goodk = self.goodk()
+        #for k in goodk:
+        #    print k
+        #    self.update_a(k, disp)
+        print 'Update W...'
         self.update_w()
+        print 'Update theta...'
         self.update_theta()
         # truncate unused components
+        print 'Clear bad k...'
         self.clear_badk()
 
     def update_a(self, k, disp):
@@ -228,6 +233,7 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         powers = self.Et * np.amax(self.Ew, axis=0) * np.amax(self.Eh, axis=1)
         sorted = np.flipud(np.argsort(powers))
         idx = np.where(powers[sorted] > cut_off * np.amax(powers))[0]
+        print idx
         goodk = sorted[:(idx[-1] + 1)]
         if powers[goodk[-1]] < cut_off:
             goodk = np.delete(goodk, -1)
@@ -238,12 +244,12 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         '''
         goodk = self.goodk()
         badk = np.setdiff1d(np.arange(self.K), goodk)
-        self.rhow[:, badk] = self.gamma.ravel()
+        self.rhow[:, badk] = self.gamma
         self.tauw[:, badk] = 0
         self.rhoh[badk, :] = self.b
         self.tauh[badk, :] = 0
-        self.nua[:, badk] = self.alpha
-        self.rhoa[:, badk] = self.alpha
+        self.nua[:, badk] = self.alpha[:, np.newaxis]
+        self.rhoa[:, badk] = self.alpha[:, np.newaxis]
         self.compute_expectations()
 
     def bound(self):

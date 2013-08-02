@@ -36,16 +36,18 @@ U = d['U'].T
 gamma = d['gamma']
 alpha = d['alpha'].ravel()
 
-print U.shape
-
 # <codecell>
 
+log_normal = True
+
 # if loading priors trained from log-normal, transfer gamma to approximate gamma noise model
-gamma = 1./(np.exp(2./gamma) - np.exp(1./gamma))
+if log_normal:
+    gamma = 1./(np.exp(2./gamma) - np.exp(1./gamma))
 
 # <codecell>
 
 plot(gamma)
+pass
 
 # <codecell>
 
@@ -84,25 +86,27 @@ np.random.seed(98765)
 idx = np.random.permutation(n_files)
 
 # 80% of the data is used to learn the prior via empirical bayes
-W_complex_test = None
+X_complex = None
 for file_dir in files[N_train:]:
     for wav_dir in file_dir:
         wav, sr = load_timit(wav_dir)
-        if W_complex_test is None:
-            W_complex_test = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+        if X_complex is None:
+            X_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
         #else:
-        #    W_complex_test = np.hstack((W_complex_test, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
+        #    X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
+        
+X = np.abs(X_complex)
 
 # <codecell>
 
-specshow(logspec(np.abs(W_complex_test)))
+specshow(logspec(X))
 colorbar()
 pass
 
 # <codecell>
 
 reload(sf_gap_nmf)
-sf_gap = sf_gap_nmf.SF_GaP_NMF(np.abs(W_complex_test), U, gamma, alpha, K=50, seed=98765)
+sf_gap = sf_gap_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=50, seed=98765)
 
 score = -np.inf
 criterion = 0.0005
@@ -126,11 +130,12 @@ sf_gap.figures()
 
 # <codecell>
 
-gap = gap_nmf.GaP_NMF(np.abs(W_complex_test), K=50, seed=98765)
+reload(gap_nmf)
+gap = gap_nmf.GaP_NMF(X, K=50, seed=98765)
 
 score = -np.inf
 criterion = 0.0005
-for i in xrange(1):
+for i in xrange(1000):
     gap.update()
     lastscore = score
     score = gap.bound()
@@ -143,6 +148,36 @@ for i in xrange(1):
 
 fig(figsize=(16, 10))
 gap.figures()
+
+# <codecell>
+
+X_rec_gap_amp = np.mean(X) * gap._xbar()
+X_rec_gap = X_rec_gap_amp * np.exp(1j * np.angle(X_complex)) 
+
+# <codecell>
+
+fig(figsize=(8, 8))
+subplot(311)
+specshow(logspec(X))
+title('Original')
+colorbar()
+subplot(312)
+specshow(logspec(X_rec_gap_amp))
+title('Reconstruction')
+colorbar()
+subplot(313)
+specshow(X_rec_gap_amp - X)
+title('Reconstruction Error')
+colorbar()
+tight_layout()
+pass
+
+# <codecell>
+
+x_rec_gap = librosa.istft(X_rec_gap, n_fft=n_fft, hop_length=hop_length, hann_w=0)
+write_wav(x_rec_gap, 'rec_gap.wav')
+x_org = librosa.istft(X_complex, n_fft=n_fft, hop_length=hop_length, hann_w=0)
+write_wav(x_org, 'rec_org.wav')
 
 # <codecell>
 
