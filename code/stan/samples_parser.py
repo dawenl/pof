@@ -7,7 +7,7 @@ SKIPROWS = 1
 SKIPCOLS = 3
 
 
-def parse_samples(samples_csv, F, T, L, LEN_BATCH=5000):
+def parse_samples(samples_csv, F, T, L, gamma=True, LEN_BATCH=5000):
     f = open(samples_csv, 'r')
     header = f.readline().strip().split(',')
     length = len(header) - SKIPCOLS
@@ -21,7 +21,11 @@ def parse_samples(samples_csv, F, T, L, LEN_BATCH=5000):
     U = np.zeros((L, F))
     A = np.zeros((T, L))
     alpha = np.zeros((L,))
-    sigma = np.zeros((F,))
+    if gamma:
+        # gamma-noise model
+        gamma = np.zeros((F,))
+    else:
+        sigma = np.zeros((F,))
 
     for st_idx in xrange(0, length, LEN_BATCH):
         end_idx = min(st_idx + LEN_BATCH, length)
@@ -35,7 +39,9 @@ def parse_samples(samples_csv, F, T, L, LEN_BATCH=5000):
                 pos[0], tuple([int(p) - 1 for p in pos[1:]]), vals[i]))
         print('{} variables have been processed'.format(
             cols[-1] - SKIPCOLS + 1))
-    gamma = 1. / (sigma**2)
+
+    if not gamma:
+        gamma = 1. / (sigma**2)
     return (U, A, alpha, gamma)
 
 

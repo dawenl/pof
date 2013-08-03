@@ -91,7 +91,6 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         '''
         self.update_h()
         goodk = self.goodk()
-        print goodk
         for k in goodk:
             self.update_a(k, disp)
         self.update_w()
@@ -179,14 +178,24 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
 
         self.rhow[:, goodk] = self.gamma * np.exp(np.sum(
             self.logEexpa[:, :, goodk], axis=1))
-        self.rhow[:, goodk] += np.dot(xbarinv, dEt * self.Eh[goodk, :].T)
+        self.rhow[:, goodk] = self.rhow[:, goodk] + np.dot(
+            xbarinv, dEt * self.Eh[goodk, :].T)
         self.tauw[:, goodk] = self.Ewinvinv[:, goodk]**2 * \
                 np.dot(xxtwidinvsq, dEtinvinv * self.Ehinvinv[goodk, :].T)
         self.tauw[self.tauw < 1e-100] = 0
+
+        #import ipdb; ipdb.set_trace() # XXX BREAKPOINT
+
         self.Ew[:, goodk], self.Ewinv[:, goodk] = _gap.compute_gig_expectations(
             self.gamma,
             self.rhow[:, goodk],
             self.tauw[:, goodk])
+
+        if np.any(np.isnan(self.Ew)):
+            dg = self.gamma * np.ones_like(self.rhow)
+            print dg[np.isnan(self.Ew)]
+            print self.rhow[np.isnan(self.Ew)]
+            print self.tauw[np.isnan(self.Ew)]
         self.Ewinvinv[:, goodk] = 1. / self.Ewinv[:, goodk]
 
     def update_h(self):
@@ -266,7 +275,6 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         score = score + _gap.gamma_term(self.Ea, self.Eloga, self.nua,
                                         self.rhoa, self.alpha)
         return score
-
 
     def _xbar(self, goodk=None):
         if goodk is None:

@@ -26,7 +26,7 @@ def logspec(X, amin=1e-10, dbdown=80):
 
 ## parameters
 L = 50
-samples_csv = 'samples_spk_L{}_wp.csv'.format(L)
+samples_csv = 'samples_spk_L{}_gamma_wp.csv'.format(L)
 matfile = 'spk1.mat'
 
 # <codecell>
@@ -38,6 +38,7 @@ print F, T
 
 # <codecell>
 
+reload(samples_parser)
 U, A, alpha, gamma = samples_parser.parse_samples(samples_csv, F, T, L)
 
 # <codecell>
@@ -153,20 +154,6 @@ fig()
 subplot(121)
 semilogy(flipud(sort(alpha)), '-o')
 subplot(122)
-plot(np.sqrt(1./gamma))
+plot(gamma)
 pass
-
-# <codecell>
-
-## Load results from empirical Bayes
-EA, EA2, ElogA = samples_parser.parse_EA('samples_emp_L20.csv', 90, 20)
-
-# <codecell>
-
-specshow(EA)
-colorbar()
-pass
-
-# <codecell>
-
 

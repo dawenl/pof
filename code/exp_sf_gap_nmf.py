@@ -99,16 +99,23 @@ pass
 
 reload(sf_gap_nmf)
 sf_gap = sf_gap_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=50, seed=98765)
+print np.any(np.isnan(sf_gap.Ew))
+
+# <codecell>
 
 score = -np.inf
 criterion = 0.0005
-for i in xrange(1000):
+for i in xrange(1):
     #sf_gap.update(disp=1)
     sf_gap.update_h()
+    sf_gap.update_w()
+    print np.any(np.isnan(sf_gap.Ew))
     goodk = sf_gap.goodk()
     print goodk
     for k in goodk:
         sf_gap.update_a(k, 1)
+    sf_gap.update_theta()
+    sf_gap.clear_badk()
     
     #lastscore = score
     #score = sf_gap.bound()
@@ -116,6 +123,16 @@ for i in xrange(1000):
     #print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
     #if improvement < criterion:
     #    break
+
+# <codecell>
+
+specshow(sf_gap.Ew)
+colorbar()
+
+# <codecell>
+
+specshow(sf_gap.X[:20, ])
+colorbar()
 
 # <codecell>
 
