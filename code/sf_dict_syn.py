@@ -138,6 +138,3 @@ specshow((V - V_rec).T)
 colorbar()
 pass
 
-# <codecell>
-
-

@@ -157,7 +157,8 @@ class SF_Dict(object):
         old_gamma = self.gamma.copy()
         old_alpha = self.alpha.copy()
         if batch:
-            self.update_u_batch(disp)
+            for f in xrange(self.F):
+                self.update_u_batch(f, disp)
         else:
             for l in xrange(self.L):
                 self.update_u(l, disp)
@@ -174,31 +175,32 @@ class SF_Dict(object):
                                                    sigma_diff,
                                                    alpha_diff))
 
-    def update_u_batch(self, disp):
-        def f(u):
-            U = u.reshape(self.L, self.F)
-            EV = np.dot(self.EA, U)
-            EV2 = np.dot(self.EA2, U**2) + EV**2 - np.dot(self.EA**2, U**2)
-            return -np.sum(2 * self.V * EV - EV2)
+    def update_u_batch(self, f, disp):
+        def fun(u):
+            Ev = np.dot(self.EA, u)
+            Ev2 = np.dot(self.EA2, u**2) + Ev**2 - np.dot(self.EA**2, u**2)
+            return np.sum(Ev2 - 2 * self.V[:, f] * Ev)
 
-        def df(u):
-            U = u.reshape(self.L, self.F)
-            grad_U = np.zeros_like(U)
-            for l in xrange(self.L):
-                Eres = self.V - np.dot(self.EA, U) + np.outer(self.EA[:, l],
-                                                              U[l])
-                grad_U[l] = np.sum(np.outer(self.EA2[:, l], U[l]) -
-                                   Eres * self.EA[:, l, np.newaxis], axis=0)
-            return grad_U.ravel()
+        def dfun(u):
+            Eres = self.V[:, f, np.newaxis] - np.dot(self.EA, u)[:, np.newaxis]
+            Eres = Eres + self.EA * u
+            return np.sum(self.EA2 * u - self.EA * Eres, axis=0)
 
-        u0 = self.U.ravel()
-        u_hat, _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df, disp=0)
-        self.U = u_hat.reshape(self.L, self.F)
+        u0 = self.U[:, f]
+        self.U[:, f], _, d = optimize.fmin_l_bfgs_b(fun, u0, fprime=dfun,
+                                                    disp=0)
         if disp and d['warnflag']:
             if d['warnflag'] == 2:
-                print 'U: {}, f={}'.format(d['task'], f(u_hat))
+                print 'U[:, {}]: {}, f={}'.format(f, d['task'],
+                                                  fun(self.U[:, f]))
             else:
-                print 'U: {}, f={}'.format(d['warnflag'], f(u_hat))
+                print 'U[:, {}]: {}, f={}'.format(f, d['warnflag'],
+                                                  fun(self.U[:, f]))
+            app_grad = approx_grad(fun, self.U[:, f])
+            ana_grad = dfun(self.U[:, f])
+            for l in xrange(self.L):
+                print_gradient('U[{}, {:3d}]'.format(l, f), self.U[l, f],
+                               ana_grad[l], app_grad[l])
 
     def update_u(self, l, disp):
         def f(u):
