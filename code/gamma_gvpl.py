@@ -76,7 +76,12 @@ class SF_Dict(object):
             print('Update (initial)\tObj: {:.2f}'.format(last_score))
             start_t = time.time()
         for t in xrange(self.T):
+            last_score = self.bound()
             self.update_theta_batch(t, maxiter, disp)
+            score = self.bound()
+            if score < last_score:
+                print('Oops, before: {}\tafter: {}\tt={}'.format(
+                    last_score, score, t))
             if verbose and not t % 100:
                 sys.stdout.write('.')
         if verbose:
