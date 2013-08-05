@@ -133,11 +133,12 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             grad_nu = grad_nu + 1 - self.alpha / rho
             grad_nu = grad_nu + (self.alpha - nu) * special.polygamma(1, nu)
 
-            grad_rho = nu / rho**2 * np.sum((-self.U * self.Ew[:, k, np.newaxis]
-                                             * inv_term
-                                             * np.exp(np.sum(logEexp, axis=1,
-                                                             keepdims=True))
-                                             + self.U) * self.gamma, axis=0)
+            grad_rho = nu / rho**2 * np.sum((-self.U *
+                                             self.Ew[:, k, np.newaxis] *
+                                             inv_term * np.exp(
+                                                 np.sum(logEexp, axis=1,
+                                                        keepdims=True)) +
+                                             self.U) * self.gamma, axis=0)
             grad_rho = grad_rho + self.alpha * (nu / rho**2 - 1. / rho)
             return -np.hstack((nu * grad_nu, rho * grad_rho))
 
