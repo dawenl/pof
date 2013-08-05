@@ -191,10 +191,11 @@ class SF_Dict(object):
         if batch:
             for f in xrange(self.F):
                 self.update_u_batch(f, maxiter, disp)
-                if verbose:
-                    score = self.bound()
-                    print_increment('U[:, {}]'.format(f), last_score, score)
-                    last_score = score
+                score = self.bound()
+                if score < last_score:
+                    print('Oops, before: {}\tafter: {}\tf={}'.format(
+                        last_score, score, f))
+                last_score = score
         else:
             for l in xrange(self.L):
                 self.update_u(l, maxiter, disp)
@@ -222,39 +223,20 @@ class SF_Dict(object):
             print('U diff: {:.4f}\tsigma dff: {:.4f}\talpha diff: {:.4f}\t'
                   'time: {:.2f}'.format(U_diff, sigma_diff, alpha_diff, t))
 
-    #def update_u_batch(self, maxiter, disp):
-        #def f_df(u):
-        #    U = u.reshape(self.L, self.F)
-        #    Eexp = 0.
-        #    for l in xrange(self.L):
-        #        Eexp = Eexp + comp_log_exp(self.a[:, l, np.newaxis],
-        #                                   self.b[:, l, np.newaxis], U[l])
-        #    Eexp = np.exp(Eexp)
-        #    grad_U = np.zeros_like(U)
-        #    for l in xrange(self.L):
-        #        tmp = 1 + U[l] / self.b[:, l, np.newaxis]
-        #        inv_term = np.empty_like(tmp)
-        #        idx = (tmp > 0)
-        #        inv_term[idx], inv_term[-idx] = 1. / tmp[idx], np.inf
-        #        grad_U[l] = np.sum(self.EA[:, l, np.newaxis] *
-        #                           (1 - self.W * Eexp * inv_term))
-        #    return (np.sum(np.dot(self.EA, U) + self.W * Eexp), grad_U.ravel())
-
-        #u0 = self.U.ravel()
-        #u_hat, _, d = optimize.fmin_l_bfgs_b(f_df, u0, maxiter=maxiter, disp=0)
-        #self.U = u_hat.reshape(self.L, self.F)
-        #if disp and d['warnflag']:
-        #    if d['warnflag'] == 2:
-        #        print 'U: {}, f={}'.format(d['task'], f_df(u_hat)[0])
-        #    else:
-        #        print 'U: {}, f={}'.format(d['warnflag'], f_df(u_hat)[0])
-
     def update_u_batch(self, f, maxiter, disp):
         def fun(u):
-            pass
+            Eexp = np.exp(np.sum(comp_log_exp(self.a, self.b, u), axis=1))
+            return np.sum(self.gamma[f] * (Eexp * self.W[:, f] +
+                                           np.dot(self.EA, u)))
 
         def dfun(u):
-            pass
+            tmp = 1 + u / self.b
+            inv_term = np.empty_like(tmp)
+            idx = (tmp > 0)
+            inv_term[idx], inv_term[-idx] = 1. / tmp[idx], np.inf
+            Eexp = np.exp(np.sum(comp_log_exp(self.a, self.b, u), axis=1))
+            return np.sum(self.EA * (1 - (self.W[:, f] * Eexp)[:, np.newaxis] *
+                                     inv_term), axis=0)
 
         u0 = self.U[:, f]
         self.U[:, f], _, d = optimize.fmin_l_bfgs_b(fun, u0, fprime=dfun,
@@ -434,6 +416,8 @@ def comp_expect(alpha, beta):
 
 
 def entropy(alpha, beta):
+    ''' Compute the entropy of a r.v. theta ~ Gamma(alpha, beta)
+    '''
     return (alpha - np.log(beta) + special.gammaln(alpha) +
             (1 - alpha) * special.psi(alpha))
 
