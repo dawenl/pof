@@ -90,7 +90,7 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         ''' Do optimization for one iteration
         '''
         self.update_h()
-        goodk = self.goodk()
+        goodk, _ = self.goodk()
         for k in goodk:
             self.update_a(k, disp)
         self.update_w()
@@ -133,12 +133,11 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             grad_nu = grad_nu + 1 - self.alpha / rho
             grad_nu = grad_nu + (self.alpha - nu) * special.polygamma(1, nu)
 
-            grad_rho = nu / rho**2 * np.sum((-self.U *
-                                             self.Ew[:, k, np.newaxis] *
-                                             inv_term * np.exp(
-                                                 np.sum(logEexp, axis=1,
-                                                        keepdims=True)) +
-                                             self.U) * self.gamma, axis=0)
+            grad_rho = np.sum((self.U - self.Ew[:, k, np.newaxis] *
+                               self.U * inv_term *
+                               np.exp(np.sum(logEexp, axis=1, keepdims=True)))
+                              * self.gamma, axis=0)
+            grad_rho = nu / rho**2 * grad_rho
             grad_rho = grad_rho + self.alpha * (nu / rho**2 - 1. / rho)
             return -np.hstack((nu * grad_nu, rho * grad_rho))
 
@@ -151,14 +150,15 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             else:
                 print 'A[:, {}]: {}, f={}'.format(k, d['warnflag'],
                                                   f(theta_hat))
-#            app_grad = approx_grad(f, theta_hat)
-#            ana_grad = df(theta_hat)
-#            for l in xrange(self.L):
-#                print_gradient('log_a[{}, {:3d}]'.format(l, k), theta_hat[l],
-#                               ana_grad[l], app_grad[l])
-#                print_gradient('log_b[{}, {:3d}]'.format(l, k),
-#                               theta_hat[l + self.L], ana_grad[l + self.L],
-#                               app_grad[l + self.L])
+            app_grad = approx_grad(f, theta_hat)
+            ana_grad = df(theta_hat)
+            for l in xrange(self.L):
+                if abs(ana_grad[l] - app_grad[l]) > .1:
+                    print_gradient('log_a[{}, {:3d}]'.format(l, k),
+                                   theta_hat[l], ana_grad[l], app_grad[l])
+                    print_gradient('log_b[{}, {:3d}]'.format(l, k),
+                                   theta_hat[l + self.L], ana_grad[l + self.L],
+                                   app_grad[l + self.L])
 
         self.nua[:, k], self.rhoa[:, k] = np.exp(theta_hat[:self.L]), np.exp(
             theta_hat[-self.L:])
@@ -171,10 +171,9 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
                                                    self.U)
 
     def update_w(self):
-        goodk = self.goodk()
-        xtwid = self._xtwid(goodk)
-        c = np.sum(self.X / xtwid) / (self.F * self.T)
-        xxtwidinvsq = self.X / c * xtwid**(-2)
+        goodk, c = self.goodk()
+        print('Optimal scale for updating W: {}'.format(c))
+        xxtwidinvsq = self.X / c * self._xtwid(goodk)**(-2)
         xbarinv = 1. / self._xbar(goodk)
         dEt = self.Et[goodk]
         dEtinvinv = self.Etinvinv[goodk]
@@ -202,10 +201,9 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         self.Ewinvinv[:, goodk] = 1. / self.Ewinv[:, goodk]
 
     def update_h(self):
-        goodk = self.goodk()
-        xtwid = self._xtwid(goodk)
-        c = np.sum(self.X / xtwid) / (self.F * self.T)
-        xxtwidinvsq = self.X / c * xtwid**(-2)
+        goodk, c = self.goodk()
+        print('Optimal scale for updating H: {}'.format(c))
+        xxtwidinvsq = self.X / c * self._xtwid(goodk)**(-2)
         xbarinv = 1. / self._xbar(goodk)
         dEt = self.Et[goodk]
         dEtinvinv = self.Etinvinv[goodk]
@@ -223,10 +221,9 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         self.Ehinvinv[goodk, :] = 1. / self.Ehinv[goodk, :]
 
     def update_theta(self):
-        goodk = self.goodk()
-        xtwid = self._xtwid(goodk)
-        c = np.sum(self.X / xtwid) / (self.F * self.T)
-        xxtwidinvsq = self.X / c * xtwid**(-2)
+        goodk, c = self.goodk()
+        print('Optimal scale for updating theta: {}'.format(c))
+        xxtwidinvsq = self.X / c * self._xtwid(goodk)**(-2)
         xbarinv = 1. / self._xbar(goodk)
         self.rhot[goodk] = self.beta + np.sum(np.dot(
             self.Ew[:, goodk].T, xbarinv) *
@@ -239,9 +236,9 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             self.beta / self.K, self.rhot[goodk], self.taut[goodk])
         self.Etinvinv[goodk] = 1. / self.Etinv[goodk]
 
-    def goodk(self, cut_off=None):
-        if cut_off is None:
-            cut_off = 1e-10 * np.amax(self.X)
+    def goodk(self):
+        c = np.sum(self.X / self._xtwid()) / (self.F * self.T)
+        cut_off = 1e-10 * np.amax(self.X / c)
 
         powers = self.Et * np.amax(self.Ew, axis=0) * np.amax(self.Eh, axis=1)
         sorted = np.flipud(np.argsort(powers))
@@ -249,12 +246,12 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         goodk = sorted[:(idx[-1] + 1)]
         if powers[goodk[-1]] < cut_off:
             goodk = np.delete(goodk, -1)
-        return goodk
+        return (goodk, c)
 
     def clear_badk(self):
         ''' Set unsued components' posteriors equal to their priors
         '''
-        goodk = self.goodk()
+        goodk, _ = self.goodk()
         badk = np.setdiff1d(np.arange(self.K), goodk)
         self.rhow[:, badk] = self.gamma
         self.tauw[:, badk] = 0
@@ -263,14 +260,12 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         self.nua[:, badk] = self.alpha[:, np.newaxis]
         self.rhoa[:, badk] = self.alpha[:, np.newaxis]
         self.compute_expectations()
+        self.logEexpa[:, :, badk] = 0
 
     def bound(self):
         score = 0
-        goodk = self.goodk()
-
+        goodk, c = self.goodk()
         xbar = self._xbar(goodk)
-        xtwid = self._xtwid(goodk)
-        c = np.sum(self.X / xtwid) / (self.F * self.T)
 
         score = score - np.sum(np.log(xbar) + log(c))
         score = score + _gap.gig_gamma_term(self.Ew, self.Ewinv, self.rhow,
@@ -294,7 +289,9 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
                       dEt[:, np.newaxis]
                       * self.Eh[goodk, :])
 
-    def _xtwid(self, goodk):
+    def _xtwid(self, goodk=None):
+        if goodk is None:
+            goodk = np.arange(self.K)
         dEtinvinv = self.Etinvinv[goodk]
         return np.dot(self.Ewinvinv[:, goodk],
                       dEtinvinv[:, np.newaxis] *

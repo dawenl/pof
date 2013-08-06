@@ -32,26 +32,6 @@ def write_wav(w, filename, channels=1, samplerate=16000):
 
 # <codecell>
 
-d = sio.loadmat('log_normal_gender.mat')
-U = d['U'].T
-gamma = d['gamma']
-alpha = d['alpha'].ravel()
-
-# <codecell>
-
-log_normal = True
-
-# if loading priors trained from log-normal, transfer gamma to approximate gamma noise model
-if log_normal:
-    gamma = 1./(np.exp(2./gamma) - np.exp(1./gamma))
-
-# <codecell>
-
-plot(gamma)
-pass
-
-# <codecell>
-
 TIMIT_DIR = '../../timit/train/'
 
 # <codecell>
@@ -97,6 +77,28 @@ pass
 
 # <codecell>
 
+#d = sio.loadmat('priors/lognormal_gender.mat')
+#d = sio.loadmat('priors/gamma_spk_stan.mat')
+d = sio.loadmat('priors/gamma_gender_e15_m30_seq.mat')
+U = d['U'].T
+gamma = d['gamma']
+alpha = d['alpha'].ravel()
+
+# <codecell>
+
+log_normal = True
+
+# if loading priors trained from log-normal, transfer gamma to approximate gamma noise model
+if log_normal:
+    gamma = 1./(np.exp(2./gamma) - np.exp(1./gamma))
+
+# <codecell>
+
+plot(gamma)
+pass
+
+# <codecell>
+
 reload(sf_gap_nmf)
 sf_gap = sf_gap_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=50, seed=98765)
 print np.any(np.isnan(sf_gap.Ew))
@@ -105,24 +107,24 @@ print np.any(np.isnan(sf_gap.Ew))
 
 score = -np.inf
 criterion = 0.0005
-for i in xrange(1):
+for i in xrange(10):
     #sf_gap.update(disp=1)
     sf_gap.update_h()
     sf_gap.update_w()
     print np.any(np.isnan(sf_gap.Ew))
-    goodk = sf_gap.goodk()
+    goodk, _ = sf_gap.goodk()
     print goodk
     for k in goodk:
         sf_gap.update_a(k, 1)
     sf_gap.update_theta()
     sf_gap.clear_badk()
     
-    #lastscore = score
-    #score = sf_gap.bound()
-    #improvement = (score - lastscore) / np.abs(lastscore)
-    #print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
-    #if improvement < criterion:
-    #    break
+    lastscore = score
+    score = sf_gap.bound()
+    improvement = (score - lastscore) / np.abs(lastscore)
+    print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
+    if improvement < criterion:
+        break
 
 # <codecell>
 
@@ -131,12 +133,11 @@ colorbar()
 
 # <codecell>
 
-specshow(sf_gap.X[:20, ])
-colorbar()
+sf_gap.figures()
 
 # <codecell>
 
-sf_gap.figures()
+sf_gap.Ew[:,0]
 
 # <codecell>
 
@@ -172,7 +173,16 @@ for i in xrange(1000):
 
 # <codecell>
 
+specshow(gap.Ew)
+colorbar()
+
+# <codecell>
+
 gap.figures()
+
+# <codecell>
+
+gap.Ewinvinv[:,0]
 
 # <codecell>
 
