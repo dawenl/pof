@@ -6,6 +6,7 @@ CREATED: 2013-07-25 15:09:04 by Dawen Liang <daliang@adobe.com>
 """
 
 import numpy as np
+from math import log
 
 import gap_nmf
 import _gap
@@ -17,8 +18,7 @@ import scipy.optimize as optimize
 class SF_GaP_NMF(gap_nmf.GaP_NMF):
     def __init__(self, X, U, gamma, alpha, K=100, smoothness=100,
                  seed=None, **kwargs):
-        self.X = X / np.mean(X)
-        #self.X = X.copy()
+        self.X = X.copy()
         self.K = K
         self.U = U.copy()
         self.alpha = alpha.copy()
@@ -172,8 +172,10 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
 
     def update_w(self):
         goodk = self.goodk()
-        xxtwidinvsq = self.X * self._xtwid(goodk)**(-2)
-        xbarinv = self._xbar(goodk) ** (-1)
+        xtwid = self._xtwid(goodk)
+        c = np.sum(self.X / xtwid) / (self.F * self.T)
+        xxtwidinvsq = self.X / c * xtwid**(-2)
+        xbarinv = 1. / self._xbar(goodk)
         dEt = self.Et[goodk]
         dEtinvinv = self.Etinvinv[goodk]
 
@@ -201,12 +203,15 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
 
     def update_h(self):
         goodk = self.goodk()
-        xxtwidinvsq = self.X * self._xtwid(goodk)**(-2)
-        xbarinv = self._xbar(goodk) ** (-1)
+        xtwid = self._xtwid(goodk)
+        c = np.sum(self.X / xtwid) / (self.F * self.T)
+        xxtwidinvsq = self.X / c * xtwid**(-2)
+        xbarinv = 1. / self._xbar(goodk)
         dEt = self.Et[goodk]
         dEtinvinv = self.Etinvinv[goodk]
         self.rhoh[goodk, :] = self.b + np.dot(dEt[:, np.newaxis] *
-                                              self.Ew[:, goodk].T, xbarinv)
+                                              self.Ew[:, goodk].T,
+                                              xbarinv)
         self.tauh[goodk, :] = self.Ehinvinv[goodk, :]**2 * \
                 np.dot(dEtinvinv[:, np.newaxis] * self.Ewinvinv[:, goodk].T,
                         xxtwidinvsq)
@@ -219,11 +224,13 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
 
     def update_theta(self):
         goodk = self.goodk()
-        xxtwidinvsq = self.X * self._xtwid(goodk)**(-2)
-        xbarinv = self._xbar(goodk) ** (-1)
-        self.rhot[goodk] = self.beta + np.sum(np.dot(self.Ew[:, goodk].T,
-                                                     xbarinv) *
-                                              self.Eh[goodk, :], axis=1)
+        xtwid = self._xtwid(goodk)
+        c = np.sum(self.X / xtwid) / (self.F * self.T)
+        xxtwidinvsq = self.X / c * xtwid**(-2)
+        xbarinv = 1. / self._xbar(goodk)
+        self.rhot[goodk] = self.beta + np.sum(np.dot(
+            self.Ew[:, goodk].T, xbarinv) *
+            self.Eh[goodk, :], axis=1)
         self.taut[goodk] = self.Etinvinv[goodk]**2 * \
                 np.sum(np.dot(self.Ewinvinv[:, goodk].T, xxtwidinvsq) *
                        self.Ehinvinv[goodk, :], axis=1)
@@ -263,7 +270,9 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
 
         xbar = self._xbar(goodk)
         xtwid = self._xtwid(goodk)
-        score = score - np.sum(self.X / xtwid + np.log(xbar))
+        c = np.sum(self.X / xtwid) / (self.F * self.T)
+
+        score = score - np.sum(np.log(xbar) + log(c))
         score = score + _gap.gig_gamma_term(self.Ew, self.Ewinv, self.rhow,
                                             self.tauw, self.gamma, self.gamma /
                                             np.exp(np.sum(self.logEexpa,
@@ -282,12 +291,14 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             goodk = np.arange(self.K)
         dEt = self.Et[goodk]
         return np.dot(self.Ew[:, goodk],
-                      dEt[:, np.newaxis] * self.Eh[goodk, :])
+                      dEt[:, np.newaxis]
+                      * self.Eh[goodk, :])
 
     def _xtwid(self, goodk):
         dEtinvinv = self.Etinvinv[goodk]
         return np.dot(self.Ewinvinv[:, goodk],
-                      dEtinvinv[:, np.newaxis] * self.Ehinvinv[goodk, :])
+                      dEtinvinv[:, np.newaxis] *
+                      self.Ehinvinv[goodk, :])
 
 
 def approx_grad(f, x, delta=1e-8, args=()):
