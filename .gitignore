@@ -1,12 +1,4 @@
 *.py[cod]
-*.swp
-*.ipynb
-*.wav
-*.csv
-.DS_Store
-.Rhistory
-# log
-output*
 
 # C extensions
 *.so
@@ -44,3 +36,12 @@ nosetests.xml
 .mr.developer.cfg
 .project
 .pydevproject
+*.swp
+*.mat
+*.ipynb
+*.wav
+*.csv
+.DS_Store
+.Rhistory
+# log
+output*
