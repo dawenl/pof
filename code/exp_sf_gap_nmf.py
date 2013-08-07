@@ -3,7 +3,7 @@
 
 # <codecell>
 
-import functools, glob
+import functools, glob, time
 
 from scikits.audiolab import Sndfile, Format
 
@@ -108,6 +108,7 @@ score = -np.inf
 criterion = 0.0005
 objs = []
 for i in xrange(1000):
+    start_t = time.time()
     #sf_gap.update(disp=1)
     sf_gap.update_h()
     sf_gap.update_w()
@@ -116,12 +117,13 @@ for i in xrange(1000):
         sf_gap.update_a(k, 1)
     sf_gap.update_theta()
     sf_gap.clear_badk()
+    t = time.time() - start_t
     
     lastscore = score
     score = sf_gap.bound()
     objs.append(score)
     improvement = (score - lastscore) / np.abs(lastscore)
-    print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
+    print ('iteration {}: bound = {:.2f} ({:.5f} improvement) time = {:.2f}'.format(i, score, improvement, t))
     if improvement < criterion:
         break
 
@@ -138,6 +140,10 @@ colorbar()
 # <codecell>
 
 sf_gap.figures()
+
+# <codecell>
+
+sf_gap.Et
 
 # <codecell>
 

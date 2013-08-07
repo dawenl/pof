@@ -247,20 +247,20 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         self.Etinvinv[goodk] = 1. / self.Etinv[goodk]
 
     def goodk(self, cut_off=1e-6):
-        c = np.mean(self.X / self._xtwid())
-        cut_off = 1e-10 * np.amax(self.X / c)
+        #c = np.mean(self.X / self._xtwid())
+        #cut_off = 1e-10 * np.amax(self.X / c)
 
-        powers = self.Et * np.amax(self.Ew, axis=0) * np.amax(self.Eh, axis=1)
-        sorted = np.flipud(np.argsort(powers))
-        idx = np.where(powers[sorted] > cut_off * np.amax(powers))[0]
-        goodk = sorted[:(idx[-1] + 1)]
-        if powers[goodk[-1]] < cut_off:
-            goodk = np.delete(goodk, -1)
-        return goodk
-        #sorted = np.flipud(np.argsort(self.Et))
-        #idx = np.where(self.Et[sorted] > cut_off * np.sum(self.Et))[0]
+        #powers = self.Et * np.amax(self.Ew, axis=0) * np.amax(self.Eh, axis=1)
+        #sorted = np.flipud(np.argsort(powers))
+        #idx = np.where(powers[sorted] > cut_off * np.amax(powers))[0]
         #goodk = sorted[:(idx[-1] + 1)]
+        #if powers[goodk[-1]] < cut_off:
+        #    goodk = np.delete(goodk, -1)
         #return goodk
+        sorted = np.flipud(np.argsort(self.Et))
+        idx = np.where(self.Et[sorted] > cut_off * np.sum(self.Et))[0]
+        goodk = sorted[:(idx[-1] + 1)]
+        return goodk
 
     def clear_badk(self):
         ''' Set unsued components' posteriors equal to their priors
