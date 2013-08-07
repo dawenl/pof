@@ -86,7 +86,7 @@ alpha = d['alpha'].ravel()
 
 # <codecell>
 
-log_normal = True
+log_normal = False
 
 # if loading priors trained from log-normal, transfer gamma to approximate gamma noise model
 if log_normal:
@@ -101,19 +101,17 @@ pass
 
 reload(sf_gap_nmf)
 sf_gap = sf_gap_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=50, seed=98765)
-print np.any(np.isnan(sf_gap.Ew))
 
 # <codecell>
 
 score = -np.inf
 criterion = 0.0005
-for i in xrange(10):
+for i in xrange(5):
     #sf_gap.update(disp=1)
     sf_gap.update_h()
     sf_gap.update_w()
-    print np.any(np.isnan(sf_gap.Ew))
     goodk, _ = sf_gap.goodk()
-    print goodk
+    #print goodk
     for k in goodk:
         sf_gap.update_a(k, 1)
     sf_gap.update_theta()
@@ -123,12 +121,12 @@ for i in xrange(10):
     score = sf_gap.bound()
     improvement = (score - lastscore) / np.abs(lastscore)
     print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
-    if improvement < criterion:
-        break
+    #if improvement < criterion:
+    #    break
 
 # <codecell>
 
-specshow(sf_gap.Ew)
+specshow(logspec(sf_gap.Ew))
 colorbar()
 
 # <codecell>
@@ -137,11 +135,8 @@ sf_gap.figures()
 
 # <codecell>
 
-sf_gap.Ew[:,0]
-
-# <codecell>
-
-X_rec_sfgap_amp = np.mean(X) * sf_gap._xbar()
+_, c = sf_gap.goodk()
+X_rec_sfgap_amp = c * sf_gap._xbar()
 X_rec_sfgap = X_rec_sfgap_amp * np.exp(1j * np.angle(X_complex)) 
 
 # <codecell>
@@ -173,16 +168,12 @@ for i in xrange(1000):
 
 # <codecell>
 
-specshow(gap.Ew)
+specshow(logspec(gap.Ew))
 colorbar()
 
 # <codecell>
 
 gap.figures()
-
-# <codecell>
-
-gap.Ewinvinv[:,0]
 
 # <codecell>
 
