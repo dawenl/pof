@@ -90,7 +90,8 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         ''' Do optimization for one iteration
         '''
         self.update_h()
-        goodk, _ = self.goodk()
+        #goodk, _ = self.goodk()
+        goodk = self.goodk()
         for k in goodk:
             self.update_a(k, disp)
         self.update_w()
@@ -171,9 +172,12 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
                                                    self.U)
 
     def update_w(self):
-        goodk, c = self.goodk()
+        #goodk, c = self.goodk()
+        goodk = self.goodk()
+        xtwid = self._xtwid(goodk)
+        c = np.mean(self.X / xtwid)
         print('Optimal scale for updating W: {}'.format(c))
-        xxtwidinvsq = self.X / c * self._xtwid(goodk)**(-2)
+        xxtwidinvsq = self.X / c * xtwid**(-2)
         xbarinv = 1. / self._xbar(goodk)
         dEt = self.Et[goodk]
         dEtinvinv = self.Etinvinv[goodk]
@@ -199,9 +203,12 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         self.Ewinvinv[:, goodk] = 1. / self.Ewinv[:, goodk]
 
     def update_h(self):
-        goodk, c = self.goodk()
+        #goodk, c = self.goodk()
+        goodk = self.goodk()
+        xtwid = self._xtwid(goodk)
+        c = np.mean(self.X / xtwid)
         print('Optimal scale for updating H: {}'.format(c))
-        xxtwidinvsq = self.X / c * self._xtwid(goodk)**(-2)
+        xxtwidinvsq = self.X / c * xtwid**(-2)
         xbarinv = 1. / self._xbar(goodk)
         dEt = self.Et[goodk]
         dEtinvinv = self.Etinvinv[goodk]
@@ -219,9 +226,12 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         self.Ehinvinv[goodk, :] = 1. / self.Ehinv[goodk, :]
 
     def update_theta(self):
-        goodk, c = self.goodk()
+        #goodk, c = self.goodk()
+        goodk = self.goodk()
+        xtwid = self._xbar(goodk)
+        c = np.mean(self.X / xtwid)
         print('Optimal scale for updating theta: {}'.format(c))
-        xxtwidinvsq = self.X / c * self._xtwid(goodk)**(-2)
+        xxtwidinvsq = self.X / c * xtwid**(-2)
         xbarinv = 1. / self._xbar(goodk)
         self.rhot[goodk] = self.beta + np.sum(np.dot(
             self.Ew[:, goodk].T, xbarinv) *
@@ -234,24 +244,27 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             self.beta / self.K, self.rhot[goodk], self.taut[goodk])
         self.Etinvinv[goodk] = 1. / self.Etinv[goodk]
 
-    def goodk(self):
-        c = np.mean(self.X / self._xtwid())
-        cut_off = 1e-10 * np.amax(self.X / c)
+    def goodk(self, cut_off=1e-6):
+        #c = np.mean(self.X / self._xtwid())
+        #cut_off = 1e-10 * np.amax(self.X / c)
 
-        #import ipdb; ipdb.set_trace() # XXX BREAKPOINT
-
-        powers = self.Et * np.amax(self.Ew, axis=0) * np.amax(self.Eh, axis=1)
-        sorted = np.flipud(np.argsort(powers))
-        idx = np.where(powers[sorted] > cut_off * np.amax(powers))[0]
+        #powers = self.Et * np.amax(self.Ew, axis=0) * np.amax(self.Eh, axis=1)
+        #sorted = np.flipud(np.argsort(powers))
+        #idx = np.where(powers[sorted] > cut_off * np.amax(powers))[0]
+        #goodk = sorted[:(idx[-1] + 1)]
+        #if powers[goodk[-1]] < cut_off:
+        #    goodk = np.delete(goodk, -1)
+        #return (goodk, c)
+        sorted = np.flipud(np.argsort(self.Et))
+        idx = np.where(self.Et[sorted] > cut_off * np.sum(self.Et))
         goodk = sorted[:(idx[-1] + 1)]
-        if powers[goodk[-1]] < cut_off:
-            goodk = np.delete(goodk, -1)
-        return (goodk, c)
+        return goodk
 
     def clear_badk(self):
         ''' Set unsued components' posteriors equal to their priors
         '''
-        goodk, _ = self.goodk()
+        #goodk, _ = self.goodk()
+        goodk = self.goodk()
         badk = np.setdiff1d(np.arange(self.K), goodk)
         self.rhow[:, badk] = self.gamma
         self.tauw[:, badk] = 0
@@ -264,7 +277,9 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
 
     def bound(self):
         score = 0
-        goodk, c = self.goodk()
+        #goodk, c = self.goodk()
+        goodk = self.goodk()
+        c = np.mean(self.X / self._xtwid(goodk))
         xbar = self._xbar(goodk)
 
         score = score - np.sum(np.log(xbar) + log(c))
@@ -284,17 +299,14 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
     def _xbar(self, goodk=None):
         if goodk is None:
             goodk = np.arange(self.K)
-        dEt = self.Et[goodk]
-        return np.dot(self.Ew[:, goodk],
-                      dEt[:, np.newaxis]
-                      * self.Eh[goodk, :])
+        return np.dot(self.Ew[:, goodk] * self.Et[goodk],
+                      self.Eh[goodk, :])
 
-    def _xtwid(self, goodk=None):
-        if goodk is None:
-            goodk = np.arange(self.K)
-        dEtinvinv = self.Etinvinv[goodk]
-        return np.dot(self.Ewinvinv[:, goodk],
-                      dEtinvinv[:, np.newaxis] *
+    #def _xtwid(self, goodk=None):
+    #    if goodk is None:
+    #        goodk = np.arange(self.K)
+    def _xtwid(self, goodk):
+        return np.dot(self.Ewinvinv[:, goodk] * self.Etinvinv[goodk],
                       self.Ehinvinv[goodk, :])
 
 

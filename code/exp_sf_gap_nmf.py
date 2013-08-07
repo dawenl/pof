@@ -106,23 +106,30 @@ sf_gap = sf_gap_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=50, seed=98765)
 
 score = -np.inf
 criterion = 0.0005
-for i in xrange(5):
+#objs = []
+for i in xrange(10):
     #sf_gap.update(disp=1)
     sf_gap.update_h()
     sf_gap.update_w()
     goodk, _ = sf_gap.goodk()
     #print goodk
     for k in goodk:
-        sf_gap.update_a(k, 1)
+        sf_gap.update_a(k, 0)
     sf_gap.update_theta()
     sf_gap.clear_badk()
     
     lastscore = score
     score = sf_gap.bound()
+    objs.append(score)
     improvement = (score - lastscore) / np.abs(lastscore)
     print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
     #if improvement < criterion:
     #    break
+
+# <codecell>
+
+plot(objs)
+pass
 
 # <codecell>
 
