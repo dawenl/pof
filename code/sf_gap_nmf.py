@@ -103,14 +103,16 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         def f(theta):
             nu, rho = np.exp(theta[:self.L]), np.exp(theta[-self.L:])
             Ea, Eloga = _gap.compute_gamma_expectation(nu, rho)
+            # E[p(W|a)] + E[p(a)] - E[q(a)], collect terms by sufficient
+            # statistics
             val = np.sum((self.alpha - nu) * Eloga)
             val = val - np.sum((self.alpha - rho) * Ea)
             val = val + np.sum(special.gammaln(nu) - nu * np.log(rho))
 
             logEexp = _gap.comp_log_exp(nu, rho, self.U)
-            val = val - np.sum(self.gamma.ravel() * self.Ew[:, k] *
-                               np.exp(np.sum(logEexp, axis=1)))
-            val = val - np.sum(self.gamma * np.dot(self.U, Ea))
+            val = val - np.sum(self.gamma.ravel() * (self.Ew[:, k] *
+                               np.exp(np.sum(logEexp, axis=1)) +
+                               np.dot(self.U, Ea)))
             return -val
 
         def df(theta):
@@ -151,15 +153,15 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             else:
                 print 'A[:, {}]: {}, f={}'.format(k, d['warnflag'],
                                                   f(theta_hat))
-            #app_grad = approx_grad(f, theta_hat)
-            #ana_grad = df(theta_hat)
-            #for l in xrange(self.L):
-            #    if abs(ana_grad[l] - app_grad[l]) > .1:
-            #        print_gradient('log_a[{}, {:3d}]'.format(l, k),
-            #                       theta_hat[l], ana_grad[l], app_grad[l])
-            #        print_gradient('log_b[{}, {:3d}]'.format(l, k),
-            #                       theta_hat[l + self.L], ana_grad[l + self.L],
-            #                       app_grad[l + self.L])
+            app_grad = approx_grad(f, theta_hat)
+            ana_grad = df(theta_hat)
+            for l in xrange(self.L):
+                if abs(ana_grad[l] - app_grad[l]) > .1:
+                    print_gradient('log_a[{}, {:3d}]'.format(l, k),
+                                   theta_hat[l], ana_grad[l], app_grad[l])
+                    print_gradient('log_b[{}, {:3d}]'.format(l, k),
+                                   theta_hat[l + self.L], ana_grad[l + self.L],
+                                   app_grad[l + self.L])
 
         self.nua[:, k], self.rhoa[:, k] = np.exp(theta_hat[:self.L]), np.exp(
             theta_hat[-self.L:])
@@ -245,20 +247,20 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         self.Etinvinv[goodk] = 1. / self.Etinv[goodk]
 
     def goodk(self, cut_off=1e-6):
-        #c = np.mean(self.X / self._xtwid())
-        #cut_off = 1e-10 * np.amax(self.X / c)
+        c = np.mean(self.X / self._xtwid())
+        cut_off = 1e-10 * np.amax(self.X / c)
 
-        #powers = self.Et * np.amax(self.Ew, axis=0) * np.amax(self.Eh, axis=1)
-        #sorted = np.flipud(np.argsort(powers))
-        #idx = np.where(powers[sorted] > cut_off * np.amax(powers))[0]
-        #goodk = sorted[:(idx[-1] + 1)]
-        #if powers[goodk[-1]] < cut_off:
-        #    goodk = np.delete(goodk, -1)
-        #return (goodk, c)
-        sorted = np.flipud(np.argsort(self.Et))
-        idx = np.where(self.Et[sorted] > cut_off * np.sum(self.Et))
+        powers = self.Et * np.amax(self.Ew, axis=0) * np.amax(self.Eh, axis=1)
+        sorted = np.flipud(np.argsort(powers))
+        idx = np.where(powers[sorted] > cut_off * np.amax(powers))[0]
         goodk = sorted[:(idx[-1] + 1)]
+        if powers[goodk[-1]] < cut_off:
+            goodk = np.delete(goodk, -1)
         return goodk
+        #sorted = np.flipud(np.argsort(self.Et))
+        #idx = np.where(self.Et[sorted] > cut_off * np.sum(self.Et))[0]
+        #goodk = sorted[:(idx[-1] + 1)]
+        #return goodk
 
     def clear_badk(self):
         ''' Set unsued components' posteriors equal to their priors
@@ -302,10 +304,10 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         return np.dot(self.Ew[:, goodk] * self.Et[goodk],
                       self.Eh[goodk, :])
 
-    #def _xtwid(self, goodk=None):
-    #    if goodk is None:
-    #        goodk = np.arange(self.K)
-    def _xtwid(self, goodk):
+    def _xtwid(self, goodk=None):
+        if goodk is None:
+            goodk = np.arange(self.K)
+    #def _xtwid(self, goodk):
         return np.dot(self.Ewinvinv[:, goodk] * self.Etinvinv[goodk],
                       self.Ehinvinv[goodk, :])
 
@@ -323,3 +325,10 @@ def print_gradient(name, val, grad, approx):
     print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'
           '| Diff |: {:.3f}'.format(name, val, grad, approx,
                                     np.abs(grad - approx)))
+
+
+def entropy(alpha, beta):
+    ''' Compute the entropy of a r.v. theta ~ Gamma(alpha, beta)
+    '''
+    return (alpha - np.log(beta) + special.gammaln(alpha) +
+            (1 - alpha) * special.psi(alpha))
