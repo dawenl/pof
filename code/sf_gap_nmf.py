@@ -68,7 +68,7 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
                                             1. / smoothness,
                                             size=(self.L, self.K))
         self.compute_expectations()
-        self.logEexpa = np.empty((self.F, self.L, self.K))
+        self.logEexpa = np.zeros((self.F, self.L, self.K))
 
     def compute_expectations(self):
         self.Ew, self.Ewinv = _gap.compute_gig_expectations(self.gamma,
