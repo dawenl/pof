@@ -5,17 +5,22 @@ CREATED: 2013-07-25 15:09:04 by Dawen Liang <daliang@adobe.com>
 
 """
 
-import numpy as np
+import functools
+import time
 from math import log
 
-import gap_nmf
-import _gap
-
+import numpy as np
+import matplotlib.pyplot as plt
 import scipy.special as special
 import scipy.optimize as optimize
 
+import _gap
 
-class SF_GaP_NMF(gap_nmf.GaP_NMF):
+specshow = functools.partial(plt.imshow, cmap=plt.cm.jet, origin='lower',
+                             aspect='auto', interpolation='nearest')
+
+
+class SF_GaP_NMF:
     def __init__(self, X, U, gamma, alpha, K=100, smoothness=100,
                  seed=None, **kwargs):
         self.X = X.copy()
@@ -90,11 +95,11 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
         ''' Do optimization for one iteration
         '''
         self.update_h()
+        self.update_w()
         #goodk, _ = self.goodk()
         goodk = self.goodk()
         for k in goodk:
             self.update_a(k, disp)
-        self.update_w()
         self.update_theta()
         # truncate unused components
         self.clear_badk()
@@ -156,7 +161,7 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             app_grad = approx_grad(f, theta_hat)
             ana_grad = df(theta_hat)
             for l in xrange(self.L):
-                if abs(ana_grad[l] - app_grad[l]) > .1:
+                if abs(ana_grad[l] - app_grad[l]) > .05:
                     print_gradient('log_a[{}, {:3d}]'.format(l, k),
                                    theta_hat[l], ana_grad[l], app_grad[l])
                     print_gradient('log_b[{}, {:3d}]'.format(l, k),
@@ -196,12 +201,6 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
             self.gamma,
             self.rhow[:, goodk],
             self.tauw[:, goodk])
-
-        if np.any(np.isnan(self.Ew)):
-            dg = self.gamma * np.ones_like(self.rhow)
-            print dg[np.isnan(self.Ew)]
-            print self.rhow[np.isnan(self.Ew)]
-            print self.tauw[np.isnan(self.Ew)]
         self.Ewinvinv[:, goodk] = 1. / self.Ewinv[:, goodk]
 
     def update_h(self):
@@ -298,16 +297,57 @@ class SF_GaP_NMF(gap_nmf.GaP_NMF):
                                         self.rhoa, self.alpha)
         return score
 
+    def figures(self):
+        ''' Animation-type of figures can only be created with PyGTK backend
+        '''
+        plt.subplot(3, 2, 1)
+        specshow(np.log(self.Ew))
+        plt.title('E[W]')
+        plt.xlabel('component index')
+        plt.ylabel('frequency')
+
+        plt.subplot(3, 2, 2)
+        specshow(np.log(self.Eh))
+        plt.title('E[H]')
+        plt.xlabel('time')
+        plt.ylabel('component index')
+
+        plt.subplot(3, 2, 3)
+        plt.bar(np.arange(self.K), self.Et)
+        plt.title('E[theta]')
+        plt.xlabel('component index')
+        plt.ylabel('E[theta]')
+
+        plt.subplot(3, 2, 4)
+        specshow(self.Ea)
+        plt.title('E[A]')
+        plt.xlabel('component index')
+        plt.ylabel('filters index')
+
+        plt.subplot(3, 2, 5)
+        specshow(np.log(self.X))
+        plt.title('Original Spectrogram')
+        plt.xlabel('time')
+        plt.ylabel('frequency')
+
+        plt.subplot(3, 2, 6)
+        specshow(np.log(self._xbar()))
+        plt.title('Reconstructed Spectrogram')
+        plt.xlabel('time')
+        plt.ylabel('frequency')
+
+        time.sleep(0.000001)
+
     def _xbar(self, goodk=None):
         if goodk is None:
             goodk = np.arange(self.K)
         return np.dot(self.Ew[:, goodk] * self.Et[goodk],
                       self.Eh[goodk, :])
 
-    def _xtwid(self, goodk=None):
-        if goodk is None:
-            goodk = np.arange(self.K)
-    #def _xtwid(self, goodk):
+    #def _xtwid(self, goodk=None):
+    #    if goodk is None:
+    #        goodk = np.arange(self.K)
+    def _xtwid(self, goodk):
         return np.dot(self.Ewinvinv[:, goodk] * self.Etinvinv[goodk],
                       self.Ehinvinv[goodk, :])
 
@@ -325,10 +365,3 @@ def print_gradient(name, val, grad, approx):
     print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'
           '| Diff |: {:.3f}'.format(name, val, grad, approx,
                                     np.abs(grad - approx)))
-
-
-def entropy(alpha, beta):
-    ''' Compute the entropy of a r.v. theta ~ Gamma(alpha, beta)
-    '''
-    return (alpha - np.log(beta) + special.gammaln(alpha) +
-            (1 - alpha) * special.psi(alpha))

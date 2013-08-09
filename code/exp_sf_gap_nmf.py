@@ -69,6 +69,7 @@ X = np.abs(X_complex)
 
 specshow(logspec(X))
 colorbar()
+print X.shape
 pass
 
 # <headingcell level=1>
@@ -77,9 +78,10 @@ pass
 
 # <codecell>
 
-d = sio.loadmat('priors/lognormal_gender.mat')
+#d = sio.loadmat('priors/lognormal_gender.mat')
 #d = sio.loadmat('priors/gamma_spk_stan.mat')
 #d = sio.loadmat('priors/gamma_gender_e15_m30_seq.mat')
+d = sio.loadmat('priors/gamma_gender_full_seq.mat')
 U = d['U'].T
 gamma = d['gamma']
 alpha = d['alpha'].ravel()
@@ -91,66 +93,30 @@ log_normal = True
 # if loading priors trained from log-normal, transfer gamma to approximate gamma noise model
 if log_normal:
     gamma = 1./(np.exp(2./gamma) - np.exp(1./gamma))
+    U /= 4
 
 # <codecell>
 
 plot(gamma)
+print amax(U), amin(U)
 pass
 
 # <codecell>
 
-reload(sf_gap_nmf)
-sf_gap = sf_gap_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=50, seed=98765)
+#reload(sf_gap_nmf)
+#sf_gap = sf_gap_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=50, seed=98765)
 
-# <codecell>
-
-import _gap
-def bound(self):
-        score = 0
-        #goodk, c = self.goodk()
-        goodk = self.goodk()
-        c = np.mean(self.X / self._xtwid(goodk))
-        xbar = self._xbar(goodk)
-
-        score = score - np.sum(np.log(xbar) + log(c))
-        print score
-        score = score + _gap.gig_gamma_term(self.Ew, self.Ewinv, self.rhow,
-                                            self.tauw, self.gamma, self.gamma *
-                                            np.exp(np.sum(self.logEexpa,
-                                                          axis=1)))
-        print score
-        score = score + _gap.gig_gamma_term(self.Eh, self.Ehinv, self.rhoh,
-                                            self.tauh, self.b, self.b)
-        print score
-        score = score + _gap.gig_gamma_term(self.Et, self.Etinv, self.rhot,
-                                            self.taut, self.beta / self.K,
-                                            self.beta)
-        print score
-        score = score + _gap.gamma_term(self.Ea, self.Eloga, self.nua,
-                                        self.rhoa, self.alpha)
-        return score
-
-print bound(sf_gap)
-
-# <codecell>
-
-np.exp(np.sum(sf_gap.logEexpa, axis=1))
+reload(sf_is_nmf)
+sf_gap = sf_is_nmf.SF_IS_NMF(X, U, gamma, alpha, K=100, seed=98765)
 
 # <codecell>
 
 score = sf_gap.bound()
 criterion = 0.0005
 objs = []
-for i in xrange(1):
+for i in xrange(1000):
     start_t = time.time()
-    #sf_gap.update(disp=1)
-    sf_gap.update_h()
-    sf_gap.update_w()
-    goodk = sf_gap.goodk()
-    for k in goodk:
-        sf_gap.update_a(k, 1)
-    sf_gap.update_theta()
-    sf_gap.clear_badk()
+    sf_gap.update(disp=1)
     t = time.time() - start_t
     
     lastscore = score
