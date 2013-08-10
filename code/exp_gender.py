@@ -98,13 +98,13 @@ pass
 # <codecell>
 
 reload(vpl)
-threshold = 0.0001
+threshold = 0.0005
 old_obj = -np.inf
 L = 50
 maxiter = 200
 cold_start = False
-maxiter_e = 5
-maxiter_m = 30
+maxiter_e = 15000
+maxiter_m = 15000
 batch_m = False
 
 sfd = vpl.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
@@ -172,7 +172,8 @@ fig()
 subplot(121)
 semilogy(flipud(sort(sfd.alpha)), '-o')
 subplot(122)
-plot(np.sqrt(1./sfd.gamma))
+#plot(np.sqrt(1./sfd.gamma))
+plot(sfd.gamma)
 pass
 
 # <codecell>
@@ -180,8 +181,14 @@ pass
 sf_encoder = vpl.SF_Dict(np.abs(W_complex_test.T), L=L, seed=98765)
 sf_encoder.U, sf_encoder.gamma, sf_encoder.alpha = sfd.U, sfd.gamma, sfd.alpha
 
-sf_encoder.vb_e(cold_start = False, batch=True)
+sf_encoder.vb_e(cold_start = False)
 A = sf_encoder.EA
+
+# <codecell>
+
+specshow(A.T)
+colorbar()
+pass
 
 # <codecell>
 
@@ -212,4 +219,7 @@ w_rec = librosa.istft(W_rec, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(w_rec, 'rec_gen{}_fit_L{}_F{}_H{}_{}.wav'.format(gender, L, n_fft, hop_length, str_cold_start))
 w_rec_org = librosa.istft(W_complex_test, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(w_rec_org, 'rec_gen{}_org.wav'.format(gender))
+
+# <codecell>
+
 
