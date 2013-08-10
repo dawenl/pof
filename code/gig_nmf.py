@@ -1,6 +1,6 @@
 """
 
-Source-filter dictionary prior IS-NMF
+GIG-NMF: Finite Bayesian NMF
 
 CREATED: 2013-08-08 13:43:27 by Dawen Liang <daliang@adobe.com>
 
@@ -13,7 +13,6 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-import sf_gap_nmf
 import _gap
 
 
@@ -21,12 +20,23 @@ specshow = functools.partial(plt.imshow, cmap=plt.cm.jet, origin='lower',
                              aspect='auto', interpolation='nearest')
 
 
-class SF_IS_NMF(sf_gap_nmf.SF_GaP_NMF):
-    def __init__(self, X, U, gamma, alpha, K=100, smoothness=100,
-                 seed=None, **kwargs):
-        super(SF_IS_NMF, self).__init__(X, U, gamma, alpha, K=K,
-                                        smoothness=smoothness,
-                                        seed=None, **kwargs)
+class GIG_NMF:
+    def __init__(self, X, K=100, smoothness=100, seed=None, **kwargs):
+        self.X = X.copy()
+        self.K = K
+        self.F, self.T = X.shape
+
+        if seed is None:
+            print 'Using random seed'
+        else:
+            print 'Using fixed seed {}'.format(seed)
+
+        self._parse_args(**kwargs)
+        self._init(smoothness)
+
+    def _parse_args(self, **kwargs):
+        self.a = kwargs['a'] if 'a' in kwargs else 0.1
+        self.b = kwargs['b'] if 'b' in kwargs else 0.1
 
     def _init(self, smoothness):
         self.rhow = 10000 * np.random.gamma(smoothness,
@@ -41,17 +51,10 @@ class SF_IS_NMF(sf_gap_nmf.SF_GaP_NMF):
         self.tauh = 10000 * np.random.gamma(smoothness,
                                             1. / smoothness,
                                             size=(self.K, self.T))
-        self.nua = 10000 * np.random.gamma(smoothness,
-                                           1. / smoothness,
-                                           size=(self.L, self.K))
-        self.rhoa = 10000 * np.random.gamma(smoothness,
-                                            1. / smoothness,
-                                            size=(self.L, self.K))
         self.compute_expectations()
-        self.logEexpa = np.zeros((self.F, self.L, self.K))
 
     def compute_expectations(self):
-        self.Ew, self.Ewinv = _gap.compute_gig_expectations(self.gamma,
+        self.Ew, self.Ewinv = _gap.compute_gig_expectations(self.a,
                                                             self.rhow,
                                                             self.tauw)
         self.Ewinvinv = 1. / self.Ewinv
@@ -59,16 +62,12 @@ class SF_IS_NMF(sf_gap_nmf.SF_GaP_NMF):
                                                             self.rhoh,
                                                             self.tauh)
         self.Ehinvinv = 1. / self.Ehinv
-        self.Ea, self.Eloga = _gap.compute_gamma_expectation(self.nua,
-                                                             self.rhoa)
 
     def update(self, disp=0):
         ''' Do optimization for one iteration
         '''
         self.update_h()
         self.update_w()
-        for k in xrange(self.K):
-            self.update_a(k, disp)
 
     def update_w(self):
         xtwid = self._xtwid()
@@ -77,12 +76,11 @@ class SF_IS_NMF(sf_gap_nmf.SF_GaP_NMF):
         xxtwidinvsq = self.X / c * xtwid**(-2)
         xbarinv = 1. / self._xbar()
 
-        self.rhow = self.gamma * np.exp(np.sum(self.logEexpa, axis=1))
-        self.rhow = self.rhow + np.dot(xbarinv, self.Eh.T)
+        self.rhow = self.a + np.dot(xbarinv, self.Eh.T)
         self.tauw = self.Ewinvinv**2 * np.dot(xxtwidinvsq, self.Ehinvinv.T)
         self.tauw[self.tauw < 1e-100] = 0
 
-        self.Ew, self.Ewinv = _gap.compute_gig_expectations(self.gamma,
+        self.Ew, self.Ewinv = _gap.compute_gig_expectations(self.a,
                                                             self.rhow,
                                                             self.tauw)
         self.Ewinvinv = 1. / self.Ewinv
@@ -108,43 +106,33 @@ class SF_IS_NMF(sf_gap_nmf.SF_GaP_NMF):
 
         score = score - np.sum(np.log(xbar) + log(c))
         score = score + _gap.gig_gamma_term(self.Ew, self.Ewinv, self.rhow,
-                                            self.tauw, self.gamma, self.gamma *
-                                            np.exp(np.sum(self.logEexpa,
-                                                          axis=1)))
+                                            self.tauw, self.a, self.a)
         score = score + _gap.gig_gamma_term(self.Eh, self.Ehinv, self.rhoh,
                                             self.tauh, self.b, self.b)
-        score = score + _gap.gamma_term(self.Ea, self.Eloga, self.nua,
-                                        self.rhoa, self.alpha)
         return score
 
     def figures(self):
         ''' Animation-type of figures can only be created with PyGTK backend
         '''
-        plt.subplot(3, 2, 1)
+        plt.subplot(2, 2, 1)
         specshow(np.log(self.Ew))
         plt.title('E[W]')
         plt.xlabel('component index')
         plt.ylabel('frequency')
 
-        plt.subplot(3, 2, 2)
+        plt.subplot(2, 2, 2)
         specshow(np.log(self.Eh))
         plt.title('E[H]')
         plt.xlabel('time')
         plt.ylabel('component index')
 
-        plt.subplot(3, 2, 3)
-        specshow(self.Ea)
-        plt.title('E[A]')
-        plt.xlabel('component index')
-        plt.ylabel('filters index')
-
-        plt.subplot(3, 2, 5)
+        plt.subplot(2, 2, 3)
         specshow(np.log(self.X))
         plt.title('Original Spectrogram')
         plt.xlabel('time')
         plt.ylabel('frequency')
 
-        plt.subplot(3, 2, 6)
+        plt.subplot(2, 2, 4)
         specshow(np.log(self._xbar()))
         plt.title('Reconstructed Spectrogram')
         plt.xlabel('time')
