@@ -5,10 +5,12 @@
 
 import functools, glob, time
 
+import scipy.io as sio
 from scikits.audiolab import Sndfile, Format
 
-import librosa, gap_nmf, sf_gap_nmf
-import scipy.io as sio
+import librosa
+import gap_nmf as nmf
+import sf_gap_nmf as sf_nmf
 
 # <codecell>
 
@@ -59,6 +61,7 @@ for file_dir in files[N_train:]:
     for wav_dir in file_dir:
         wav, sr = load_timit(wav_dir)
         if X_complex is None:
+            print wav_dir
             X_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
         #else:
         #    X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
@@ -74,7 +77,7 @@ pass
 
 # <headingcell level=1>
 
-# Source-filter GaP-NMF
+# Source-filter NMF
 
 # <codecell>
 
@@ -93,7 +96,6 @@ log_normal = True
 # if loading priors trained from log-normal, transfer gamma to approximate gamma noise model
 if log_normal:
     gamma = 1./(np.exp(2./gamma) - np.exp(1./gamma))
-    U /= 4
 
 # <codecell>
 
@@ -103,26 +105,23 @@ pass
 
 # <codecell>
 
-#reload(sf_gap_nmf)
-#sf_gap = sf_gap_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=50, seed=98765)
-
-reload(sf_is_nmf)
-sf_gap = sf_is_nmf.SF_IS_NMF(X, U, gamma, alpha, K=100, seed=98765)
+reload(sf_nmf)
+sfnmf = sf_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=50, seed=98765)
 
 # <codecell>
 
-score = sf_gap.bound()
+score = sfnmf.bound()
 criterion = 0.0005
 objs = []
 for i in xrange(1000):
     start_t = time.time()
-    sf_gap.update(disp=1)
+    sfnmf.update(disp=1)
     t = time.time() - start_t
     
     lastscore = score
-    score = sf_gap.bound()
+    score = sfnmf.bound()
     objs.append(score)
-    improvement = (score - lastscore) / np.abs(lastscore)
+    improvement = (score - lastscore) / abs(lastscore)
     print ('iteration {}: bound = {:.2f} ({:.5f} improvement) time = {:.2f}'.format(i, score, improvement, t))
     if improvement < criterion:
         break
@@ -134,71 +133,67 @@ pass
 
 # <codecell>
 
-specshow(logspec(sf_gap.Ew))
-colorbar()
+sfnmf.figures()
 
 # <codecell>
 
-sf_gap.figures()
+c = np.mean(sfnmf.X / sfnmf._xtwid())
+X_rec_sf_amp = c * sfnmf._xbar()
+X_rec_sf = X_rec_sf_amp * X_complex / np.abs(X_complex)
 
 # <codecell>
 
-goodk = sf_gap.goodk()
-c = np.mean(sf_gap.X / sf_gap._xtwid(goodk))
-X_rec_sfgap_amp = c * sf_gap._xbar()
-X_rec_sfgap = X_rec_sfgap_amp * np.exp(1j * np.angle(X_complex)) 
-
-# <codecell>
-
-x_rec_sfgap = librosa.istft(X_rec_sfgap, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(x_rec_sfgap, 'rec_sfgap.wav')
+x_rec_sf = librosa.istft(X_rec_sf, n_fft=n_fft, hop_length=hop_length, hann_w=0)
+write_wav(x_rec_sf, 'rec_sf.wav')
 x_org = librosa.istft(X_complex, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(x_org, 'rec_org.wav')
 
 # <headingcell level=1>
 
-# GaP-NMF
+# Regular NMF
 
 # <codecell>
 
-#reload(gap_nmf)
-gap = gap_nmf.GaP_NMF(X, K=50, seed=98765)
+reload(nmf)
+rnmf = nmf.GaP_NMF(X, K=50, seed=98765)
 
 score = -np.inf
 criterion = 0.0005
 for i in xrange(1000):
-    gap.update()
+    rnmf.update()
     lastscore = score
-    score = gap.bound()
-    improvement = (score - lastscore) / np.abs(lastscore)
+    score = rnmf.bound()
+    improvement = (score - lastscore) / abs(lastscore)
     print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
     if improvement < criterion:
         break
 
 # <codecell>
 
-specshow(logspec(gap.Ew))
+specshow(logspec(rnmf.Ew))
 colorbar()
 
 # <codecell>
 
-gap.figures()
+rnmf.figures()
 
 # <codecell>
 
-X_rec_gap_amp = np.mean(X) * gap._xbar()
-X_rec_gap = X_rec_gap_amp * np.exp(1j * np.angle(X_complex)) 
+#c = np.mean(rnmf.X / rnmf._xtwid())
+#X_rec_amp = c * gap._xbar()
+X_rec_amp = np.mean(X) * gap._xbar()
+X_rec = X_rec_amp * X_complex / np.abs(X_complex)
 
 # <codecell>
 
-x_rec_gap = librosa.istft(X_rec_gap, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(x_rec_gap, 'rec_gap.wav')
+x_rec = librosa.istft(X_rec, n_fft=n_fft, hop_length=hop_length, hann_w=0)
+write_wav(x_rec, 'rec_nmf.wav')
 x_org = librosa.istft(X_complex, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 write_wav(x_org, 'rec_org.wav')
 
 # <headingcell level=1>
 
-# SF GaP-NMF v.s. GaP-NMF
+# SF-NMF v.s. Regular NMF
 
 # <codecell>
 
@@ -208,24 +203,21 @@ specshow(logspec(X))
 title('Original')
 colorbar()
 subplot(323)
-specshow(logspec(X_rec_sfgap_amp))
-title('SF GaP-NMF')
+specshow(logspec(X_rec_sf_amp))
+title('SF NMF')
 colorbar()
 subplot(324)
-specshow(logspec(X_rec_gap_amp))
-title('GaP-NMF')
+specshow(logspec(X_rec_amp))
+title('NMF')
 colorbar()
 subplot(325)
-specshow(X_rec_sfgap_amp - X)
+specshow(X_rec_sf_amp - X)
 title('Error')
 colorbar()
 subplot(326)
-specshow(X_rec_gap_amp - X)
+specshow(X_rec_amp - X)
 title('Error')
 colorbar()
 tight_layout()
 pass
-
-# <codecell>
-
 

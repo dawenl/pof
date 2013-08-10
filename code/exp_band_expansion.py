@@ -6,9 +6,11 @@
 import functools, glob, time
 
 from scikits.audiolab import Sndfile, Format
-
-import librosa, gap_nmf, sf_gap_nmf, sf_is_nmf
 import scipy.io as sio
+
+import librosa
+import gap_nmf as nmf
+import sf_gap_nmf as sf_nmf
 
 # <codecell>
 
@@ -53,7 +55,6 @@ np.random.seed(98765)
 
 idx = np.random.permutation(n_files)
 
-# 80% of the data is used to learn the prior via empirical bayes
 X_complex = None
 for file_dir in files[N_train:]:
     #for wav_dir in file_dir:
@@ -97,31 +98,31 @@ alpha = d['alpha'].ravel()
 # <codecell>
 
 plot(gamma)
-print amax(U), amin(U)
 pass
 
-# <codecell>
+# <headingcell level=1>
 
-reload(sf_gap_nmf)
-sf_gap = sf_gap_nmf.SF_GaP_NMF(np.abs(X_cutoff), U[:129], gamma[:129], alpha, K=100, seed=98765)
-
-#reload(sf_is_nmf)
-#sf_gap = sf_is_nmf.SF_IS_NMF(X, U, gamma, alpha, K=100, seed=98765)
+# Source-filter NMF
 
 # <codecell>
 
-score = sf_gap.bound()
+reload(sf_nmf)
+sfnmf = sf_nmf.SF_GaP_NMF(np.abs(X_cutoff), U[:129], gamma[:129], alpha, K=100, seed=98765)
+
+# <codecell>
+
+score = sfnmf.bound()
 criterion = 0.0005
 objs = []
 for i in xrange(1000):
     start_t = time.time()
-    sf_gap.update(disp=1)
+    sfnmf.update(disp=1)
     t = time.time() - start_t
     
     lastscore = score
-    score = sf_gap.bound()
+    score = sfnmf.bound()
     objs.append(score)
-    improvement = (score - lastscore) / np.abs(lastscore)
+    improvement = (score - lastscore) / abs(lastscore)
     print ('iteration {}: bound = {:.2f} ({:.5f} improvement) time = {:.2f}'.format(i, score, improvement, t))
     if improvement < criterion:
         break
@@ -133,26 +134,59 @@ pass
 
 # <codecell>
 
-goodk = sf_gap.goodk()
+goodk = sfnmf.goodk()
 print goodk.shape
 subplot(211)
-specshow(sf_gap.Ea[:, goodk])
+specshow(sfnmf.Ea[:, goodk])
 colorbar()
 subplot(212)
-specshow(logspec(sf_gap.Ew[:, goodk]))
+specshow(logspec(sfnmf.Ew[:, goodk]))
 colorbar()
 pass
 
 # <codecell>
 
-K = goodk.size
-for i, k in enumerate(goodk):
-    subplot(K, 1, i+1)
-    plot(sf_gap.Ew[:, k])
+sfnmf.figures()
 
 # <codecell>
 
-sf_gap.figures()
+K = goodk.size
+fig(figsize=(16, 20))
+for i, k in enumerate(goodk):
+    subplot(K, 1, i+1)
+    plot(np.log(sfnmf.Ew[:, k]))
+
+# <headingcell level=1>
+
+# Regular NMF
+
+# <codecell>
+
+rnmf = nmf.GaP_NMF(np.abs(X_cutoff), K=100, seed=98765)
+
+score = -np.inf
+criterion = 0.0005
+for i in xrange(1000):
+    rnmf.update()
+    lastscore = score
+    score = rnmf.bound()
+    improvement = (score - lastscore) / abs(lastscore)
+    print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
+    if improvement < criterion:
+        break
+
+# <codecell>
+
+rnmf.figures()
+
+# <codecell>
+
+goodk = rnmf.goodk()
+K = goodk.size
+fig(figsize=(16, 20))
+for i, k in enumerate(goodk):
+    subplot(K, 1, i+1)
+    plot(np.log(rnmf.Ew[:, k]))
 
 # <codecell>
 
