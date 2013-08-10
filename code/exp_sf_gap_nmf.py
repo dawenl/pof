@@ -133,11 +133,23 @@ pass
 
 # <codecell>
 
+subplot(211)
+specshow(sfnmf.Ea)
+colorbar()
+subplot(212)
+specshow(logspec(sfnmf.Ew))
+colorbar()
+pass
+
+# <codecell>
+
 sfnmf.figures()
 
 # <codecell>
 
-c = np.mean(sfnmf.X / sfnmf._xtwid())
+goodk = sfnmf.goodk()
+c = np.mean(sfnmf.X / sfnmf._xtwid(goodk))
+#c = np.mean(sfnmf.X / sfnmf._xtwid())
 X_rec_sf_amp = c * sfnmf._xbar()
 X_rec_sf = X_rec_sf_amp * X_complex / np.abs(X_complex)
 
@@ -172,6 +184,7 @@ for i in xrange(1000):
 
 specshow(logspec(rnmf.Ew))
 colorbar()
+pass
 
 # <codecell>
 
@@ -180,8 +193,8 @@ rnmf.figures()
 # <codecell>
 
 #c = np.mean(rnmf.X / rnmf._xtwid())
-#X_rec_amp = c * gap._xbar()
-X_rec_amp = np.mean(X) * gap._xbar()
+#X_rec_amp = c * rnmf._xbar()
+X_rec_amp = np.mean(X) * rnmf._xbar()
 X_rec = X_rec_amp * X_complex / np.abs(X_complex)
 
 # <codecell>
@@ -220,4 +233,7 @@ title('Error')
 colorbar()
 tight_layout()
 pass
+
+# <codecell>
+
 
