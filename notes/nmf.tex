@@ -16,14 +16,16 @@
 
   % Define nodes
 \node[obs] 			(x) {$\bm{x}_t$};
+\node[latent, right=0.7cm of x]  (c) {$c$};
 \node[latent, above=0.7cm of x]   (h) {$\bm{h}_t$};
 \node[latent, left=0.7cm of x]       (w) {$\bm{w}_k$};
 \node[latent, below=0.5cm of w]  (t)  {$\theta_k$};
 \node[latent, above=0.7cm of w]  (a) {$\bm{a}_k$};
-\node[const, above=0.5cm of a]  (alpha) {$\alpha$};
+\node[const, above=0.5cm of a]  (alpha) {$\bm{\alpha}$};
 \node[const, left=0.7cm of w]      (u)  {$\mathbf{U, \bm{\gamma}}$};
 
   % Connect the nodes
+\edge{c} {x};
 \edge {h} {x};
 \edge {w} {x};
 \edge {t} {x};

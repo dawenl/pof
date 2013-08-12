@@ -225,12 +225,74 @@ Model formulation:
 a_{lk} &\sim \Gamma(\alpha_l, \alpha_l)\\
 W_{fk} &\sim \Gamma\Big(\gamma_f, \gamma_f \prod_l \exp(-U_{fl} a_{lk})\Big)\\
 H_{kt} &\sim \Gamma(b, b)\\
-\theta_k &\sim \Gamma(\beta/K, c)\\
-X_{ft} &\sim \text{Exp}\Big(\sum_k \theta_k W_{fk} H_{kt}\Big)\\
-\biggl(\text{or } X_{ft} &\sim \text{Poisson}\Big(\sum_k \theta_k W_{fk} H_{kt}\Big)\biggl)
+\theta_k &\sim \Gamma(\beta/K, \beta)\\
+X_{ft} &\sim \text{Exp}\Big(c \sum_k \theta_k W_{fk} H_{kt}\Big)\\
+\biggl(\text{or } X_{ft} &\sim \text{Poisson}\Big(c \sum_k \theta_k W_{fk} H_{kt}\Big)\biggl)
 \end{align*}
 
-Let's begin with GaP-NMF.
+Let's begin with GaP-NMF. The tractable variational distribution is:
+\begin{align*}
+q(a_{lk}) &= \Gamma(\nu_{lk}^a, \rho_{lk}^a)\\
+q(W_{fk}) &= \text{GIG}(\nu_{fk}^W, \rho_{fk}^W, \tau_{fk}^W)\\
+q(H_{kt}) &= \text{GIG}(\nu_{kt}^H, \rho_{kt}^H, \tau_{kt}^H)\\
+q(\theta_{k}) &= \text{GIG}(\nu_{k}^{\theta}, \rho_{k}^{\theta}, \tau_{k}^{\theta})
+\end{align*}
 
+The Evidence Lower BOund (ELBO):
+\[
+\log p(X|\beta, b) \geq \mathbb{E}_q [\log p(X)] + \mathbb{E}_q \biggl[\log \frac{p(W)}{q(W)}\biggl] + \mathbb{E}_q \biggl[\log \frac{p(H)}{q(H)}\biggl] + \mathbb{E}_q\biggl[\log \frac{p(\theta)}{q(\theta)}\biggl] + \mathbb{E}_q\biggl[\log \frac{p(a)}{q(a)}\biggl] \equiv \mathcal{L}
+\]
+
+Following the lower bounding of the original GaP-NMF, $\mathbb{E}_q[\log p(X)]$, which is intractable to compute, can be further lower bounded as:
+\begin{align*}
+\mathbb{E}_q[\log p(X)] &= \sum_{f,t} \mathbb{E}_q \biggl[\frac{- X_{ft}}{c \sum_k \theta_k W_{fk} H_{kt}} \biggl] - \mathbb{E}_q \biggl[\log c \sum_k \theta_k W_{fk} H_{kt} \biggl] \\
+&\geq \sum_{f, t} - \frac{X_{ft}}{c}\sum_k \phi_{kft}^2 \mathbb{E}_q\biggl[\frac{1}{\theta_k W_{fk} H_{kt}}\biggl] - \log c - \log(\omega_{ft}) + 1 - \frac{1}{\omega_{ft}}\sum_k \mathbb{E}_q[\theta_k W_{fk} H_{kt}]
+\end{align*}
+where for $\forall \{f,t\}$, $\phi_{kft} \geq 0$ and $\sum_k \phi_{kft} = 1$. To tighten this bound, the optimal $\phi_{kft}$  (by using Lagrange multipliers) and $\omega_{ft}$ are:
+\[
+\phi_{kft} \propto \mathbb{E}_q\biggl[ \frac{1}{\theta_k W_{fk} H_{kt}}\biggl]^{-1}
+\]
+\[
+\omega_{ft} = \sum_k \mathbb{E}_q [\theta_k W_{fk} H_{kt}]
+\]
+
+The optimal scale $c$:
+\[
+c = \frac{1}{FT}\sum_{f,t} X_{ft} \biggl(\sum_k \mathbb{E}_q\biggl[\frac{1}{\theta_k W_{fk} H_{kt}}\biggl]^{-1}\biggl)^{-1}
+\]
+
+
+Update for $W_{fk}$:
+\begin{align*}
+\nu_{fk}^W &= \gamma_f\\
+\rho_{fk}^W &= \gamma_f \prod_l \mathbb{E}_q[\exp(-U_{fl}a_{lk})] + \mathbb{E}_q[\theta_k]\sum_t \frac{\mathbb{E}_q[H_{kt}]}{\omega_{ft}}\\
+\tau_{fk}^W &= \mathbb{E}_q\biggl[\frac{1}{\theta_k}\biggl]\sum_t \frac{X_{ft}}{c} \phi_{kft}^2 \mathbb{E}_q \biggl[\frac{1}{H_{kt}}\biggl]
+\end{align*}
+
+Update for $H_{kt}$:
+\begin{align*}
+\nu_{kt}^H &= b\\
+\rho_{kt}^H &= b + \mathbb{E}_q[\theta_k] \sum_t \frac{\mathbb{E}_q[W_{fk}]}{\omega_{ft}}\\
+\tau_{kt}^H &= \mathbb{E}_q\biggl[\frac{1}{\theta_k}\biggl]\sum_f \frac{X_{ft}}{c} \phi_{kft}^2 \mathbb{E}_q \biggl[\frac{1}{W_{fk}}\biggl]
+\end{align*}
+
+Update for $\theta_k$:
+\begin{align*}
+\nu_k^{\theta} &= \beta/K\\
+\rho_k^{\theta} &= \beta + \sum_{f,t} \frac{\mathbb{E}_q[W_{fk}H_{kt}]}{\omega_{ft}}\\
+\tau_k^{\theta} &= \sum_{f, t} \frac{X_{ft}}{c} \phi_{kft}^2 \mathbb{E}_q\biggl[\frac{1}{W_{fk}H_{kt}}\biggl]
+\end{align*}
+
+There is no closed-form update for $a_{lk}$, we can optimize across $\bm{a}_k$. The objective is: 
+\begin{align*}
+\mathcal{L}_k = \text{const} +& \sum_l \biggl\{(\alpha_l - \nu_{lk}^a) \mathbb{E}_q [\log a_{lk}] - (\alpha_l - \rho_{lk}^a) \mathbb{E}_q[a_{lk}] + A^{\Gamma}(\nu_{lk}^a, \rho_{lk}^a) \biggl\} \\
++&\sum_f  \gamma_f \biggl\{ -\mathbb{E}_q[W_{fk}] \prod_l \mathbb{E}_q[\exp(-U_{fl} a_{lk})] -  \sum_l U_{fl} \mathbb{E}_q[a_{lk}] \biggl\}
+\end{align*}
+where $A^{\Gamma}(\nu_{lk}^a, \rho_{lk}^a)$ is the log-normalizer for gamma distribution.
+\begin{align*}
+\frac{\partial \mathcal{L}_k}{\partial \nu_{lk}^a} &= (\alpha_l - \nu_{lk}^a) \psi_1 (\nu_{lk}^a) - \frac{\alpha_l}{\rho_{lk}^a} + 1 + \sum_f \gamma_f \biggl\{-\frac{ U_{fl} }{\rho_{lk}^a}  + \mathbb{E}_q[W_{fk}] \log(1 + \frac{U_{fl}}{\rho_{lk}^a}) \prod_l \mathbb{E}_q[\exp(-U_{fl} a_{lk})] \biggl\}\\
+\frac{\partial \mathcal{L}_k}{\partial \rho_{lk}^a} &= \alpha_l \Big(\frac{\nu_{lk}^a}{(\rho_{lk}^a)^2} - \frac{1}{\rho_{lk}^a}\Big) + \frac{\nu_{lk}^a}{(\rho_{lk}^a)^2}\sum_f \gamma_f \biggl\{ U_{fl} - \mathbb{E}_q[W_{fk}] U_{fl} (1 + \frac{U_{fl}}{\rho_{lk}^a})^{-1}  \prod_l \mathbb{E}_q[\exp(-U_{fl} a_{lk})] \biggl\}
+\end{align*}
+Note this is essentially the same with the E-step in the prior learning part.
 
 \end{document}
