@@ -90,11 +90,12 @@ class GaP_NMF:
                                                             self.taut)
         self.Etinvinv = 1./self.Etinv
 
-    def update(self):
+    def update(self, update_w=True):
         ''' Do optimization for one iteration
         '''
         self.update_h()
-        self.update_w()
+        if update_w:
+            self.update_w()
         self.update_theta()
         # truncate unused components
         self.clear_badk()

@@ -11,8 +11,9 @@ import scipy.stats as stats
 
 import librosa
 import gap_nmf as nmf
-#import sf_gap_nmf as sf_nmf
-import sf_gig_nmf as sf_nmf
+#import gig_nmf as nmf
+import sf_gap_nmf as sf_nmf
+#import sf_gig_nmf as sf_nmf
 
 import _gap
 
@@ -102,7 +103,6 @@ freq_threshold = 3000.
 bin_cutoff = n_fft * freq_threshold / sr
 X_cutoff = X_complex[:(bin_cutoff+1)]
 
-
 x_cutoff = librosa.istft(X_cutoff, n_fft=2*bin_cutoff, hop_length=bin_cutoff, hann_w=0)
 write_wav(x_cutoff, 'be_cutoff.wav', samplerate=2 * freq_threshold)
 
@@ -126,8 +126,8 @@ pass
 # <codecell>
 
 reload(sf_nmf)
-#sfnmf = sf_nmf.SF_GaP_NMF(np.abs(X_cutoff), U[:(bin_cutoff+1)], gamma[:(bin_cutoff+1)], alpha, K=100, seed=98765)
-sfnmf = sf_nmf.SF_GIG_NMF(np.abs(X_cutoff), U[:(bin_cutoff+1)], gamma[:(bin_cutoff+1)], alpha, K=100, seed=98765)
+sfnmf = sf_nmf.SF_GaP_NMF(np.abs(X_cutoff), U[:(bin_cutoff+1)], gamma[:(bin_cutoff+1)], alpha, K=100, seed=98765)
+#sfnmf = sf_nmf.SF_GIG_NMF(np.abs(X_cutoff), U[:(bin_cutoff+1)], gamma[:(bin_cutoff+1)], alpha, K=100, seed=98765)
 
 # <codecell>
 
@@ -154,8 +154,8 @@ pass
 
 # <codecell>
 
-#goodk = sfnmf.goodk()
-goodk = np.arange(100)
+goodk = sfnmf.goodk()
+#goodk = np.arange(100)
 fig()
 subplot(121)
 specshow(sfnmf.Ea[:, goodk])
@@ -213,23 +213,32 @@ pass
 
 # <codecell>
 
-fig(figsize=(16, 10))
-c = np.mean(sfnmf.X / sfnmf._xtwid())
-subplot(211)
-#specshow(logspec(c * np.dot(Ew * sfnmf.Et[goodk], sfnmf.Eh[goodk])))
-specshow(logspec(c * np.dot(Ew, sfnmf.Eh[goodk])))
-axhline(y=257, color='black')
+#c = np.mean(sfnmf.X / sfnmf._xtwid())
+c = np.mean(sfnmf.X / sfnmf._xtwid(goodk))
+X_bar = c * np.dot(Ew * sfnmf.Et[goodk], sfnmf.Eh[goodk])
+#X_bar = c * np.dot(Ew, sfnmf.Eh[goodk])
+
+fig()
+subplot(121)
+specshow(logspec(X_bar))
+axhline(y=(bin_cutoff+1), color='black')
 colorbar()
-subplot(212)
+subplot(122)
 specshow(logspec(np.abs(X_complex)))
-axhline(y=257, color='black')
+axhline(y=(bin_cutoff+1), color='black')
 colorbar()
 pass
 
 # <codecell>
 
-## geometric-mean of predictive likelihood
+## mean of predictive log-likelihood
+pred_likeli = np.mean(stats.expon.logpdf(np.abs(X_complex[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):]))
+print pred_likeli
 
+# <codecell>
+
+x_rec = librosa.istft(X_bar * (X_complex / np.abs(X_complex)), n_fft=n_fft, hann_w=0, hop_length=hop_length)
+write_wav(x_rec, 'be_sf_infer.wav')
 
 # <headingcell level=1>
 
@@ -237,8 +246,8 @@ pass
 
 # <codecell>
 
-rnmf = nmf.GaP_NMF(np.abs(X_cutoff), K=100, seed=98765, alpha=10.0)
-
+reload(nmf)
+rnmf = nmf.GaP_NMF(np.abs(X_complex_train), K=100, seed=98765)
 score = -np.inf
 criterion = 0.0005
 for i in xrange(1000):
@@ -256,13 +265,53 @@ rnmf.figures()
 
 # <codecell>
 
-goodk = rnmf.goodk()
-print goodk.size
-K = goodk.size
-fig(figsize=(16, 20))
-for i, k in enumerate(goodk):
-    subplot(K, 1, i+1)
-    plot(np.log(rnmf.Ew[:, k]))
+encoder = nmf.GaP_NMF(np.abs(X_cutoff), K=100, seed=98765, alpha=10.0)
+encoder.rhow = rnmf.rhow[:(bin_cutoff+1)]
+encoder.tauw = rnmf.tauw[:(bin_cutoff+1)]
+
+score = -np.inf
+criterion = 0.0005
+for i in xrange(1000):
+    encoder.update(update_w=False)
+    lastscore = score
+    score = encoder.bound()
+    improvement = (score - lastscore) / abs(lastscore)
+    print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
+    if improvement < criterion:
+        break
+
+# <codecell>
+
+encoder.figures()
+
+# <codecell>
+
+goodk = encoder.goodk()
+X_bar = np.mean(np.abs(X_cutoff)) * np.dot(rnmf.Ew[:, goodk] * encoder.Et[goodk], encoder.Eh[goodk])
+
+# <codecell>
+
+fig()
+subplot(121)
+specshow(logspec(X_bar))
+axhline(y=(bin_cutoff+1), color='black')
+colorbar()
+subplot(122)
+specshow(logspec(np.abs(X_complex)))
+axhline(y=(bin_cutoff+1), color='black')
+colorbar()
+pass
+
+# <codecell>
+
+## mean of predictive log-likelihood
+pred_likeli = np.mean(stats.expon.logpdf(np.abs(X_complex[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):]))
+print pred_likeli
+
+# <codecell>
+
+x_rec = librosa.istft(X_bar * (X_complex / np.abs(X_complex)), n_fft=n_fft, hann_w=0, hop_length=hop_length)
+write_wav(x_rec, 'be_nmf_infer.wav')
 
 # <codecell>
 
