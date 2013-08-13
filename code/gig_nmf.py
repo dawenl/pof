@@ -35,8 +35,8 @@ class GIG_NMF:
         self._init(smoothness)
 
     def _parse_args(self, **kwargs):
-        self.a = kwargs['a'] if 'a' in kwargs else 0.1
-        self.b = kwargs['b'] if 'b' in kwargs else 0.1
+        self.a = float(kwargs['a']) if 'a' in kwargs else 0.1
+        self.b = float(kwargs['b']) if 'b' in kwargs else 0.1
 
     def _init(self, smoothness):
         self.rhow = 10000 * np.random.gamma(smoothness,

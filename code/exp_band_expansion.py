@@ -7,10 +7,14 @@ import functools, glob, time
 
 from scikits.audiolab import Sndfile, Format
 import scipy.io as sio
+import scipy.stats as stats
 
 import librosa
 import gap_nmf as nmf
-import sf_gap_nmf as sf_nmf
+#import sf_gap_nmf as sf_nmf
+import sf_gig_nmf as sf_nmf
+
+import _gap
 
 # <codecell>
 
@@ -55,6 +59,15 @@ np.random.seed(98765)
 
 idx = np.random.permutation(n_files)
 
+X_complex_train = None
+for file_dir in files[:N_train]:
+    for wav_dir in file_dir:
+        wav, sr = load_timit(wav_dir)
+        if X_complex_train is None:
+            X_complex_train = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+        else:
+            X_complex_train = np.hstack((X_complex_train, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))) 
+
 X_complex = None
 for file_dir in files[N_train:]:
     #for wav_dir in file_dir:
@@ -71,26 +84,32 @@ for file_dir in files[N_train:]:
         X_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
     else:
         X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
-X = np.abs(X_complex)
 
 # <codecell>
 
-specshow(logspec(X))
+subplot(211)
+specshow(logspec(np.abs(X_complex_train)))
 colorbar()
-print X.shape
+subplot(212)
+specshow(logspec(np.abs(X_complex)))
+colorbar()
 pass
 
 # <codecell>
 
-# cut-off top 2 octaves (only the lowest 129 bins are kept)
-X_cutoff = X_complex[:129]
+# cut-off above 3000Hz
+freq_threshold = 3000.
+bin_cutoff = n_fft * freq_threshold / sr
+X_cutoff = X_complex[:(bin_cutoff+1)]
 
-x_cutoff = librosa.istft(X_cutoff, n_fft=n_fft/4, hop_length=hop_length/4, hann_w=0)
-write_wav(x_cutoff, 'be_cutoff.wav', samplerate=4000)
+
+x_cutoff = librosa.istft(X_cutoff, n_fft=2*bin_cutoff, hop_length=bin_cutoff, hann_w=0)
+write_wav(x_cutoff, 'be_cutoff.wav', samplerate=2 * freq_threshold)
 
 # <codecell>
 
-d = sio.loadmat('priors/gamma_gender_full_seq.mat')
+d = sio.loadmat('priors/gamma_gender_batch.mat')
+#d = sio.loadmat('priors/gamma_gender_full_seq.mat')
 U = d['U'].T
 gamma = d['gamma']
 alpha = d['alpha'].ravel()
@@ -107,7 +126,8 @@ pass
 # <codecell>
 
 reload(sf_nmf)
-sfnmf = sf_nmf.SF_GaP_NMF(np.abs(X_cutoff), U[:129], gamma[:129], alpha, K=100, seed=98765)
+#sfnmf = sf_nmf.SF_GaP_NMF(np.abs(X_cutoff), U[:(bin_cutoff+1)], gamma[:(bin_cutoff+1)], alpha, K=100, seed=98765)
+sfnmf = sf_nmf.SF_GIG_NMF(np.abs(X_cutoff), U[:(bin_cutoff+1)], gamma[:(bin_cutoff+1)], alpha, K=100, seed=98765)
 
 # <codecell>
 
@@ -134,14 +154,18 @@ pass
 
 # <codecell>
 
-goodk = sfnmf.goodk()
-print goodk.shape
-subplot(211)
+#goodk = sfnmf.goodk()
+goodk = np.arange(100)
+fig()
+subplot(121)
 specshow(sfnmf.Ea[:, goodk])
+title('A')
 colorbar()
-subplot(212)
+subplot(122)
 specshow(logspec(sfnmf.Ew[:, goodk]))
+title('W')
 colorbar()
+tight_layout()
 pass
 
 # <codecell>
@@ -156,13 +180,64 @@ for i, k in enumerate(goodk):
     subplot(K, 1, i+1)
     plot(np.log(sfnmf.Ew[:, k]))
 
+# <codecell>
+
+## Infer the high-frequency contents
+Ew = np.zeros((U.shape[0], goodk.size))
+for (i, k) in enumerate(goodk):
+    Ew[:, i] = np.exp(np.sum(_gap.comp_log_exp(sfnmf.nua[:, k], sfnmf.rhoa[:, k], -U), axis=1))
+Ew1 =  np.exp(np.dot(U, sfnmf.Ea[:, goodk]))
+
+# <codecell>
+
+subplot(311)
+specshow(20 * np.log10(Ew[:(bin_cutoff+1)]))
+colorbar()
+subplot(312)
+specshow(20 * np.log10(Ew1[:(bin_cutoff+1)]))
+colorbar()
+subplot(313)
+specshow(20 * np.log10(sfnmf.Ew[:, goodk]))
+colorbar()
+pass
+
+# <codecell>
+
+subplot(211)
+specshow(20 * log10(Ew))
+colorbar()
+subplot(212)
+specshow(20 * log10(Ew1))
+colorbar()
+pass
+
+# <codecell>
+
+fig(figsize=(16, 10))
+c = np.mean(sfnmf.X / sfnmf._xtwid())
+subplot(211)
+#specshow(logspec(c * np.dot(Ew * sfnmf.Et[goodk], sfnmf.Eh[goodk])))
+specshow(logspec(c * np.dot(Ew, sfnmf.Eh[goodk])))
+axhline(y=257, color='black')
+colorbar()
+subplot(212)
+specshow(logspec(np.abs(X_complex)))
+axhline(y=257, color='black')
+colorbar()
+pass
+
+# <codecell>
+
+## geometric-mean of predictive likelihood
+
+
 # <headingcell level=1>
 
 # Regular NMF
 
 # <codecell>
 
-rnmf = nmf.GaP_NMF(np.abs(X_cutoff), K=100, seed=98765)
+rnmf = nmf.GaP_NMF(np.abs(X_cutoff), K=100, seed=98765, alpha=10.0)
 
 score = -np.inf
 criterion = 0.0005
@@ -182,6 +257,7 @@ rnmf.figures()
 # <codecell>
 
 goodk = rnmf.goodk()
+print goodk.size
 K = goodk.size
 fig(figsize=(16, 20))
 for i, k in enumerate(goodk):

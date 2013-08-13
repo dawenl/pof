@@ -44,8 +44,8 @@ class SF_GaP_NMF:
         self._init(smoothness)
 
     def _parse_args(self, **kwargs):
-        self.b = kwargs['b'] if 'b' in kwargs else 0.1
-        self.beta = kwargs['beta'] if 'beta' in kwargs else 1.
+        self.b = float(kwargs['b']) if 'b' in kwargs else 0.1
+        self.beta = float(kwargs['beta']) if 'beta' in kwargs else 1.
 
     def _init(self, smoothness):
         self.rhow = 10000 * np.random.gamma(smoothness,
