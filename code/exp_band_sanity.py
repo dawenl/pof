@@ -117,19 +117,22 @@ encoder_train = vpl.SF_Dict(np.abs(X_cutoff_train.T), L=L, seed=98765)
 encoder_train.U, encoder_train.gamma, encoder_train.alpha = U[:, :(bin_cutoff+1)], gamma[:(bin_cutoff+1)], alpha
 
 encoder_train.vb_e(cold_start = False)
-A = encoder_train.EA
 
 # <codecell>
 
-EX_train = np.zeros_like(np.abs(X_complex_train.T))
-for t in xrange(EX_train.shape[0]):
-    EX_train[t] = np.exp(np.sum(vpl.comp_log_exp(encoder_train.a[t, :, np.newaxis], encoder_train.b[t, :, np.newaxis], U), axis=0))
+EX_train = np.exp(np.dot(encoder_train.EA, U)).T
+
+# <codecell>
+
+EexpX = np.zeros_like(np.abs(X_complex_train))
+for t in xrange(EexpX.shape[1]):
+    EexpX[:, t] = np.exp(np.sum(vpl.comp_log_exp(encoder_train.a[t, :, np.newaxis], encoder_train.b[t, :, np.newaxis], U), axis=0))
 
 # <codecell>
 
 fig()
 subplot(121)
-specshow(logspec(EX_train.T))
+specshow(logspec(EX_train))
 axhline(y=(bin_cutoff+1), color='black')
 colorbar()
 subplot(122)
@@ -141,7 +144,10 @@ pass
 # <codecell>
 
 ## mean of predictive log-likelihood
-pred_likeli = np.mean(stats.expon.logpdf(np.abs(X_complex_train[(bin_cutoff+1):]), scale=EX_train[(bin_cutoff+1):]))
+tmp_gamma = gamma[(bin_cutoff+1):]
+pred_likeli = np.mean(stats.gamma.logpdf(np.abs(X_complex_test[(bin_cutoff+1):]), 
+                                         tmp_gamma[:, np.newaxis], 
+                                         scale=1. / (tmp_gamma[:, np.newaxis] * EexpX[(bin_cutoff+1):])))
 print pred_likeli
 
 # <codecell>
@@ -166,19 +172,22 @@ encoder_test = vpl.SF_Dict(np.abs(X_cutoff_test.T), L=L, seed=98765)
 encoder_test.U, encoder_test.gamma, encoder_test.alpha = U[:, :(bin_cutoff+1)], gamma[:(bin_cutoff+1)], alpha
 
 encoder_test.vb_e(cold_start = False)
-A = encoder_test.EA
 
 # <codecell>
 
-EX_test = np.zeros_like(np.abs(X_complex_test))
-for t in xrange(EX_test.shape[0]):
-    EX_test[t] = np.exp(np.sum(vpl.comp_log_exp(encoder_test.a[t, :, np.newaxis], encoder_test.b[t, :, np.newaxis], U), axis=0))
+EX_test = np.exp(np.dot(encoder_test.EA, U)).T
+
+# <codecell>
+
+EexpX = np.zeros_like(np.abs(X_complex_test))
+for t in xrange(EexpX.shape[1]):
+    EexpX[:, t] = np.exp(np.sum(vpl.comp_log_exp(encoder_test.a[t, :, np.newaxis], encoder_test.b[t, :, np.newaxis], U), axis=0))
 
 # <codecell>
 
 fig()
 subplot(121)
-specshow(logspec(EX_test.T))
+specshow(logspec(EX_test))
 axhline(y=(bin_cutoff+1), color='black')
 colorbar()
 subplot(122)
@@ -190,12 +199,15 @@ pass
 # <codecell>
 
 ## mean of predictive log-likelihood
-pred_likeli = np.mean(stats.expon.logpdf(np.abs(X_complex_test[(bin_cutoff+1):]), scale=EX_test[(bin_cutoff+1):]))
+tmp_gamma = gamma[(bin_cutoff+1):]
+pred_likeli = np.mean(stats.gamma.logpdf(np.abs(X_complex_test[(bin_cutoff+1):]), 
+                                         tmp_gamma[:, np.newaxis], 
+                                         scale=1. / (tmp_gamma[:, np.newaxis] * EexpX[(bin_cutoff+1):])))
 print pred_likeli
 
 # <codecell>
 
-write_wav(librosa.istft(EX_test.T * (X_complex_test / np.abs(X_complex_test)), n_fft=n_fft, hann_w=0, hop_length=hop_length), 'be_sanity_check2.wav')
+write_wav(librosa.istft(EX_test * (X_complex_test / np.abs(X_complex_test)), n_fft=n_fft, hann_w=0, hop_length=hop_length), 'be_sanity_check2.wav')
 
 # <headingcell level=1>
 
