@@ -156,7 +156,7 @@ write_wav(librosa.istft(EX_train.T * (X_complex_train / np.abs(X_complex_train))
 
 X_cutoff_test = X_complex_test[:(bin_cutoff+1)]
 
-x_cutoff_test = librosa.istft(X_test, n_fft=2*bin_cutoff, hop_length=bin_cutoff, hann_w=0)
+x_cutoff_test = librosa.istft(X_cutoff_test, n_fft=2*bin_cutoff, hop_length=bin_cutoff, hann_w=0)
 write_wav(x_cutoff_test, 'prior_be_cutoff.wav', samplerate=2 * freq_threshold)
 
 # <codecell>
@@ -232,11 +232,30 @@ pass
 
 # <codecell>
 
-## Infer the high-frequency contents
+sfnmf.figures()
+
+# <codecell>
+
 goodk = sfnmf.goodk()
-Ew = np.zeros((U.shape[0], goodk.size))
-for (i, k) in enumerate(goodk):
-    Ew[:, i] = np.exp(np.sum(_gap.comp_log_exp(sfnmf.nua[:, k], sfnmf.rhoa[:, k], -U), axis=1))
+fig()
+subplot(121)
+specshow(sfnmf.Ea[:, goodk])
+title('A')
+colorbar()
+subplot(122)
+specshow(logspec(sfnmf.Ew[:, goodk]))
+title('W')
+colorbar()
+tight_layout()
+pass
+
+# <codecell>
+
+## Infer the high-frequency contents
+#Ew = np.zeros((U.shape[0], goodk.size))
+#for (i, k) in enumerate(goodk[sfnmf.Et[goodk] > 1e-7]):
+#    Ew[:, i] = np.exp(np.sum(vpl.comp_log_exp(sfnmf.nua[:, k], sfnmf.rhoa[:, k], -U), axis=1))
+Ew = np.exp(np.dot(U, sfnmf.Ea[:, goodk]))
 
 # <codecell>
 
@@ -257,10 +276,13 @@ pass
 # <codecell>
 
 ## mean of predictive log-likelihood
-pred_likeli = np.mean(stats.expon.logpdf(np.abs(X_complex_test[(bin_cutoff+1):]), scale=EX_test[(bin_cutoff+1):]))
+pred_likeli = np.mean(stats.expon.logpdf(np.abs(X_complex_train[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):]))
 print pred_likeli
 
 # <codecell>
 
 write_wav(librosa.istft(X_bar * (X_complex_train / np.abs(X_complex_train)), n_fft=n_fft, hann_w=0, hop_length=hop_length), 'be_sanity_check3.wav')
+
+# <codecell>
+
 
