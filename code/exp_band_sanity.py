@@ -9,7 +9,6 @@ import numpy as np
 import scipy.io as sio
 import scipy.stats as stats
 from scikits.audiolab import Sndfile, Format
-from matplotlib.pyplot import *
 
 import librosa
 import gamma_gvpl as vpl
@@ -96,6 +95,15 @@ gamma = d['gamma'].ravel()
 alpha = d['alpha'].ravel()
 L = alpha.size
 
+# <codecell>
+
+def compute_SNR(X_complex_org, X_complex_rec, n_fft, hop_length):
+    x_org = librosa.istft(X_complex_org, n_fft=n_fft, hann_w=0, hop_length=hop_length)
+    x_rec = librosa.istft(X_complex_rec, n_fft=n_fft, hann_w=0, hop_length=hop_length)
+    length = min(x_rec.size, x_org.size)
+    snr = 10 * np.log10(np.sum( x_org[:length] ** 2) / np.sum( (x_org[:length] - x_rec[:length])**2))
+    return (x_org, x_rec, snr)
+
 # <headingcell level=1>
 
 # Sanity check 1: use the prior to fit the original training data, but bandlimited
@@ -120,12 +128,27 @@ encoder_train.vb_e(cold_start = False)
 
 # <codecell>
 
+specshow(encoder_train.EA.T)
+colorbar()
+pass
+
+# <codecell>
+
+# plot the correlation
+A_train = encoder_train.EA.copy()
+A_train = A_train - np.mean(A_train, axis=0, keepdims=True)
+A_train = A_train / np.sqrt(np.sum(A_train ** 2, axis=0, keepdims=True))
+specshow(np.dot(A_train.T, A_train) / encoder_train.T)
+colorbar()
+
+# <codecell>
+
 EX_train = np.exp(np.dot(encoder_train.EA, U)).T
 
 # <codecell>
 
 EexpX = np.zeros_like(np.abs(X_complex_train))
-for t in xrange(EexpX.shape[1]):
+for t in xrange(encoder_train.T):
     EexpX[:, t] = np.exp(np.sum(vpl.comp_log_exp(encoder_train.a[t, :, np.newaxis], encoder_train.b[t, :, np.newaxis], U), axis=0))
 
 # <codecell>
@@ -152,7 +175,13 @@ print pred_likeli
 
 # <codecell>
 
-write_wav(librosa.istft(EX_train.T * (X_complex_train / np.abs(X_complex_train)), n_fft=n_fft, hann_w=0, hop_length=hop_length), 'be_sanity_check1.wav')
+x_train_org, x_train_rec, snr = compute_SNR(X_complex_train, EX_train * (X_complex_train / np.abs(X_complex_train)), n_fft, hop_length)
+print snr
+
+# <codecell>
+
+write_wav(x_train_rec, 'be_sanity_check1.wav')
+write_wav(x_train_org, 'be_sanity_check1_org.wav')
 
 # <headingcell level=1>
 
@@ -175,17 +204,33 @@ encoder_test.vb_e(cold_start = False)
 
 # <codecell>
 
+specshow(encoder_test.EA.T)
+colorbar()
+pass
+
+# <codecell>
+
+# plot the correlation
+A_test = encoder_test.EA.copy()
+A_test = A_test - np.mean(A_test, axis=0, keepdims=True)
+A_test = A_test / np.sqrt(np.sum(A_test ** 2, axis=0, keepdims=True))
+specshow(np.dot(A_test.T, A_test) / encoder_test.T)
+colorbar()
+pass
+
+# <codecell>
+
 EX_test = np.exp(np.dot(encoder_test.EA, U)).T
 
 # <codecell>
 
 EexpX = np.zeros_like(np.abs(X_complex_test))
-for t in xrange(EexpX.shape[1]):
+for t in xrange(encoder_test.T):
     EexpX[:, t] = np.exp(np.sum(vpl.comp_log_exp(encoder_test.a[t, :, np.newaxis], encoder_test.b[t, :, np.newaxis], U), axis=0))
 
 # <codecell>
 
-fig()
+fig(figsize=(20, 5))
 subplot(121)
 specshow(logspec(EX_test))
 axhline(y=(bin_cutoff+1), color='black')
@@ -200,14 +245,25 @@ pass
 
 ## mean of predictive log-likelihood
 tmp_gamma = gamma[(bin_cutoff+1):]
-pred_likeli = np.mean(stats.gamma.logpdf(np.abs(X_complex_test[(bin_cutoff+1):]), 
-                                         tmp_gamma[:, np.newaxis], 
-                                         scale=1. / (tmp_gamma[:, np.newaxis] * EexpX[(bin_cutoff+1):])))
-print pred_likeli
+pred_likeli = stats.gamma.logpdf(np.abs(X_complex_test[(bin_cutoff+1):]), 
+                                 tmp_gamma[:, np.newaxis], 
+                                 scale=1. / (tmp_gamma[:, np.newaxis] * EexpX[(bin_cutoff+1):]))
+print 'Mean = {}; std = {}'.format(np.mean(pred_likeli), np.std(pred_likeli))
 
 # <codecell>
 
-write_wav(librosa.istft(EX_test * (X_complex_test / np.abs(X_complex_test)), n_fft=n_fft, hann_w=0, hop_length=hop_length), 'be_sanity_check2.wav')
+hist(pred_likeli.ravel(), bins=50)
+pass
+
+# <codecell>
+
+x_test_org, x_test_rec, snr = compute_SNR(X_complex_test, EX_test * (X_complex_test / np.abs(X_complex_test)), n_fft, hop_length)
+print snr
+
+# <codecell>
+
+write_wav(x_test_rec, 'be_sanity_check2.wav')
+write_wav(x_test_org, 'be_sanity_check2_org.wav')
 
 # <headingcell level=1>
 
@@ -224,6 +280,7 @@ sfnmf = sf_nmf.SF_GaP_NMF(np.abs(X_cutoff_train), U[:(bin_cutoff+1)], gamma[:(bi
 score = sfnmf.bound()
 criterion = 0.0005
 objs = []
+snrs = []
 for i in xrange(1000):
     start_t = time.time()
     sfnmf.update(disp=1)
@@ -232,6 +289,16 @@ for i in xrange(1000):
     lastscore = score
     score = sfnmf.bound()
     objs.append(score)
+    
+    #******* for SNR only ********
+    goodk = sfnmf.goodk()
+    c = np.mean(sfnmf.X / sfnmf._xtwid(goodk))
+    Ew = np.exp(np.dot(U, sfnmf.Ea[:, goodk]))
+    X_bar = c * np.dot(Ew * sfnmf.Et[goodk], sfnmf.Eh[goodk])
+    _, _, snr = compute_SNR(X_complex_train, X_bar * (X_complex_train / np.abs(X_complex_train)), n_fft, hop_length)
+    snrs.append(snr)
+    #*****************************
+    
     improvement = (score - lastscore) / abs(lastscore)
     print ('iteration {}: bound = {:.2f} ({:.5f} improvement) time = {:.2f}'.format(i, score, improvement, t))
     if improvement < criterion:
@@ -239,7 +306,10 @@ for i in xrange(1000):
 
 # <codecell>
 
+subplot(121)
 plot(objs)
+subplot(122)
+plot(snrs)
 pass
 
 # <codecell>
@@ -276,11 +346,11 @@ X_bar = c * np.dot(Ew * sfnmf.Et[goodk], sfnmf.Eh[goodk])
 
 fig()
 subplot(121)
-specshow(logspec(X_bar))
+specshow((X_bar ** 0.1))
 axhline(y=(bin_cutoff+1), color='black')
 colorbar()
 subplot(122)
-specshow(logspec(np.abs(X_complex_train)))
+specshow((np.abs(X_complex_train) ** 0.1))
 axhline(y=(bin_cutoff+1), color='black')
 colorbar()
 pass
@@ -288,12 +358,22 @@ pass
 # <codecell>
 
 ## mean of predictive log-likelihood
-pred_likeli = np.mean(stats.expon.logpdf(np.abs(X_complex_train[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):]))
-print pred_likeli
+pred_likeli = stats.expon.logpdf(np.abs(X_complex_train[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):])
+print 'Mean = {}; std = {}'.format(np.mean(pred_likeli), np.std(pred_likeli))
 
 # <codecell>
 
-write_wav(librosa.istft(X_bar * (X_complex_train / np.abs(X_complex_train)), n_fft=n_fft, hann_w=0, hop_length=hop_length), 'be_sanity_check3.wav')
+hist(pred_likeli.ravel(), bins=50)
+pass
+
+# <codecell>
+
+x_train_org, x_train_rec, snr = compute_SNR(X_complex_train, X_bar * (X_complex_train / np.abs(X_complex_train)), n_fft, hop_length)
+print snr
+
+# <codecell>
+
+write_wav(x_train_rec, 'be_sanity_check3.wav')
 
 # <codecell>
 
