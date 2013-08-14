@@ -116,7 +116,7 @@ bin_cutoff = n_fft * freq_threshold / sr
 X_cutoff_train = X_complex_train[:(bin_cutoff+1)]
 
 x_cutoff_train = librosa.istft(X_cutoff_train, n_fft=2*bin_cutoff, hop_length=bin_cutoff, hann_w=0)
-write_wav(x_cutoff_train, 'prior_be_cutoff.wav', samplerate=2 * freq_threshold)
+write_wav(x_cutoff_train, 'prior_be_cutoff_train.wav', samplerate=2 * freq_threshold)
 
 # <codecell>
 
@@ -140,6 +140,7 @@ A_train = A_train - np.mean(A_train, axis=0, keepdims=True)
 A_train = A_train / np.sqrt(np.sum(A_train ** 2, axis=0, keepdims=True))
 specshow(np.dot(A_train.T, A_train) / encoder_train.T)
 colorbar()
+pass
 
 # <codecell>
 
@@ -168,10 +169,15 @@ pass
 
 ## mean of predictive log-likelihood
 tmp_gamma = gamma[(bin_cutoff+1):]
-pred_likeli = np.mean(stats.gamma.logpdf(np.abs(X_complex_test[(bin_cutoff+1):]), 
-                                         tmp_gamma[:, np.newaxis], 
-                                         scale=1. / (tmp_gamma[:, np.newaxis] * EexpX[(bin_cutoff+1):])))
-print pred_likeli
+pred_likeli = stats.gamma.logpdf(np.abs(X_complex_train[(bin_cutoff+1):]), 
+                                 tmp_gamma[:, np.newaxis], 
+                                 scale=1. / (tmp_gamma[:, np.newaxis] * EexpX[(bin_cutoff+1):]))
+print 'Mean = {}; std = {}'.format(np.mean(pred_likeli), np.std(pred_likeli))
+
+# <codecell>
+
+hist(pred_likeli.ravel(), bins=50)
+pass
 
 # <codecell>
 
@@ -192,7 +198,7 @@ write_wav(x_train_org, 'be_sanity_check1_org.wav')
 X_cutoff_test = X_complex_test[:(bin_cutoff+1)]
 
 x_cutoff_test = librosa.istft(X_cutoff_test, n_fft=2*bin_cutoff, hop_length=bin_cutoff, hann_w=0)
-write_wav(x_cutoff_test, 'prior_be_cutoff.wav', samplerate=2 * freq_threshold)
+write_wav(x_cutoff_test, 'prior_be_cutoff_test.wav', samplerate=2 * freq_threshold)
 
 # <codecell>
 
@@ -306,6 +312,7 @@ for i in xrange(1000):
 
 # <codecell>
 
+fig()
 subplot(121)
 plot(objs)
 subplot(122)
