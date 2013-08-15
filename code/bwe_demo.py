@@ -109,14 +109,6 @@ X_cutoff_test = X_complex_test[bin_low:(bin_high+1)]
 F, T = X_complex_test.shape
 tmpX = np.zeros((F, T))
 tmpX[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
-fig()
-subplot(121)
-specshow(logspec(np.abs(X_complex_test)))
-colorbar()
-subplot(122)
-specshow(logspec(tmpX))
-colorbar()
-pass
 
 # <codecell>
 
@@ -157,41 +149,30 @@ for t in xrange(encoder_test.T):
 
 # <codecell>
 
-fig(figsize=(20, 5))
-subplot(121)
-specshow(logspec(EX_test))
-axhline(y=(bin_low+1), color='black')
-axhline(y=(bin_high+1), color='black')
-colorbar()
-subplot(122)
+fig(figsize=(18, 4))
+subplot(131)
 specshow(logspec(np.abs(X_complex_test)))
+title('Original')
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
 colorbar()
-pass
-
-# <codecell>
-
-## mean of predictive log-likelihood
-tmp_gamma = gamma[(bin_high+1):]
-pred_likeli = stats.gamma.logpdf(np.abs(X_complex_test[(bin_high+1):]), 
-                                 tmp_gamma[:, np.newaxis], 
-                                 scale=1. / (tmp_gamma[:, np.newaxis] * EexpX[(bin_high+1):]))
-tmp_gamma = gamma[:bin_low]
-pred_likeli = np.vstack((pred_likeli, stats.gamma.logpdf(np.abs(X_complex_test[:bin_low]), 
-                                                         tmp_gamma[:, np.newaxis], 
-                                                         scale=1. / (tmp_gamma[:, np.newaxis] * EexpX[:bin_low]))))
-print 'Mean = {}; std = {}'.format(np.mean(pred_likeli), np.std(pred_likeli))
-
-# <codecell>
-
-hist(pred_likeli.ravel(), bins=50)
+subplot(132)
+specshow(logspec(tmpX))
+title('Band-limited')
+colorbar()
+subplot(133)
+specshow(logspec(EX_test, dbdown=85))
+title('Reconstructed')
+axhline(y=(bin_low+1), color='black')
+axhline(y=(bin_high+1), color='black')
+colorbar()
+tight_layout()
 pass
 
 # <codecell>
 
 x_test_org, x_test_rec, snr = compute_SNR(X_complex_test, EX_test * (X_complex_test / np.abs(X_complex_test)), n_fft, hop_length)
-print snr
+print 'SNR = {:.3f}'.format(snr)
 
 # <codecell>
 
@@ -200,5 +181,8 @@ write_wav(x_test_org, 'bwe_demo_org.wav')
 
 # <codecell>
 
-save_object(encoder_test, 'bwe_demo_encoder_obj')
+save_object(encoder_test, 'bwe_demo_encoderencoder_test')
+
+# <codecell>
+
 
