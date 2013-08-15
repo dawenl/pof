@@ -233,7 +233,7 @@ X_bar = c * np.dot(Ew * sfnmf.Et[goodk], sfnmf.Eh[goodk])
 
 fig()
 subplot(121)
-specshow(logspec(X_bar))
+specshow(logspec(X_bar, dbdown=90))
 axhline(y=(bin_cutoff+1), color='black')
 colorbar()
 subplot(122)
@@ -357,6 +357,25 @@ pass
 x_rec = librosa.istft(X_bar * (X_complex / np.abs(X_complex)), n_fft=n_fft, hann_w=0, hop_length=hop_length)
 write_wav(x_rec, 'be_nmf_infer.wav')
 
+# <headingcell level=1>
+
+# Obtaining a upper bound of predictive likelihood
+
 # <codecell>
 
+X_full = np.hstack((X_complex_train, X_complex)) 
+
+full_nmf = nmf.GaP_NMF(np.abs(X_full), K=100, seed=98765)
+full_nmf, _ = fit_nmf(full_nmf)
+
+# <codecell>
+
+goodk = full_nmf.goodk()
+X_bar = np.mean(np.abs(X_full)) * np.dot(full_nmf.Ew[:, goodk] * full_nmf.Et[goodk], full_nmf.Eh[goodk])
+
+# <codecell>
+
+## mean of predictive log-likelihood
+pred_likeli = stats.expon.logpdf(np.abs(X_full[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):])
+print 'Mean = {}; std = {}'.format(np.mean(pred_likeli), np.std(pred_likeli))
 
