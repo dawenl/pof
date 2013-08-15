@@ -138,7 +138,7 @@ pass
 A_train = encoder_train.EA.copy()
 A_train = A_train - np.mean(A_train, axis=0, keepdims=True)
 A_train = A_train / np.sqrt(np.sum(A_train ** 2, axis=0, keepdims=True))
-specshow(np.dot(A_train.T, A_train) / encoder_train.T)
+specshow(np.dot(A_train.T, A_train))
 colorbar()
 pass
 
@@ -220,8 +220,19 @@ pass
 A_test = encoder_test.EA.copy()
 A_test = A_test - np.mean(A_test, axis=0, keepdims=True)
 A_test = A_test / np.sqrt(np.sum(A_test ** 2, axis=0, keepdims=True))
-specshow(np.dot(A_test.T, A_test) / encoder_test.T)
+specshow(np.dot(A_test.T, A_test))
 colorbar()
+pass
+
+# <codecell>
+
+corr = np.dot(A_test.T, A_test)
+corr -= np.diag(np.diag(corr))
+
+#import numpy.linalg as LA
+w, V = LA.eig(corr)
+figure()
+plot(flipud(sort(w)), '-o')
 pass
 
 # <codecell>
@@ -315,8 +326,10 @@ for i in xrange(1000):
 fig()
 subplot(121)
 plot(objs)
+title('variational objective')
 subplot(122)
 plot(snrs)
+title('SNR')
 pass
 
 # <codecell>
@@ -351,13 +364,13 @@ Ew = np.exp(np.dot(U, sfnmf.Ea[:, goodk]))
 c = np.mean(sfnmf.X / sfnmf._xtwid(goodk))
 X_bar = c * np.dot(Ew * sfnmf.Et[goodk], sfnmf.Eh[goodk])
 
-fig()
+fig(figsize=(20, 5))
 subplot(121)
-specshow((X_bar ** 0.1))
+specshow(logspec(X_bar))
 axhline(y=(bin_cutoff+1), color='black')
 colorbar()
 subplot(122)
-specshow((np.abs(X_complex_train) ** 0.1))
+specshow(logspec(np.abs(X_complex_train)))
 axhline(y=(bin_cutoff+1), color='black')
 colorbar()
 pass
@@ -375,7 +388,7 @@ pass
 
 # <codecell>
 
-x_train_org, x_train_rec, snr = compute_SNR(X_complex_train, X_bar * (X_complex_train / np.abs(X_complex_train)), n_fft, hop_length)
+_, x_train_rec, snr = compute_SNR(X_complex_train, X_bar * (X_complex_train / np.abs(X_complex_train)), n_fft, hop_length)
 print snr
 
 # <codecell>
