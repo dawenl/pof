@@ -88,7 +88,7 @@ pass
 
 # <codecell>
 
-freq_threshold = 4000.
+freq_threshold = 6000.
 bin_cutoff = n_fft * freq_threshold / sr
 X_cutoff = X_complex[:(bin_cutoff+1)]
 
@@ -378,4 +378,7 @@ X_bar = np.mean(np.abs(X_full)) * np.dot(full_nmf.Ew[:, goodk] * full_nmf.Et[goo
 ## mean of predictive log-likelihood
 pred_likeli = stats.expon.logpdf(np.abs(X_full[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):])
 print 'Mean = {}; std = {}'.format(np.mean(pred_likeli), np.std(pred_likeli))
+
+# <codecell>
+
 

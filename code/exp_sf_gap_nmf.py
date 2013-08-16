@@ -61,10 +61,9 @@ for file_dir in files[N_train:]:
     for wav_dir in file_dir:
         wav, sr = load_timit(wav_dir)
         if X_complex is None:
-            print wav_dir
             X_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
-        #else:
-        #    X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
+        else:
+            X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
         
 X = np.abs(X_complex)
 
@@ -106,7 +105,7 @@ pass
 # <codecell>
 
 reload(sf_nmf)
-sfnmf = sf_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=50, seed=98765)
+sfnmf = sf_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=100, seed=98765)
 
 # <codecell>
 
@@ -152,6 +151,14 @@ c = np.mean(sfnmf.X / sfnmf._xtwid(goodk))
 #c = np.mean(sfnmf.X / sfnmf._xtwid())
 X_rec_sf_amp = c * sfnmf._xbar()
 X_rec_sf = X_rec_sf_amp * X_complex / np.abs(X_complex)
+
+# <codecell>
+
+K = goodk.size
+for (i, k) in enumerate(goodk):
+    fig(figsize=(12, 2))
+    plot(((sfnmf.Ew[:, k])))
+    xlim([0, 513])
 
 # <codecell>
 
