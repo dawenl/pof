@@ -93,7 +93,7 @@ def gig_gamma_term(Ex, Exinv, rho, tau, a, b):
             2 * np.sqrt(rho[non_zero_tau] * tau[non_zero_tau]))
         score = score + np.sum(-a * np.log(rho[zero_tau]) + special.gammaln(a))
     else:
-        # shape(a) = (F, )  shape(b) = (F, K)
+        # shape(a) = (F, 1)  shape(b) = (F, K)
         tmpA = a * np.ones_like(b)
         score = score + np.sum(a * np.log(b) - special.gammaln(a))
         score = score - .5 * np.sum(tmpA[non_zero_tau] *
