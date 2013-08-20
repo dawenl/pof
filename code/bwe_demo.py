@@ -123,6 +123,7 @@ encoder_test.vb_e(cold_start = False)
 
 # <codecell>
 
+fig(figsize=(10, 6))
 specshow(encoder_test.EA.T)
 colorbar()
 pass
@@ -149,25 +150,57 @@ for t in xrange(encoder_test.T):
 
 # <codecell>
 
-fig(figsize=(18, 4))
-subplot(131)
+freq_res = sr / n_fft
+
+fig(figsize=(8, 2))
 specshow(logspec(np.abs(X_complex_test)))
-title('Original')
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
-colorbar()
-subplot(132)
-specshow(logspec(tmpX))
-title('Band-limited')
-colorbar()
-subplot(133)
-specshow(logspec(EX_test, dbdown=85))
-title('Reconstructed')
-axhline(y=(bin_low+1), color='black')
-axhline(y=(bin_high+1), color='black')
-colorbar()
+ylabel('Frequency (Hz)')
+yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+xlabel('Time (sec)')
+xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
 tight_layout()
+savefig('bwe_org.eps')
+
+fig(figsize=(8, 2))
+specshow(logspec(tmpX))
+ylabel('Frequency (Hz)')
+yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+xlabel('Time (sec)')
+xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+tight_layout()
+savefig('bwe_cutoff.eps')
+
+fig(figsize=(8, 2))
+specshow(logspec(EX_test, dbdown=85))
+axhline(y=(bin_low+1), color='black')
+axhline(y=(bin_high+1), color='black')
+ylabel('Frequency (Hz)')
+yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+xlabel('Time (sec)')
+xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+tight_layout()
+savefig('bwe_rec.eps')
+
+fig(figsize=(8, 2))
+kl = sio.loadmat('kl_X_rec.mat')
+EX_KL = kl['X_test_rec']
+specshow(logspec(EX_KL, dbdown=90))
+axhline(y=(bin_low+1), color='black')
+axhline(y=(bin_high+1), color='black')
+ylabel('Frequency (Hz)')
+yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+xlabel('Time (sec)')
+xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+tight_layout()
+savefig('bwe_kl_rec.eps')
 pass
+
+# <codecell>
+
+_, x_test_rec_kl, snr = compute_SNR(X_complex_test, EX_KL * (X_complex_test / np.abs(X_complex_test)), n_fft, hop_length)
+print 'SNR = {:.3f}'.format(snr)
 
 # <codecell>
 
@@ -178,6 +211,7 @@ print 'SNR = {:.3f}'.format(snr)
 
 write_wav(x_test_rec, 'bwe_demo_rec.wav')
 write_wav(x_test_org, 'bwe_demo_org.wav')
+write_wav(x_test_rec_kl, 'bwe_demo_rec_kl.wav')
 
 # <codecell>
 
