@@ -1,5 +1,5 @@
 """
-Poisson NMF
+IS-NMF
 
 CREATED: 2013-08-09 23:50:58 by Dawen Liang <dl2771@columbia.edu>
 
@@ -21,11 +21,11 @@ specshow = functools.partial(plt.imshow, cmap=plt.cm.jet, origin='lower',
                              aspect='auto', interpolation='nearest')
 
 
-class KL_NMF:
-    def __init__(self, X, K=100, d=100, GaP=False, smoothness=100, seed=None,
+class IS_NMF:
+    def __init__(self, X, K=100, GaP=False, smoothness=100, seed=None,
                  **kwargs):
         self.X = X.copy()
-        self.K, self.d = K, d
+        self.K = K
         self.GaP = GaP
         self.F, self.T = X.shape
         if seed is None:
@@ -66,35 +66,49 @@ class KL_NMF:
                                                 size=(self.L, self.K))
             self.logEexpa = np.zeros((self.F, self.L, self.K))
 
-        self.nuw = 10000 * np.random.gamma(smoothness, 1. / smoothness,
-                                           size=(self.F, self.K))
-        self.rhow = 10000 * np.random.gamma(smoothness, 1. / smoothness,
+        self.rhow = 10000 * np.random.gamma(smoothness,
+                                            1. / smoothness,
                                             size=(self.F, self.K))
-        self.nuh = 10000 * np.random.gamma(smoothness, 1. / smoothness,
-                                           size=(self.K, self.T))
-        self.rhoh = 10000 * np.random.gamma(smoothness, 1. / smoothness,
+        self.tauw = 10000 * np.random.gamma(smoothness,
+                                            1. / smoothness,
+                                            size=(self.F, self.K))
+        self.rhoh = 10000 * np.random.gamma(smoothness,
+                                            1. / smoothness,
                                             size=(self.K, self.T))
+        self.tauh = 10000 * np.random.gamma(smoothness,
+                                            1. / smoothness,
+                                            size=(self.K, self.T))
+        self.rhot = self.K * 10000 * np.random.gamma(smoothness,
+                                                     1. / smoothness,
+                                                     size=(self.K, ))
+        self.taut = 1. / self.K * 10000 * np.random.gamma(smoothness,
+                                                          1. / smoothness,
+                                                          size=(self.K, ))
         if self.GaP:
-            self.nut = 10000 * np.random.gamma(smoothness, 1. / smoothness,
-                                               size=(self.K, ))
             self.rhot = self.K * 10000 * np.random.gamma(smoothness,
                                                          1. / smoothness,
                                                          size=(self.K, ))
+            self.taut = 1. / self.K * 10000 * np.random.gamma(smoothness,
+                                                              1. / smoothness,
+                                                              size=(self.K, ))
         self.compute_expectations()
 
     def compute_expectations(self):
+        self.Ew, self.Ewinv = utils.compute_gig_expectations(self.gamma,
+                                                             self.rhow,
+                                                             self.tauw)
+        self.Ewinvinv = 1. / self.Ewinv
+        self.Eh, self.Ehinv = utils.compute_gig_expectations(self.b,
+                                                             self.rhoh,
+                                                             self.tauh)
+        self.Ehinvinv = 1. / self.Ehinv
+        if self.GaP:
+            self.Et, self.Etinv = utils.compute_gig_expectations(
+                self.beta / self.K, self.rhot, self.taut)
+            self.Etinvinv = 1. / self.Etinv
         if self.sf_prior:
             self.Ea, self.Eloga = utils.compute_gamma_expectation(self.nua,
                                                                   self.rhoa)
-        self.Ew, self.Elogw = utils.compute_gamma_expectation(self.nuw,
-                                                              self.rhow)
-        self.Eh, self.Elogh = utils.compute_gamma_expectation(self.nuh,
-                                                              self.rhoh)
-        if self.GaP:
-            self.Et, self.Elogt = utils.compute_gamma_expectation(self.nut,
-                                                                  self.rhot)
-        else:
-            self.Et, self.Elogt = np.ones((self.K, )), np.zeros((self.K, ))
 
     def update(self, disp=0):
         self.update_h()
@@ -184,48 +198,78 @@ class KL_NMF:
 
     def update_w(self):
         goodk = self.goodk()
-        c = self.X.sum() / self._xbar().sum()
+        xtwid = self._xtwid(goodk)
+        c = np.mean(self.X / xtwid)
+        print('Optimal scale for updating W: {}'.format(c))
+        xxtwidinvsq = self.X / c * xtwid**(-2)
+        xbarinv = 1. / self._xbar(goodk)
+        dEt = self.Et[goodk]
+        dEtinvinv = self.Etinvinv[goodk]
 
-        xxelinv = self.X / self._xexplog(goodk)
+        self.tauw[:, goodk] = self.Ewinvinv[:, goodk]**2 * \
+                np.dot(xxtwidinvsq, dEtinvinv * self.Ehinvinv[goodk, :].T)
+        self.tauw[self.tauw < 1e-100] = 0
 
         if self.sf_prior:
-            self.nuw[:, goodk] = self.gamma
-            self.nuw[:, goodk] = self.nuw[:, goodk] + self.d * np.exp(self.Elogw[:, goodk] + self.Elogt[goodk]) * np.dot(xxelinv, np.exp(self.Elogh[goodk]).T)
-            self.rhow[:, goodk] = self.gamma * np.exp(np.sum(self.logEexpa[:, :, goodk], axis=1))
-            self.rhow[:, goodk] = self.rhow[:, goodk] + c * self.d * np.sum(self.Eh[goodk], axis=1, keepdims=True).T
+            self.rhow[:, goodk] = self.gamma * np.exp(np.sum(
+                self.logEexpa[:, :, goodk], axis=1))
+            self.rhow[:, goodk] = self.rhow[:, goodk] + np.dot(
+                xbarinv, dEt * self.Eh[goodk, :].T)
+            self.Ew[:, goodk], self.Ewinv[:, goodk] = \
+                    utils.compute_gig_expectations(
+                        self.gamma,
+                        self.rhow[:, goodk],
+                        self.tauw[:, goodk])
         else:
-            self.nuw[:, goodk] = self.a + self.d * np.exp(self.Elogw[:, goodk]
-                                                          + self.Elogt[goodk]) * np.dot(xxelinv, np.exp(self.Elogh[goodk]).T)
-            self.rhow[:, goodk] = self.a + c * self.d * np.sum(self.Eh[goodk],
-                                                               axis=1, keepdims=True).T
-        self.Ew[:, goodk], self.Elogw[:, goodk] = utils.compute_gamma_expectation(
-            self.nuw[:, goodk], self.rhow[:, goodk]
-        )
+            self.rhow[:, goodk] = self.a + np.dot(xbarinv, dEt *
+                                                  self.Eh[goodk, :].T)
+            self.Ew[:, goodk], self.Ewinv[:, goodk] = \
+                    utils.compute_gig_expectations(
+                        self.a,
+                        self.rhow[:, goodk],
+                        self.tauw[:, goodk])
+        self.Ewinvinv[:, goodk] = 1. / self.Ewinv[:, goodk]
 
     def update_h(self):
         goodk = self.goodk()
-        c = self.X.sum() / self._xbar().sum()
-
-        xxelinv = self.X / self._xexplog(goodk)
-
-        self.nuh[goodk] = self.b + self.d * np.exp(self.Elogh[goodk, :]) * np.dot(np.exp(self.Elogt[goodk] + self.Elogw[:, goodk]).T, xxelinv)
-        self.rhoh[goodk] = self.b + c * self.d * np.sum(self.Ew[:, goodk], axis=0, keepdims=True).T
-        self.Eh[goodk], self.Elogh[goodk] = utils.compute_gamma_expectation(
-            self.nuh[goodk], self.rhoh[goodk])
+        xtwid = self._xtwid(goodk)
+        c = np.mean(self.X / xtwid)
+        print('Optimal scale for updating H: {}'.format(c))
+        xxtwidinvsq = self.X / c * xtwid**(-2)
+        xbarinv = 1. / self._xbar(goodk)
+        dEt = self.Et[goodk]
+        dEtinvinv = self.Etinvinv[goodk]
+        self.rhoh[goodk, :] = self.b + np.dot(dEt[:, np.newaxis] *
+                                              self.Ew[:, goodk].T,
+                                              xbarinv)
+        self.tauh[goodk, :] = self.Ehinvinv[goodk, :]**2 * \
+                np.dot(dEtinvinv[:, np.newaxis] * self.Ewinvinv[:, goodk].T,
+                        xxtwidinvsq)
+        self.tauh[self.tauh < 1e-100] = 0
+        self.Eh[goodk, :], self.Ehinv[goodk, :] = \
+                utils.compute_gig_expectations(
+                    self.b,
+                    self.rhoh[goodk, :],
+                    self.tauh[goodk, :])
+        self.Ehinvinv[goodk, :] = 1. / self.Ehinv[goodk, :]
 
     def update_theta(self):
         goodk = self.goodk()
-        c = self.X.sum() / self._xbar().sum()
-
-        xxelinv = self.X / self._xexplog(goodk)
-
-        self.nut[goodk] = self.beta / self.K
-        self.nut[goodk] = self.nut[goodk] + self.d * np.exp(self.Elogt[goodk]) * np.sum(np.exp(self.Elogh[goodk] * np.dot(np.exp(self.Elogw[:, goodk]).T, xxelinv)), axis=1)
-        self.rhot[goodk] = self.beta + c * self.d * np.sum(self.Ew, axis=0) * np.sum(self.Eh, axis=1)
-        self.Et[goodk], self.Elogt[goodk] = utils.compute_gamma_expectation(
-            self.nut[goodk], self.rhot[goodk]
-        )
-        pass
+        xtwid = self._xbar(goodk)
+        c = np.mean(self.X / xtwid)
+        print('Optimal scale for updating theta: {}'.format(c))
+        xxtwidinvsq = self.X / c * xtwid**(-2)
+        xbarinv = 1. / self._xbar(goodk)
+        self.rhot[goodk] = self.beta + np.sum(np.dot(
+            self.Ew[:, goodk].T, xbarinv) *
+            self.Eh[goodk, :], axis=1)
+        self.taut[goodk] = self.Etinvinv[goodk]**2 * \
+                np.sum(np.dot(self.Ewinvinv[:, goodk].T, xxtwidinvsq) *
+                       self.Ehinvinv[goodk, :], axis=1)
+        self.taut[self.taut < 1e-100] = 0
+        self.Et[goodk], self.Etinv[goodk] = utils.compute_gig_expectations(
+            self.beta / self.K, self.rhot[goodk], self.taut[goodk])
+        self.Etinvinv[goodk] = 1. / self.Etinv[goodk]
 
     def goodk(self):
         if not self.GaP:
@@ -238,30 +282,29 @@ class KL_NMF:
     def bound(self):
         score = 0
         goodk = self.goodk()
-        c = self.X.sum() / self._xbar().sum()
+        c = np.mean(self.X / self._xtwid(goodk))
+        xbar = self._xbar(goodk)
 
-        score = score + np.sum(self.d * self.X * (log(c * self.d) +
-                                                  np.log(self._xexplog(goodk)))
-                               - c * self.d * self._xbar(goodk))
+        score = score - np.sum(np.log(xbar) + log(c))
         if self.sf_prior:
-            score = score + utils.gamma_term(self.Ew, self.Elogw, self.nuw,
-                                             self.rhow, self.gamma, self.gamma*
-                                             np.exp(np.sum(self.logEexpa,
-                                                           axis=1)))
+            score = score + utils.gig_gamma_term(self.Ew, self.Ewinv, self.rhow,
+                                                self.tauw, self.gamma, self.gamma *
+                                                np.exp(np.sum(self.logEexpa,
+                                                            axis=1)))
             score = score + utils.gamma_term(self.Ea, self.Eloga,
                                              self.nua, self.rhoa,
                                              self.alpha[:, np.newaxis],
                                              self.alpha[:, np.newaxis])
-
         else:
-            score = score + utils.gamma_term(self.Ew, self.Elogw, self.nuw,
-                                             self.rhow, self.a, self.a)
-        score = score + utils.gamma_term(self.Eh, self.Elogh, self.nuh,
-                                         self.rhoh, self.b, self.b)
+            score = score + utils.gig_gamma_term(self.Ew, self.Ewinv, self.rhow, self.tauw,
+                                     self.a, self.a)
+
+        score = score + utils.gig_gamma_term(self.Eh, self.Ehinv, self.rhoh,
+                                            self.tauh, self.b, self.b)
         if self.GaP:
-            score = score + utils.gamma_term(self.Et, self.Elogt, self.nut,
-                                             self.rhot, self.beta / self.K,
-                                             self.beta)
+            score = score + utils.gig_gamma_term(self.Et, self.Etinv, self.rhot,
+                                                self.taut, self.beta / self.K,
+                                                self.beta)
         return score
 
     def figures(self):
@@ -333,3 +376,4 @@ def print_gradient(name, val, grad, approx):
     print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'
           '| Diff |: {:.3f}'.format(name, val, grad, approx,
                                     np.abs(grad - approx)))
+

@@ -61,8 +61,8 @@ for file_dir in files[N_train:]:
         wav, sr = load_timit(wav_dir)
         if X_complex is None:
             X_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
-        #else:
-        #    X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
+        else:
+            X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
         
 X = np.abs(X_complex)
 
@@ -79,7 +79,7 @@ pass
 
 # <codecell>
 
-d = sio.loadmat('priors/gamma_gender_full_seq.mat')
+d = sio.loadmat('priors/gamma_gender_batch.mat')
 U = d['U'].T
 gamma = d['gamma']
 alpha = d['alpha'].ravel()
@@ -100,8 +100,9 @@ pass
 
 # <codecell>
 
-reload(sf_nmf)
-sfnmf = sf_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=100, seed=98765)
+reload(nmf)
+#sfnmf = sf_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=100, seed=98765)
+sfnmf = nmf.KL_NMF(X, K=50, d=50, seed=98765, U=U, gamma=gamma, alpha=alpha)
 
 # <codecell>
 
@@ -143,7 +144,8 @@ sfnmf.figures()
 # <codecell>
 
 goodk = sfnmf.goodk()
-c = np.mean(sfnmf.X / sfnmf._xtwid(goodk))
+#c = np.mean(sfnmf.X / sfnmf._xtwid(goodk))
+c = sfnmf.X.sum() / sfnmf._xbar().sum()
 #c = np.mean(sfnmf.X / sfnmf._xtwid())
 X_rec_sf_amp = c * sfnmf._xbar()
 X_rec_sf = X_rec_sf_amp * X_complex / np.abs(X_complex)
@@ -159,8 +161,14 @@ for (i, k) in enumerate(goodk):
 # <codecell>
 
 x_rec_sf = librosa.istft(X_rec_sf, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(x_rec_sf, 'rec_sf.wav')
 x_org = librosa.istft(X_complex, n_fft=n_fft, hop_length=hop_length, hann_w=0)
+length = min(x_rec.size, x_org.size)
+snr = 10 * np.log10(np.sum( x_org[:length] ** 2) / np.sum( (x_org[:length] - x_rec[:length])**2))
+print snr
+
+# <codecell>
+
+write_wav(x_rec_sf, 'rec_sf.wav')
 write_wav(x_org, 'rec_org.wav')
 
 # <headingcell level=1>
@@ -254,4 +262,7 @@ title('Error')
 colorbar()
 tight_layout()
 pass
+
+# <codecell>
+
 
