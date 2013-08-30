@@ -9,8 +9,7 @@ import scipy.io as sio
 from scikits.audiolab import Sndfile, Format
 
 import librosa
-import gap_nmf as nmf
-import sf_gap_nmf as sf_nmf
+import kl_nmf as nmf
 
 # <codecell>
 
@@ -62,8 +61,8 @@ for file_dir in files[N_train:]:
         wav, sr = load_timit(wav_dir)
         if X_complex is None:
             X_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
-        else:
-            X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
+        #else:
+        #    X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
         
 X = np.abs(X_complex)
 
@@ -80,9 +79,6 @@ pass
 
 # <codecell>
 
-#d = sio.loadmat('priors/lognormal_gender.mat')
-#d = sio.loadmat('priors/gamma_spk_stan.mat')
-#d = sio.loadmat('priors/gamma_gender_e15_m30_seq.mat')
 d = sio.loadmat('priors/gamma_gender_full_seq.mat')
 U = d['U'].T
 gamma = d['gamma']
@@ -173,8 +169,19 @@ write_wav(x_org, 'rec_org.wav')
 
 # <codecell>
 
+print np.amax(X), np.amin(X)
+hist(X.flatten(), bins=50)
+pass
+
+# <codecell>
+
+hist(50 * X[X < 1].flatten(), bins=100)
+pass
+
+# <codecell>
+
 reload(nmf)
-rnmf = nmf.GaP_NMF(X, K=50, seed=98765)
+rnmf = nmf.KL_NMF(X, K=50, d=50, seed=98765) 
 
 score = -np.inf
 criterion = 0.0005
@@ -200,15 +207,22 @@ rnmf.figures()
 # <codecell>
 
 #c = np.mean(rnmf.X / rnmf._xtwid())
-#X_rec_amp = c * rnmf._xbar()
-X_rec_amp = np.mean(X) * rnmf._xbar()
+c = rnmf.X.sum() / rnmf._xbar().sum()
+X_rec_amp = c * rnmf._xbar()
+#X_rec_amp = np.mean(X) * rnmf._xbar()
 X_rec = X_rec_amp * X_complex / np.abs(X_complex)
 
 # <codecell>
 
 x_rec = librosa.istft(X_rec, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-write_wav(x_rec, 'rec_nmf.wav')
 x_org = librosa.istft(X_complex, n_fft=n_fft, hop_length=hop_length, hann_w=0)
+length = min(x_rec.size, x_org.size)
+snr = 10 * np.log10(np.sum( x_org[:length] ** 2) / np.sum( (x_org[:length] - x_rec[:length])**2))
+print snr
+
+# <codecell>
+
+write_wav(x_rec, 'rec_nmf.wav')
 write_wav(x_org, 'rec_org.wav')
 
 # <headingcell level=1>
@@ -240,7 +254,4 @@ title('Error')
 colorbar()
 tight_layout()
 pass
-
-# <codecell>
-
 

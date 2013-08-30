@@ -109,14 +109,16 @@ def gig_gamma_term(Ex, Exinv, rho, tau, a, b):
     return score
 
 
-def gamma_term(Ex, Elogx, nu, rho, a):
+def gamma_term(Ex, Elogx, nu, rho, a, b):
     ''' Compute E_q[log p(x)] - E_q [log q(x)] where:
-        p(x) = Gamma(a, a), q(x) = Gamma(nu, rho)
+        p(x) = Gamma(a, b), q(x) = Gamma(nu, rho)
     '''
+    da = a * np.ones_like(nu)
+    db = b * np.ones_like(rho)
+
     score = 0
-    ca = a[:, np.newaxis]
-    score = score + np.sum((ca - nu) * Elogx)
-    score = score - np.sum((ca - rho) * Ex)
-    score = score + np.sum(special.gammaln(nu) - special.gammaln(ca))
-    score = score + np.sum(ca * np.log(ca) - nu * np.log(rho))
+    score = score + np.sum((da - nu) * Elogx)
+    score = score - np.sum((db - rho) * Ex)
+    score = score + np.sum(special.gammaln(nu) - special.gammaln(da))
+    score = score + np.sum(da * np.log(db) - nu * np.log(rho))
     return score

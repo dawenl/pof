@@ -6,6 +6,7 @@ CREATED: 2013-08-09 23:50:58 by Dawen Liang <dl2771@columbia.edu>
 """
 
 import functools
+import time
 from math import log
 
 import numpy as np
@@ -44,9 +45,11 @@ class KL_NMF:
         if 'U' in kwargs:
             self.U = kwargs['U'].copy()
             self.sf_prior = True
+            print 'Using source-filter prior'
         else:
             self.U = None
             self.sf_prior = False
+            print 'Using regular prior'
         self.alpha = kwargs['alpha'].copy() if 'alpha' in kwargs else None
         self.gamma = kwargs['gamma'].copy() if 'gamma' in kwargs else None
         if self.gamma is not None and self.gamma.ndim == 1:
@@ -66,7 +69,7 @@ class KL_NMF:
         self.rhow = 10000 * np.random.gamma(smoothness, 1. / smoothness,
                                             size=(self.F, self.K))
         self.nuh = 10000 * np.random.gamma(smoothness, 1. / smoothness,
-                                           size=(self.F, self.K))
+                                           size=(self.K, self.T))
         self.rhoh = 10000 * np.random.gamma(smoothness, 1. / smoothness,
                                             size=(self.K, self.T))
         if self.GaP:
@@ -89,9 +92,9 @@ class KL_NMF:
             self.Et, self.Elogt = utils.compute_gamma_expectation(self.nut,
                                                                   self.rhot)
         else:
-            self.Et, self.Elogt = np.ones((self.K, )), self.zeros((self.K, ))
+            self.Et, self.Elogt = np.ones((self.K, )), np.zeros((self.K, ))
 
-    def update(self, disp):
+    def update(self, disp=0):
         self.update_h()
         self.update_w()
         goodk = self.goodk()
@@ -238,17 +241,68 @@ class KL_NMF:
         score = score + np.sum(self.d * self.X * (log(c * self.d) +
                                                   np.log(self._xexplog(goodk)))
                                - c * self.d * self._xbar(goodk))
-        score = score + utils.gamma_term(self.Ew, self.Elogw, self.nuw,
-                                         self.rhow)
+        if self.sf_prior:
+            score = score + utils.gamma_term(self.Ew, self.Elogw, self.nuw,
+                                             self.rhow, self.gamma, self.gamma*
+                                             np.exp(np.sum(self.logEexpa,
+                                                           axis=1)))
+        else:
+            score = score + utils.gamma_term(self.Ew, self.Elogw, self.nuw,
+                                             self.rhow, self.a, self.a)
         score = score + utils.gamma_term(self.Eh, self.Elogh, self.nuh,
-                                         self.rhoh)
+                                         self.rhoh, self.b, self.b)
         if self.GaP:
             score = score + utils.gamma_term(self.Et, self.Elogt, self.nut,
-                                             self.rhot)
+                                             self.rhot, self.beta / self.K,
+                                             self.beta)
         if self.sf_prior:
-            score = score + utils.gamma_term(self.Ea, self.Eloga, self.nua,
-                                             self.rhoa, self.alpha)
+            score = score + utils.gamma_term(self.Ea, self.Eloga,
+                                             self.nua, self.rhoa,
+                                             self.alpha[:, np.newaxis],
+                                             self.alpha[:, np.newaxis])
         return score
+
+    def figures(self):
+        ''' Animation-type of figures can only be created with PyGTK backend
+        '''
+        plt.subplot(3, 2, 1)
+        specshow(np.log(self.Ew))
+        plt.title('E[W]')
+        plt.xlabel('component index')
+        plt.ylabel('frequency')
+
+        plt.subplot(3, 2, 2)
+        specshow(np.log(self.Eh))
+        plt.title('E[H]')
+        plt.xlabel('time')
+        plt.ylabel('component index')
+
+        plt.subplot(3, 2, 3)
+        plt.bar(np.arange(self.K), self.Et)
+        plt.title('E[theta]')
+        plt.xlabel('component index')
+        plt.ylabel('E[theta]')
+
+        if self.sf_prior:
+            plt.subplot(3, 2, 4)
+            specshow(self.Ea)
+            plt.title('E[A]')
+            plt.xlabel('component index')
+            plt.ylabel('filters index')
+
+        plt.subplot(3, 2, 5)
+        specshow(np.log(self.X))
+        plt.title('Original Spectrogram')
+        plt.xlabel('time')
+        plt.ylabel('frequency')
+
+        plt.subplot(3, 2, 6)
+        specshow(np.log(self._xbar()))
+        plt.title('Reconstructed Spectrogram')
+        plt.xlabel('time')
+        plt.ylabel('frequency')
+
+        time.sleep(0.000001)
 
     def _xbar(self, goodk=None):
         if goodk is None:
@@ -258,7 +312,7 @@ class KL_NMF:
 
     def _xexplog(self, goodk):
         '''
-        sum_k exp(E[log theta_k * W_{fk} * H_{kt}])
+        sum_k exp(E[log theta_k * W_k * H_k])
         '''
         return np.dot(np.exp(self.Elogw[:, goodk] + self.Elogt[goodk]),
                       np.exp(self.Elogh[goodk]))
