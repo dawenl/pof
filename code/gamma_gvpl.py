@@ -7,11 +7,11 @@ CREATED: 2013-07-12 11:09:44 by Dawen Liang <daliang@adobe.com>
 """
 
 import time
+import sys
 
 import numpy as np
 import scipy.optimize as optimize
 import scipy.special as special
-
 
 class SF_Dict(object):
     def __init__(self, W, L=10, smoothness=100, seed=None):
@@ -81,12 +81,11 @@ class SF_Dict(object):
             #if score < last_score:
             #    print('Oops, before: {}\tafter: {}\tt={}'.format(
             #        last_score, score, t))
-            if verbose and not t % 5000:
-                #sys.stdout.write('.')
-                print '{}/{}'.format(t, self.T)
+            if verbose and not t % 100:
+                sys.stdout.write('.')
         if verbose:
             t = time.time() - start_t
-            #sys.stdout.write('\n')
+            sys.stdout.write('\n')
             print 'Batch update\ttime: {:.2f}'.format(t)
             score = self.bound()
             print_increment('A', last_score, score)
