@@ -34,13 +34,16 @@ class KL_NMF:
         else:
             print 'Using fixed seed {}'.format(seed)
             np.random.seed(seed)
-        self._parse_hyperparameter(**kwargs)
+        self._parse_args(**kwargs)
         self._init(smoothness)
 
-    def _parse_hyperparameter(self, **kwargs):
+    def _parse_args(self, **kwargs):
         self.a = float(kwargs['a']) if 'a' in kwargs else 0.1
         self.b = float(kwargs['b']) if 'b' in kwargs else 0.1
         self.beta = float(kwargs['beta']) if 'beta' in kwargs else 1.
+        self._parse_hyperparameter(**kwargs)
+
+    def _parse_hyperparameter(self, **kwargs):
         # source-filter prior
         if 'U' in kwargs:
             self.U = kwargs['U'].copy()
@@ -58,13 +61,7 @@ class KL_NMF:
 
     def _init(self, smoothness):
         if self.sf_prior:
-            self.nua = 10000 * np.random.gamma(smoothness,
-                                               1. / smoothness,
-                                               size=(self.L, self.K))
-            self.rhoa = 10000 * np.random.gamma(smoothness,
-                                                1. / smoothness,
-                                                size=(self.L, self.K))
-            self.logEexpa = np.zeros((self.F, self.L, self.K))
+            self._init_sf_prior(smoothness)
 
         self.nuw = 10000 * np.random.gamma(smoothness, 1. / smoothness,
                                            size=(self.F, self.K))
@@ -81,6 +78,21 @@ class KL_NMF:
                                                          1. / smoothness,
                                                          size=(self.K, ))
         self.compute_expectations()
+
+    def _init_sf_prior(self, smoothness):
+        self.nua = 10000 * np.random.gamma(smoothness,
+                                           1. / smoothness,
+                                           size=(self.L, self.K))
+        self.rhoa = 10000 * np.random.gamma(smoothness,
+                                            1. / smoothness,
+                                            size=(self.L, self.K))
+        self.Ea, self.Eloga = utils.compute_gamma_expectation(self.nua,
+                                                              self.rhoa)
+        self.logEexpa = np.zeros((self.F, self.L, self.K))
+
+    def inject_sf_prior(self, smoothness=100, **kwargs):
+        self._parse_hyperparameter(**kwargs)
+        self._init_sf_prior(smoothness)
 
     def compute_expectations(self):
         if self.sf_prior:

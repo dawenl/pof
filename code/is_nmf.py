@@ -376,4 +376,3 @@ def print_gradient(name, val, grad, approx):
     print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'
           '| Diff |: {:.3f}'.format(name, val, grad, approx,
                                     np.abs(grad - approx)))
-

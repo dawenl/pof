@@ -6,7 +6,6 @@ CREATED: 2013-07-12 11:09:44 by Dawen Liang <daliang@adobe.com>
 
 """
 
-import sys
 import time
 
 import numpy as np
@@ -82,11 +81,12 @@ class SF_Dict(object):
             #if score < last_score:
             #    print('Oops, before: {}\tafter: {}\tt={}'.format(
             #        last_score, score, t))
-            if verbose and not t % 100:
-                sys.stdout.write('.')
+            if verbose and not t % 5000:
+                #sys.stdout.write('.')
+                print '{}/{}'.format(t, self.T)
         if verbose:
             t = time.time() - start_t
-            sys.stdout.write('\n')
+            #sys.stdout.write('\n')
             print 'Batch update\ttime: {:.2f}'.format(t)
             score = self.bound()
             print_increment('A', last_score, score)

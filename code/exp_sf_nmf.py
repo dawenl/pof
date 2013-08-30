@@ -86,11 +86,11 @@ alpha = d['alpha'].ravel()
 
 # <codecell>
 
-log_normal = True
+#log_normal = False
 
 # if loading priors trained from log-normal, transfer gamma to approximate gamma noise model
-if log_normal:
-    gamma = 1./(np.exp(2./gamma) - np.exp(1./gamma))
+#if log_normal:
+#    gamma = 1./(np.exp(2./gamma) - np.exp(1./gamma))
 
 # <codecell>
 
@@ -101,7 +101,6 @@ pass
 # <codecell>
 
 reload(nmf)
-#sfnmf = sf_nmf.SF_GaP_NMF(X, U, gamma, alpha, K=100, seed=98765)
 sfnmf = nmf.KL_NMF(X, K=50, d=50, seed=98765, U=U, gamma=gamma, alpha=alpha)
 
 # <codecell>
@@ -162,8 +161,8 @@ for (i, k) in enumerate(goodk):
 
 x_rec_sf = librosa.istft(X_rec_sf, n_fft=n_fft, hop_length=hop_length, hann_w=0)
 x_org = librosa.istft(X_complex, n_fft=n_fft, hop_length=hop_length, hann_w=0)
-length = min(x_rec.size, x_org.size)
-snr = 10 * np.log10(np.sum( x_org[:length] ** 2) / np.sum( (x_org[:length] - x_rec[:length])**2))
+length = min(x_rec_sf.size, x_org.size)
+snr = 10 * np.log10(np.sum( x_org[:length] ** 2) / np.sum( (x_org[:length] - x_rec_sf[:length])**2))
 print snr
 
 # <codecell>
@@ -177,19 +176,8 @@ write_wav(x_org, 'rec_org.wav')
 
 # <codecell>
 
-print np.amax(X), np.amin(X)
-hist(X.flatten(), bins=50)
-pass
-
-# <codecell>
-
-hist(50 * X[X < 1].flatten(), bins=100)
-pass
-
-# <codecell>
-
-reload(nmf)
-rnmf = nmf.KL_NMF(X, K=50, d=50, seed=98765) 
+#reload(nmf)
+#rnmf = nmf.KL_NMF(X, K=50, d=50, seed=98765) 
 
 score = -np.inf
 criterion = 0.0005
@@ -232,6 +220,13 @@ print snr
 
 write_wav(x_rec, 'rec_nmf.wav')
 write_wav(x_org, 'rec_org.wav')
+
+# <codecell>
+
+rnmf.inject_sf_prior(U=U, alpha=alpha, gamma=gamma)
+
+# <codecell>
+
 
 # <headingcell level=1>
 
