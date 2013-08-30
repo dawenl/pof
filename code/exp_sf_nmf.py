@@ -176,8 +176,8 @@ write_wav(x_org, 'rec_org.wav')
 
 # <codecell>
 
-#reload(nmf)
-#rnmf = nmf.KL_NMF(X, K=50, d=50, seed=98765) 
+reload(nmf)
+rnmf = nmf.KL_NMF(X, K=50, d=50, seed=98765) 
 
 score = -np.inf
 criterion = 0.0005
@@ -223,10 +223,18 @@ write_wav(x_org, 'rec_org.wav')
 
 # <codecell>
 
+## injecting sf prior after regular NMF converges
 rnmf.inject_sf_prior(U=U, alpha=alpha, gamma=gamma)
-
-# <codecell>
-
+score = -np.inf
+criterion = 0.0005
+for i in xrange(1000):
+    rnmf.update()
+    lastscore = score
+    score = rnmf.bound()
+    improvement = (score - lastscore) / abs(lastscore)
+    print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
+    if improvement < criterion:
+        break
 
 # <headingcell level=1>
 
