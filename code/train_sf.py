@@ -6,7 +6,10 @@ import scipy.io as sio
 import gamma_gvpl as vpl
 
 
-def train_sf(W, L, threshold=0.0005, maxiter=200):
+def train_sf(matfile, L, threshold=0.0005, maxiter=200):
+    d = sio.loadmat(matfile)
+    W = d['W']
+    
     old_obj = -np.inf
     cold_start = False
     batch_m = True
@@ -23,16 +26,14 @@ def train_sf(W, L, threshold=0.0005, maxiter=200):
         if improvement < threshold:
             break
         old_obj = score
-    sio.savemat('sf_prior_L{}.mat'.format(L),
+    sio.savemat('sf_L{}_{}.mat'.format(L, matfile),
                 {'U': sfd.U, 'alpha': sfd.alpha, 'gamma': sfd.gamma})
     pass
 
 if __name__ == '__main__':
     sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
-
-    L = int(sys.argv[1])
-    d = sio.loadmat('TIMIT_subset.mat')
-    W = d['W']
-    print('Train SF prior with L={} on TIMIT subset...'.format(L))
-    train_sf(W, L)
+    matfile = sys.argv[1]
+    L = int(sys.argv[2])
+    print('Train SF prior with L={} on {}...'.format(L, matfile))
+    train_sf(matfile, L)
     pass
