@@ -105,11 +105,10 @@ maxiter = 200
 cold_start = False
 maxiter_e = 15000
 maxiter_m = 15000
-batch_m = False
+batch_m = True
 
 sfd = vpl.SF_Dict(np.abs(W_complex_train.T), L=L, seed=98765)
 obj = []
-
 for i in xrange(maxiter):
     sfd.vb_e(cold_start=cold_start, maxiter=maxiter_e, disp=0)
     sfd.vb_m(batch=batch_m, maxiter=maxiter_m, disp=0)
@@ -183,12 +182,6 @@ sf_encoder.U, sf_encoder.gamma, sf_encoder.alpha = sfd.U, sfd.gamma, sfd.alpha
 
 sf_encoder.vb_e(cold_start = False)
 A = sf_encoder.EA
-
-# <codecell>
-
-specshow(A.T)
-colorbar()
-pass
 
 # <codecell>
 
