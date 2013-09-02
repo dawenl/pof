@@ -14,7 +14,7 @@ def load_timit(wav_dir):
 #f_dirs_all = !ls -d "$TIMIT_DIR"dr[1-6]/f*
 #m_dirs_all = !ls -d "$TIMIT_DIR"dr[1-6]/m*
 
-n_spk = 20 
+n_spk = 20
 np.random.seed(98765)
 f_dirs = np.random.permutation(f_dirs_all)[:n_spk]
 m_dirs = np.random.permutation(m_dirs_all)[:n_spk]
