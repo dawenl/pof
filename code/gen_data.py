@@ -10,12 +10,11 @@ def load_timit(wav_dir):
     wav = f.read_frames(f.nframes)
     return (wav, f.samplerate)
 
-TIMIT_DIR = '/home/empire6/drspeech/data/timit/dist/train/'
+#TIMIT_DIR = '/home/empire6/drspeech/data/timit/dist/train/'
+#f_dirs_all = !ls -d "$TIMIT_DIR"dr[1-6]/f*
+#m_dirs_all = !ls -d "$TIMIT_DIR"dr[1-6]/m*
 
-f_dirs_all = !ls -d "$TIMIT_DIR"dr[1-6]/f*
-m_dirs_all = !ls -d "$TIMIT_DIR"dr[1-6]/m*
-
-n_spk = 10
+n_spk = 20 
 np.random.seed(98765)
 f_dirs = np.random.permutation(f_dirs_all)[:n_spk]
 m_dirs = np.random.permutation(m_dirs_all)[:n_spk]

@@ -26,7 +26,7 @@ def train_sf(matfile, L, threshold=0.0005, maxiter=200):
         if improvement < threshold:
             break
         old_obj = score
-    sio.savemat('sf_L{}_{}.mat'.format(L, matfile),
+    sio.savemat('sf_L{}_{}'.format(L, matfile),
                 {'U': sfd.U, 'alpha': sfd.alpha, 'gamma': sfd.gamma})
     pass
 
