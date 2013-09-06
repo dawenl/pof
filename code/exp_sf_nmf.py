@@ -268,11 +268,4 @@ pass
 
 # <codecell>
 
-for spk_dir in f_files:
-    for wav_dir in spk_dir:
-        wav, _ = load_timit(wav_dir)
-        if W_train is None:
-            W_train = np.abs(librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))
-        else:
-            W_train = np.hstack((W_train, np.abs(librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))))
 
