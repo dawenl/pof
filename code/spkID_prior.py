@@ -60,7 +60,7 @@ def vlbound_spk_id(data_mat, L):
             print('Average variational '
                   'lower bound: {:.2f}'.format(vlbound[pspk, spk]))
 
-    sio.savemat('spk_vlbound_L{}_{}'.format(L, data_mat))
+    sio.savemat('spk_vlbound_L{}_{}'.format(L, data_mat), {'vlbound': vlbound})
     pass
 
 
