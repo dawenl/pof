@@ -21,7 +21,7 @@ specshow = functools.partial(plt.imshow, cmap=plt.cm.jet, origin='lower',
                              aspect='auto', interpolation='nearest')
 
 
-class KL_NMF:
+class KL_NMF (object):
     def __init__(self, X, K=100, d=100, GaP=False, smoothness=100, seed=None,
                  **kwargs):
         self.X = X.copy()
@@ -108,13 +108,14 @@ class KL_NMF:
         else:
             self.Et, self.Elogt = np.ones((self.K, )), np.zeros((self.K, ))
 
-    def update(self, disp=0):
+    def update(self, updateW=True, disp=0):
         self.update_h()
-        self.update_w()
-        goodk = self.goodk()
-        if self.sf_prior:
-            for k in goodk:
-                self.update_a(k, disp)
+        if updateW:
+            self.update_w()
+            goodk = self.goodk()
+            if self.sf_prior:
+                for k in goodk:
+                    self.update_a(k, disp)
         if self.GaP:
             self.update_theta()
             # truncate unused components

@@ -111,10 +111,30 @@ for (i, spk_dir) in enumerate(m_files):
 
 # <codecell>
 
-X_train = X_train - np.mean(X_train, axis=1, keepdims=True)
-X_train = X_train / np.std(X_train, axis=1, keepdims=True)
-X_test = X_test - np.mean(X_test, axis=1, keepdims=True)
-X_test = X_test / np.std(X_test, axis=1, keepdims=True)
+meanX = np.mean(X_train, axis=1, keepdims=True)
+stdX = np.std(X_train, axis=1, keepdims=True)
+
+X_train = (X_train - meanX) / stdX
+X_test = (X_test - meanX) / stdX
+
+# <codecell>
+
+d = sio.loadmat('feat_sf_L50_TIMIT_spk10_spkID_N10.mat')
+X_train = d['A_train']
+X_test = d['A_test']
+y_train = d['y_train'].ravel()
+y_test = d['y_test'].ravel()
+
+# <codecell>
+
+fig(figsize=(12, 4))
+subplot(121)
+specshow(X_train)
+colorbar()
+subplot(122)
+specshow(X_test)
+colorbar()
+pass
 
 # <codecell>
 
@@ -123,10 +143,57 @@ clf.fit(X_train.T, y_train)
 
 # <codecell>
 
-print 'error = {:.5f}'.format(np.sum(y_test != clf.predict(X_test.T)) / float(y_test.size))
+for (i, spk_dir) in enumerate(f_files):
+    bincount = np.zeros((2 * n_spk, ))
+    for wav_dir in spk_dir[N_train:]:
+        wav, sr = load_timit(wav_dir)
+        S = librosa.feature.melspectrogram(wav, sr=sr, n_fft=n_fft, hop_length=hop_length)
+        log_S = librosa.logamplitude(S)
+    
+        mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=13)
+        mfcc = mfcc - np.mean(mfcc, axis=1, keepdims=True)
+        mfcc = mfcc / np.std(mfcc, axis=1, keepdims=True)
+        pred = clf.predict(mfcc.T)
+        
+        bincount = bincount + np.bincount(pred.astype(int64), minlength=2 * n_spk)
+        #print np.bincount(pred.astype(int64))
+        y = np.argmax(np.bincount(pred.astype(int64)))
+        print y, i
+    print bincount
+        
+for (i, spk_dir) in enumerate(m_files):
+    bincount = np.zeros((2 * n_spk, ))
+    for wav_dir in spk_dir[N_train:]:
+        wav, sr = load_timit(wav_dir)
+        S = librosa.feature.melspectrogram(wav, sr=sr, n_fft=n_fft, hop_length=hop_length)
+        log_S = librosa.logamplitude(S)
+    
+        mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=13)
+        mfcc = mfcc - np.mean(mfcc, axis=1, keepdims=True)
+        mfcc = mfcc / np.std(mfcc, axis=1, keepdims=True)
+        pred = clf.predict(mfcc.T)
+        
+        bincount = bincount + np.bincount(pred.astype(int64), minlength=2 * n_spk)
+        #print np.bincount(pred.astype(int64))
+        y = np.argmax(np.bincount(pred.astype(int64)))
+        print y, i + n_spk
+    print bincount
+        
+for spk in xrange(2 * n_spk):
+    X = X_test[:, y_test == spk]
+    pred = clf.predict(X.T)
+    print np.bincount(pred.astype(int64))
+    y = np.argmax(np.bincount(pred.astype(int64)))
+    print y, spk
 
 # <codecell>
 
+error = np.sum(y_test != clf.predict(X_test.T)) / float(X_test.shape[1])
+print error
+
+# <codecell>
+
+## save raw STFT
 n_fft = 1024
 hop_length = 512
 
@@ -176,20 +243,6 @@ for (i, spk_dir) in enumerate(m_files):
             stft = np.abs(librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))
             X_test = np.hstack((X_test, stft))
             y_test = np.hstack((y_test, (i + n_spk) * np.ones((stft.shape[1], ))))
-
-# <codecell>
-
-print X_train.shape
-print y_train.shape
-hist(y_train)
-pass
-
-# <codecell>
-
-print X_test.shape
-print y_test.shape
-hist(y_test)
-pass
 
 # <codecell>
 

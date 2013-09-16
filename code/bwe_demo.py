@@ -34,7 +34,7 @@ def load_object(filename):
 
 # <codecell>
 
-TIMIT_DIR = '../../timit/train/'
+TIMIT_DIR = '../../timit/test/'
 
 # <codecell>
 
@@ -51,36 +51,38 @@ def write_wav(w, filename, channels=1, samplerate=16000):
 
 # <codecell>
 
-gender = 'f'
-dirs = !ls -d "$TIMIT_DIR"dr1/"$gender"*
+f_dirs_all = !ls -d "$TIMIT_DIR"dr[1-6]/f*
+m_dirs_all = !ls -d "$TIMIT_DIR"dr[1-6]/m*
 
-files = [glob.glob(spk_dir + '/*.wav') for spk_dir in dirs]
-n_files = len(files)
+n_spk = 5
+np.random.seed(98765)
+f_dirs = np.random.permutation(f_dirs_all)[:n_spk]
+m_dirs = np.random.permutation(m_dirs_all)[:n_spk]
+
+files = [glob.glob(spk_dir + '/*.wav') for spk_dir in f_dirs]
+files.extend([glob.glob(spk_dir + '/*.wav') for spk_dir in m_dirs])
 
 # <codecell>
 
 n_fft = 1024
 hop_length = 512
-
-N_train = int(0.8 * n_files)
-N_test = n_files - N_train
-np.random.seed(98765)
-
-idx = np.random.permutation(n_files)
+lengths = []
 
 X_complex_test = None
-for file_dir in files[N_train:]:
-    for wav_dir in file_dir:
+for file_dir in files:
+    for wav_dir in file_dir[-5:]:
         wav, sr = load_timit(wav_dir)
+        stft = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+        lengths.append(stft.shape[1])
         if X_complex_test is None:
-            X_complex_test = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+            X_complex_test = stft
         else:
-            X_complex_test = np.hstack((X_complex_test, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
+            X_complex_test = np.hstack((X_complex_test, stft))
 
 # <codecell>
 
 # load the prior learned from training data
-d = sio.loadmat('priors/gamma_gender_batch.mat')
+d = sio.loadmat('priors/sf_L50_TIMIT_spk20.mat')
 U = d['U']
 gamma = d['gamma'].ravel()
 alpha = d['alpha'].ravel()
@@ -152,49 +154,53 @@ for t in xrange(encoder_test.T):
 
 freq_res = sr / n_fft
 
-fig(figsize=(8, 2))
+fig(figsize=(12, 3))
 specshow(logspec(np.abs(X_complex_test)))
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
 ylabel('Frequency (Hz)')
-yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+#yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
 xlabel('Time (sec)')
-xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+#xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+colorbar()
 tight_layout()
-savefig('bwe_org.eps')
+#savefig('bwe_org.eps')
 
-fig(figsize=(8, 2))
+fig(figsize=(12, 3))
 specshow(logspec(tmpX))
 ylabel('Frequency (Hz)')
-yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+#yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
 xlabel('Time (sec)')
-xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+#xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+colorbar()
 tight_layout()
-savefig('bwe_cutoff.eps')
+#savefig('bwe_cutoff.eps')
 
-fig(figsize=(8, 2))
-specshow(logspec(EX_test, dbdown=85))
+fig(figsize=(12, 3))
+specshow(logspec(EX_test, dbdown=115))
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
 ylabel('Frequency (Hz)')
-yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+#yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
 xlabel('Time (sec)')
-xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+#xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+colorbar()
 tight_layout()
-savefig('bwe_rec.eps')
+#savefig('bwe_rec.eps')
 
-fig(figsize=(8, 2))
+fig(figsize=(12, 3))
 kl = sio.loadmat('kl_X_rec.mat')
 EX_KL = kl['X_test_rec']
 specshow(logspec(EX_KL, dbdown=90))
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
 ylabel('Frequency (Hz)')
-yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+#yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
 xlabel('Time (sec)')
-xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+#xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+colorbar()
 tight_layout()
-savefig('bwe_kl_rec.eps')
+#savefig('bwe_kl_rec.eps')
 pass
 
 # <codecell>
