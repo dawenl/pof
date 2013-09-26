@@ -122,10 +122,6 @@ train_path = glob.glob('denoise/TIMIT_speech/*.wav')
 test_path = glob.glob('denoise/test/*.wav')
 noise_path = glob.glob('denoise/noise/*.wav')
 
-print train_path
-print test_path
-print noise_path
-
 # <codecell>
 
 def train(nmf, updateW=True, criterion=0.0005, maxiter=1000, verbose=False):
@@ -199,8 +195,8 @@ d = 25
 
 # <codecell>
 
-#W_sf_mat = sio.loadmat('SF_dict/local/SF_TIMIT60_dict_sf_L50_TIMIT_spk20_K50_d25.mat')
-W_sf_mat = sio.loadmat('SF_dict/porkpie/SF_TIMIT60_dict_sf_L50_TIMIT_spk20_K50_d25.mat')
+W_sf_mat = sio.loadmat('SF_dict/local/SF_TIMIT60_dict_sf_L50_TIMIT_spk20_K50_d25.mat')
+#W_sf_mat = sio.loadmat('SF_dict/porkpie/SF_TIMIT60_dict_sf_L50_TIMIT_spk20_K50_d25.mat')
 Ws_sf_nu = W_sf_mat['W_nu']
 Ws_sf_rho = W_sf_mat['W_rho']
 
@@ -342,7 +338,7 @@ def plot_SXR(SXR, SXR_sf, SXR_bayes, SXR_kl, SXR_is=None):
     #savefig('SF_vs_Bayes_vs_MLE_Ks{}_Kn{}_d{}.eps'.format(Ks, Kn, d))
     pass
 
-SXR_mat = sio.loadmat('bss_TIMIT60_Ks50_Kn20_k25.mat')
+SXR_mat = sio.loadmat('bss_TIMIT60_Ks50_Kn20_k25_rand_2.mat')
 plot_SXR('SDR', SXR_mat['SDR_sf'], SXR_mat['SDR_bayes'], SXR_mat['SDR_kl'])#, SXR_mat['SDR_is'])
 plot_SXR('SIR', SXR_mat['SIR_sf'], SXR_mat['SIR_bayes'], SXR_mat['SIR_kl'])#, SXR_mat['SIR_is'])
 plot_SXR('SAR', SXR_mat['SAR_sf'], SXR_mat['SAR_bayes'], SXR_mat['SAR_kl'])#, SXR_mat['SAR_is'])
@@ -353,22 +349,23 @@ SDR_sf = SXR_mat['SDR_sf']
 SDR_bayes = SXR_mat['SDR_bayes']
 SDR_kl = SXR_mat['SDR_kl']
 
-print np.mean(SDR_sf), np.mean(SDR_bayes), np.mean(SDR_kl)
-print np.std(SDR_sf)/sqrt(SDR_sf.size), np.std(SDR_bayes)/sqrt(SDR_bayes.size), np.std(SDR_kl)/sqrt(SDR_kl.size)
+print 'SF: {:.3f} ({:.3f})'.format(np.mean(SDR_sf), 2 * np.std(SDR_sf)/sqrt(SDR_sf.size))
+print 'BKL: {:.3f} ({:.3f})'.format(np.mean(SDR_bayes), 2 * np.std(SDR_bayes)/sqrt(SDR_bayes.size))
+print 'KL: {:.3f} ({:.3f})'.format(np.mean(SDR_kl), 2 * np.std(SDR_kl)/sqrt(SDR_kl.size))
 
-print stats.ranksums(SDR_sf.ravel(), SDR_bayes.ravel())[1]
-print stats.ranksums(SDR_sf.ravel(), SDR_kl.ravel())[1]
-print stats.ranksums(SDR_bayes.ravel(), SDR_kl.ravel())[1]
+print 'SF v.s. BKL: p-value = {:.3f}'.format(stats.ranksums(SDR_sf.ravel(), SDR_bayes.ravel())[1])
+print 'SF v.s. KL: p-value = {:.3f}'.format(stats.ranksums(SDR_sf.ravel(), SDR_kl.ravel())[1])
+print 'BKL v.s. KL: p-value = {:.3f}'.format(stats.ranksums(SDR_bayes.ravel(), SDR_kl.ravel())[1])
 
-
-print [stats.ranksums(SDR_sf[:, i], SDR_bayes[:, i])[1] for i in xrange(n_noise)]
-print [stats.ranksums(SDR_sf[:, i], SDR_kl[:, i])[1] for i in xrange(n_noise)]
+#print [stats.ranksums(SDR_sf[:, i], SDR_bayes[:, i])[1] for i in xrange(n_noise)]
+#print [stats.ranksums(SDR_sf[:, i], SDR_kl[:, i])[1] for i in xrange(n_noise)]
 
 # <codecell>
 
-diff = SDR_sf - SDR_bayes
-
-print np.mean(diff), np.std(diff) / sqrt(diff.size)
+diff_SF_BKL = SDR_sf - SDR_bayes
+print 'SF - BKL: {:.3f} ({:.3f})'.format(np.mean(diff_SF_BKL), 2 * np.std(diff_SF_BKL) / sqrt(diff_SF_BKL.size))
+diff_BKL_KL = SDR_bayes - SDR_kl
+print 'BKL - KL: {:.3f} ({:.3f})'.format(np.mean(diff_BKL_KL), 2 * np.std(diff_BKL_KL) / sqrt(diff_BKL_KL.size))
 
 # <codecell>
 

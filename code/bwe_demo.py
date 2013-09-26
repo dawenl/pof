@@ -313,7 +313,7 @@ for (i, p) in enumerate(pos):
     _, x_rec, SNR_SF_NMF[i] = compute_SNR(X_complex_test[:, start_pos:p], 
                                   EX_SF_NMF[:, start_pos:p] * (X_complex_test[:, start_pos:p] / np.abs(X_complex_test[:, start_pos:p])), 
                                   n_fft, hop_length)
-    #write_wav(x_rec, 'bwe/{}_is_rec.wav'.format(i+1))
+    #write_wav(x_rec, 'bwe/{}_sfnmf_rec.wav'.format(i+1))
     start_pos = p
 print 'SNR = {:.3f} +- {:.3f}'.format(np.mean(SNR_SF_NMF), 2*np.std(SNR_SF_NMF)/sqrt(pos.size))
 print SNR_SF_NMF
