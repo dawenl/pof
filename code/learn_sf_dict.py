@@ -29,7 +29,7 @@ def train(nmf, updateW=True, criterion=0.0005, maxiter=1000):
     return objs
 
 
-def learn_dictionary(prior_mat, K, d, n_fft=1024, hop_length=512, seed=None):
+def learn_dictionary(prior_mat, K, d, seed, n_fft=1024, hop_length=512):
     prior = sio.loadmat(prior_mat)
     U = prior['U'].T
     gamma = prior['gamma']
@@ -51,7 +51,7 @@ def learn_dictionary(prior_mat, K, d, n_fft=1024, hop_length=512, seed=None):
         train(nmf_sf)
         W_nu[i], W_rho[i] = nmf_sf.nuw, nmf_sf.rhow
 
-    sio.savemat('SF_TIMIT60_dict_{}_K{}_d{}.mat'.format(prior_mat, K, d),
+    sio.savemat('SF_TIMIT60_dict_{}_K{}_d{}_seed{}.mat'.format(prior_mat, K, d, seed),
                 {'W_nu': W_nu, 'W_rho': W_rho})
     return
 
@@ -61,5 +61,6 @@ if __name__ == '__main__':
     prior_mat = sys.argv[1]
     K = int(sys.argv[2])
     d = int(sys.argv[3])
-    learn_dictionary(prior_mat, K, d, seed=98765)
+    seed = int(sys.argv[4])
+    learn_dictionary(prior_mat, K, d, seed)
     pass
