@@ -34,6 +34,12 @@ def load_timit(wav_dir):
     wav = f.read_frames(f.nframes)
     return (wav, f.samplerate)
 
+def write_wav(w, filename, channels=1, samplerate=16000):
+    f_out = Sndfile(filename, 'w', format=Format(), channels=channels, samplerate=samplerate)
+    f_out.write_frames(w)
+    f_out.close()
+    pass
+
 # <codecell>
 
 f_dirs_all = !ls -d "$TIMIT_DIR"dr[1-6]/f*
@@ -119,11 +125,25 @@ X_test = (X_test - meanX) / stdX
 
 # <codecell>
 
-d = sio.loadmat('feat_sf_L50_TIMIT_spk10_spkID_N10.mat')
+d = sio.loadmat('feat_sf_L50_TIMIT_spk20_spkID_N10.mat')
 X_train = d['A_train']
 X_test = d['A_test']
 y_train = d['y_train'].ravel()
 y_test = d['y_test'].ravel()
+
+# <codecell>
+
+def diff_feat(X):
+    tmp = X.copy()
+    L = X.shape[0]
+    X = np.vstack((X, np.hstack((np.zeros((L, 1)), np.diff(tmp, n=1, axis=1)))))
+    X = np.vstack((X, np.hstack((np.zeros((L, 2)), np.diff(tmp, n=2, axis=1)))))
+    return X
+
+X_train = diff_feat(X_train)
+X_test = diff_feat(X_test)
+
+print X_train.shape, X_test.shape
 
 # <codecell>
 
@@ -188,8 +208,8 @@ for spk in xrange(2 * n_spk):
 
 # <codecell>
 
-error = np.sum(y_test != clf.predict(X_test.T)) / float(X_test.shape[1])
-print error
+acc = np.sum(y_test == clf.predict(X_test.T)) / float(X_test.shape[1])
+print acc
 
 # <codecell>
 
