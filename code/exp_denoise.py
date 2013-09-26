@@ -199,8 +199,8 @@ d = 25
 
 # <codecell>
 
-W_sf_mat = sio.loadmat('SF_dict/local/SF_TIMIT60_dict_sf_L50_TIMIT_spk20_K50_d25.mat')
-#W_sf_mat = sio.loadmat('SF_dict/porkpie/SF_TIMIT60_dict_sf_L50_TIMIT_spk20_K50_d25.mat')
+#W_sf_mat = sio.loadmat('SF_dict/local/SF_TIMIT60_dict_sf_L50_TIMIT_spk20_K50_d25.mat')
+W_sf_mat = sio.loadmat('SF_dict/porkpie/SF_TIMIT60_dict_sf_L50_TIMIT_spk20_K50_d25.mat')
 Ws_sf_nu = W_sf_mat['W_nu']
 Ws_sf_rho = W_sf_mat['W_rho']
 

@@ -61,5 +61,5 @@ if __name__ == '__main__':
     prior_mat = sys.argv[1]
     K = int(sys.argv[2])
     d = int(sys.argv[3])
-    learn_dictionary(prior_mat, K, d, seed=None)
+    learn_dictionary(prior_mat, K, d, seed=98765)
     pass
