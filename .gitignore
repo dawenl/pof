@@ -45,3 +45,4 @@ nosetests.xml
 .Rhistory
 # log
 output*
+*.eps

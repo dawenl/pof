@@ -3,11 +3,10 @@ import sys
 import numpy as np
 import scipy.io as sio
 
-#import gamma_gvpl as vpl
-import gvpl as vpl
+import gamma_gvpl as vpl
 
 
-def train_sf(matfile, L, threshold=0.0005, maxiter=30):
+def train_sf(matfile, L, threshold=0.0005, maxiter=200):
     d = sio.loadmat(matfile)
     W = d['W']
 
@@ -27,7 +26,7 @@ def train_sf(matfile, L, threshold=0.0005, maxiter=30):
         if improvement < threshold:
             break
         old_obj = score
-    sio.savemat('sf_lognormal_L{}_{}'.format(L, matfile),
+    sio.savemat('sf_L{}_{}'.format(L, matfile),
                 {'U': sfd.U, 'alpha': sfd.alpha, 'gamma': sfd.gamma})
     pass
 
