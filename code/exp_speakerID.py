@@ -107,6 +107,8 @@ X_test_mfcc = None
 y_train = None
 y_test = None
 
+loc_test = np.zeros((2 * n_spk * (10 - N_train), 2))
+
 for (i, spk_dir) in enumerate(files):
     for wav_dir in spk_dir[:N_train]:
         wav, sr = load_timit(wav_dir)
@@ -119,18 +121,47 @@ for (i, spk_dir) in enumerate(files):
             mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=13)
             X_train_mfcc = np.hstack((X_train_mfcc, mfcc))
             y_train = np.hstack((y_train, i * np.ones((mfcc.shape[1], ))))
-            
-    for wav_dir in spk_dir[N_train:]:
+                      
+    for (j, wav_dir) in enumerate(spk_dir[N_train:]):
         wav, sr = load_timit(wav_dir)
         S = librosa.feature.melspectrogram(wav, sr=sr, n_fft=n_fft, hop_length=hop_length)
         log_S = librosa.logamplitude(S)
         if X_test_mfcc is None:
             X_test_mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=13)
             y_test = i * np.ones((X_test_mfcc.shape[1], )) 
+            loc_test[i * (10 - N_train) + j, 0] = 0
+            loc_test[i * (10 - N_train) + j, 1] = X_test_mfcc.shape[1]
         else:
             mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=13)
+            loc_test[i * (10 - N_train) + j, 0] = X_test_mfcc.shape[1]
             X_test_mfcc = np.hstack((X_test_mfcc, mfcc))
             y_test = np.hstack((y_test, i * np.ones((mfcc.shape[1], ))))
+            loc_test[i * (10 - N_train) + j, 1] = X_test_mfcc.shape[1]
+
+# <codecell>
+
+np.random.seed(98765)
+loc_test_rand = np.random.permutation(loc_test)
+print loc_test_rand
+
+# <codecell>
+
+def permute_data(X_test, y_test, loc_test): 
+    X_test_rand = np.zeros_like(X_test)
+    y_test_rand = np.zeros_like(y_test)
+    
+    start_p = 0
+    for loc in loc_test:
+        #print loc
+        #print [start_p, start_p + (loc[1] - loc[0])]
+        X_test_rand[:, start_p: start_p + (loc[1] - loc[0])] = X_test[:, loc[0] : loc[1]]
+        y_test_rand[start_p: start_p + (loc[1] - loc[0])] = y_test[loc[0]: loc[1]]
+        start_p += (loc[1] - loc[0])
+    return (X_test_rand, y_test_rand)
+
+# <codecell>
+
+X_test_mfcc, y_test = permute_data(X_test_mfcc, y_test, loc_test_rand)
 
 # <codecell>
 
@@ -145,6 +176,8 @@ print X_train_mfcc.shape, X_test_mfcc.shape
 d = sio.loadmat('feat_sf_L50_TIMIT_spk20_spkID_Train{}.mat'.format(N_train))
 X_train_sf = d['A_train']
 X_test_sf = d['A_test']
+
+X_test_sf, _ = permute_data(X_test_sf, d['y_test'], loc_test_rand)
 
 X_train_sf, X_test_sf = z_score(X_train_sf, X_test_sf)
 X_train_sf = diff_feat(X_train_sf)
@@ -173,7 +206,7 @@ pass
 
 clf = svm.LinearSVC()
 
-def spk_id(clf, X_train, X_test, y_train, K=None):
+def spk_id(clf, X_train, X_test, y_train):
     clf.fit(X_train.T, y_train)
     y_pred = clf.predict(X_test.T)
     return y_pred
@@ -186,7 +219,7 @@ def smooth(y_test, y_pred, max_k = 200):
         if max_acc_med < acc_med:
             max_acc_med = acc_med
             best_k = k
-    plot(medfilt(y_pred, max_k))
+    plot(medfilt(y_pred, best_k))
     plot(y_test)
     print 'Raw acc: {:.3f}'.format(np.sum(y_test == y_pred) / float(y_test.size))
     print 'Smoothed acc (k = {}): {:.3f}'.format(best_k, max_acc_med)
@@ -197,15 +230,15 @@ y_pred_mfcc = spk_id(clf, X_train_mfcc, X_test_mfcc, y_train)
 
 # <codecell>
 
-smooth(y_test, y_pred_mfcc, max_k=15)
+smooth(y_test, y_pred_mfcc, max_k=30)
 
 # <codecell>
 
-y_pred_sf = spk_id(clf, X_train_sf, X_test_sf, y_train, y_test)
+y_pred_sf = spk_id(clf, X_train_sf, X_test_sf, y_train)
 
 # <codecell>
 
-smooth(y_test, y_pred_sf, max_k=15)
+smooth(y_test, y_pred_sf, max_k=30)
 
 # <headingcell level=1>
 

@@ -173,8 +173,8 @@ for t in xrange(encoder_test.T):
 
 # <codecell>
 
-K = 150
-W_train_kl, _ = beta_nmf.NMF_beta(X_train, K, niter=500, beta=1)
+K = 50
+W_train_kl, _ = beta_nmf.NMF_beta(X_train, K, niter=100, beta=1)
 
 # <codecell>
 
@@ -198,10 +198,27 @@ def train(nmf, updateW=True, criterion=0.0005, maxiter=1000, verbose=False):
 
 # <codecell>
 
-d = 100
-nmf = kl_nmf.KL_NMF(X_train, K=K, d=d, seed=98765)
+d = 50
+nmf = kl_nmf.KL_NMF(X_train, K=K, d=d, seed=98765, U=U.T, alpha=alpha, gamma=gamma)
 train(nmf, verbose=True)
 pass
+
+# <codecell>
+
+c = nmf.X.sum() / nmf._xbar().sum()
+print c
+fig()
+specshow(logspec(c * nmf._xbar()))
+colorbar()
+fig()
+specshow(logspec(X_train))
+colorbar()
+pass
+
+# <codecell>
+
+specshow(logspec(nmf.Ew))
+colorbar()
 
 # <codecell>
 
@@ -215,7 +232,29 @@ pass
 
 c = xnmf_sf.X.sum() / xnmf_sf._xbar().sum()
 print c
-EX_SF_NMF = c * np.dot(nmf.Ew, xnmf_sf.Eh) / d
+
+fig()
+specshow(logspec(c * xnmf_sf._xbar()))
+colorbar()
+
+fig()
+specshow(logspec(xnmf_sf.X))
+colorbar()
+
+pass
+
+# <codecell>
+
+c = xnmf_sf.X.sum() / xnmf_sf._xbar().sum()
+print c
+EX_SF_NMF = c * np.dot(nmf.Ew, xnmf_sf.Eh)
+
+# <codecell>
+
+fig()
+specshow(logspec(EX_SF_NMF))
+colorbar()
+pass
 
 # <codecell>
 
@@ -313,7 +352,7 @@ for (i, p) in enumerate(pos):
     _, x_rec, SNR_SF_NMF[i] = compute_SNR(X_complex_test[:, start_pos:p], 
                                   EX_SF_NMF[:, start_pos:p] * (X_complex_test[:, start_pos:p] / np.abs(X_complex_test[:, start_pos:p])), 
                                   n_fft, hop_length)
-    #write_wav(x_rec, 'bwe/{}_sfnmf_rec.wav'.format(i+1))
+    write_wav(x_rec, 'bwe/{}_sfnmf_rec.wav'.format(i+1))
     start_pos = p
 print 'SNR = {:.3f} +- {:.3f}'.format(np.mean(SNR_SF_NMF), 2*np.std(SNR_SF_NMF)/sqrt(pos.size))
 print SNR_SF_NMF
@@ -351,26 +390,15 @@ print SNR_cutoff
 
 # <codecell>
 
-tmpX_rn = tmpX.copy()
-tmpX[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
-
-tmpX_rn[:bin_low] = threshold * np.random.rand(bin_low, T)
-tmpX_rn[bin_high+1:] = threshold * np.random.rand(F - bin_high - 1, T)
-
-# <codecell>
-
-_, x_rn_rec, SNR_RN_ALL = compute_SNR(X_complex_test, tmpX_rn * (X_complex_test / np.abs(X_complex_test)), 
-                                                 n_fft, hop_length)
-print SNR_RN_ALL
-
-# <codecell>
-
 x_test_org, x_test_rec, SNR_SF_all = compute_SNR(X_complex_test, EX_test * (X_complex_test / np.abs(X_complex_test)), 
                                                  n_fft, hop_length)
-x_test_org, x_test_rec_kl, SNR_KL_all = compute_SNR(X_complex_test, EX_KL * (X_complex_test / np.abs(X_complex_test)), 
+_, x_test_rec_kl, SNR_KL_all = compute_SNR(X_complex_test, EX_KL * (X_complex_test / np.abs(X_complex_test)), 
+                                                 n_fft, hop_length)
+_, x_test_rec_sfnmf, SNR_SFNMF_all = compute_SNR(X_complex_test, EX_SF_NMF * (X_complex_test / np.abs(X_complex_test)), 
                                                  n_fft, hop_length)
 print SNR_SF_all
 print SNR_KL_all
+print SNR_SFNMF_all
 
 # <codecell>
 
