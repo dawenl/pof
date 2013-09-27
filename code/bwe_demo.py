@@ -173,8 +173,12 @@ for t in xrange(encoder_test.T):
 
 # <codecell>
 
-K = 50
-W_train_kl, _ = beta_nmf.NMF_beta(X_train, K, niter=100, beta=1)
+K = 150
+
+# <codecell>
+
+reload(beta_nmf)
+W_train_kl, _ = beta_nmf.NMF_beta(X_train, K, maxiter=500, beta=1)
 
 # <codecell>
 
@@ -200,7 +204,7 @@ def train(nmf, updateW=True, criterion=0.0005, maxiter=1000, verbose=False):
 
 d = 50
 nmf = kl_nmf.KL_NMF(X_train, K=K, d=d, seed=98765, U=U.T, alpha=alpha, gamma=gamma)
-train(nmf, verbose=True)
+train(nmf, criterion=0.0001, verbose=True)
 pass
 
 # <codecell>
@@ -217,15 +221,21 @@ pass
 
 # <codecell>
 
+fig()
+subplot(121)
 specshow(logspec(nmf.Ew))
 colorbar()
+subplot(122)
+specshow(logspec(W_train_kl))
+colorbar()
+pass
 
 # <codecell>
 
 xnmf_sf = kl_nmf.KL_NMF(np.abs(X_cutoff_test), K=K, d=d, seed=98765)
 xnmf_sf.nuw, xnmf_sf.rhow = nmf.nuw[bin_low:(bin_high+1)], nmf.rhow[bin_low:(bin_high+1)]
 xnmf_sf.compute_expectations()
-train(xnmf_sf, updateW=False)
+train(xnmf_sf, updateW=False, criterion=0.0001, verbose=True)
 pass
 
 # <codecell>
@@ -258,14 +268,9 @@ pass
 
 # <codecell>
 
-_, H_test_kl = beta_nmf.NMF_beta(np.abs(X_cutoff_test), K, niter=10, W=W_train_kl[bin_low:(bin_high+1), :], beta=1)
+reload(beta_nmf)
+_, H_test_kl = beta_nmf.NMF_beta(np.abs(X_cutoff_test), K, W=W_train_kl[bin_low:(bin_high+1), :], beta=1)
 EX_KL = np.dot(W_train_kl, H_test_kl)
-
-# <codecell>
-
-threshold = np.amax(tmpX)
-EX_test[EX_test >= threshold] = threshold
-EX_KL[EX_KL >= threshold] = threshold
 
 # <codecell>
 

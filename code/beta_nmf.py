@@ -11,7 +11,8 @@ import numpy as np
 
 eps = np.spacing(1)
 
-def NMF_beta(X, K, niter=100, W=None, beta=1, seed=None, normalize=False):
+def NMF_beta(X, K, maxiter=100, criterion=0.0001, W=None, beta=1, seed=None,
+             normalize=False, verbose=True):
     ''' Beta-divergence NMF
     '''
     f, t = X.shape
@@ -30,18 +31,31 @@ def NMF_beta(X, K, niter=100, W=None, beta=1, seed=None, normalize=False):
         updateW = False
 
     H = np.random.rand(K, t)
+    score = -np.inf
 
     if beta == 2:
         # EUC-NMF
-        for _ in xrange(niter):
+        for i in xrange(maxiter):
             if updateW:
                 W = W * np.dot(X, H.T)
                 W = W / (np.dot(np.dot(W, H), H.T) + eps)
             H = H * np.dot(W.T, X)
             H = H / (np.dot(np.dot(W.T, W), H) + eps)
+            if normalize:
+                _normalize(W, H)
+
+            lastscore = score
+            X_bar = np.dot(W, H)
+            score = np.sum((X - X_bar)**2)
+            improvement = (lastscore - score) / abs(lastscore)
+            if verbose:
+                print ('iteration {}: obj = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
+            if i >= 10 and improvement < criterion:
+                break
+
     elif beta == 1:
         # KL-NMF
-        for _ in xrange(niter):
+        for i in xrange(maxiter):
             if updateW:
                 W = W * np.dot(X / (np.dot(W, H) + eps), H.T)
                 W = W / (np.dot(np.ones((f, t)), H.T) + eps)
@@ -49,9 +63,19 @@ def NMF_beta(X, K, niter=100, W=None, beta=1, seed=None, normalize=False):
             H = H / (np.dot(W.T, np.ones((f, t))) + eps)
             if normalize:
                 _normalize(W, H)
+
+            lastscore = score
+            X_bar = np.dot(W, H)
+            score = np.sum(X * (np.log(X) - np.log(X_bar)) - np.log(X) + np.log(X_bar))
+            improvement = (lastscore - score) / abs(lastscore)
+            if verbose:
+                print ('iteration {}: obj = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
+            if i >= 10 and improvement < criterion:
+                break
+
     elif beta == 0:
         # IS-NMF
-        for _ in xrange(niter):
+        for i in xrange(maxiter):
             if updateW:
                 W = W * np.dot(X / (np.dot(W, H) + eps)**2, H.T)
                 W = W / (np.dot((np.dot(W, H) + eps)**(-1), H.T) + eps)
@@ -59,6 +83,15 @@ def NMF_beta(X, K, niter=100, W=None, beta=1, seed=None, normalize=False):
             H = H / (np.dot(W.T, (np.dot(W, H) + eps)**(-1)) + eps)
             if normalize:
                 _normalize(W, H)
+
+            lastscore = score
+            X_bar = np.dot(W, H)
+            score = np.sum(X / X_bar + np.log(X) - np.log(X_bar) - 1)
+            improvement = (lastscore - score) / abs(lastscore)
+            if verbose:
+                print ('iteration {}: obj = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
+            if i >= 10 and improvement < criterion:
+                break
     else:
         raise ValueError('beta can only be 0, 1, or 2')
 
