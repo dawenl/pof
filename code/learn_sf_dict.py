@@ -55,10 +55,10 @@ def learn_dictionary(prior_mat, K, d, n_fft=1024, hop_length=512, seed=None):
 
     nmf_sf = kl_nmf.KL_NMF(X_train, K=K, d=d, seed=seed,
                            U=U, gamma=gamma, alpha=alpha)
-    train(nmf_sf)
+    train(nmf_sf, criterion=0.0001)
     W_nu, W_rho = nmf_sf.nuw, nmf_sf.rhow
 
-    sio.savemat('SF_BWE_K{}_d{}.mat'.format(prior_mat, K, d, seed),
+    sio.savemat('SF_BWE_K{}_d{}.mat'.format(K, d),
                 {'W_nu': W_nu, 'W_rho': W_rho})
     return
 
