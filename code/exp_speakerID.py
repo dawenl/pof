@@ -180,6 +180,7 @@ X_test_sf = d['A_test']
 X_test_sf, _ = permute_data(X_test_sf, d['y_test'], loc_test_rand)
 
 X_train_sf, X_test_sf = z_score(X_train_sf, X_test_sf)
+
 X_train_sf = diff_feat(X_train_sf)
 X_test_sf = diff_feat(X_test_sf)
 
@@ -230,7 +231,7 @@ y_pred_mfcc = spk_id(clf, X_train_mfcc, X_test_mfcc, y_train)
 
 # <codecell>
 
-smooth(y_test, y_pred_mfcc, max_k=30)
+smooth(y_test, y_pred_mfcc, max_k=26)
 
 # <codecell>
 
@@ -239,6 +240,16 @@ y_pred_sf = spk_id(clf, X_train_sf, X_test_sf, y_train)
 # <codecell>
 
 smooth(y_test, y_pred_sf, max_k=30)
+
+# <codecell>
+
+X_train = np.vstack((X_train_mfcc, X_train_sf))
+X_test = np.vstack((X_test_mfcc, X_test_sf))
+y_pred_all = spk_id(clf, X_train, X_test, y_train)
+
+# <codecell>
+
+smooth(y_test, y_pred_all, max_k=30)
 
 # <headingcell level=1>
 

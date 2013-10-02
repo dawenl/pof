@@ -54,6 +54,26 @@ def write_wav(w, filename, channels=1, samplerate=16000):
 
 # <codecell>
 
+def train(nmf, updateW=True, criterion=0.0005, maxiter=1000, verbose=False):
+    score = nmf.bound()
+    objs = []
+    for i in xrange(maxiter):
+        start_t = time.time()
+        nmf.update(updateW=updateW, disp=1)
+        t = time.time() - start_t
+
+        lastscore = score
+        score = nmf.bound()
+        objs.append(score)
+        improvement = (score - lastscore) / abs(lastscore)
+        if verbose:
+            print ('iteration {}: bound = {:.2f} ({:.5f} improvement) time = {:.2f}'.format(i, score, improvement, t))
+        if i >= 10 and improvement < criterion:
+            break
+    return objs
+
+# <codecell>
+
 f_dirs_all = !ls -d "$TIMIT_DIR"dr[1-3]/f*
 m_dirs_all = !ls -d "$TIMIT_DIR"dr[1-5]/m*
 
@@ -103,7 +123,7 @@ pass
 # <codecell>
 
 # load the prior learned from training data
-prior_mat = sio.loadmat('priors/sf_L50_TIMIT_spk20.mat')
+prior_mat = sio.loadmat('priors/sf_L10_TIMIT_spk20.mat')
 U = prior_mat['U']
 gamma = prior_mat['gamma'].ravel()
 alpha = prior_mat['alpha'].ravel()
@@ -142,7 +162,7 @@ encoder_test.vb_e(cold_start = False)
 
 # <codecell>
 
-encoder_test = load_object('bwe_encoder_gamma')
+encoder_test = load_object('bwe_encoder_gamma_L{}'.format(L))
 
 # <codecell>
 
@@ -164,66 +184,54 @@ pass
 # <codecell>
 
 EX_test = np.exp(np.dot(encoder_test.EA, U)).T
+EX_test[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
+EX_test[EX_test > np.amax(tmpX)] = np.amax(tmpX)
 
 # <codecell>
 
 EexpX = np.zeros_like(np.abs(X_complex_test))
 for t in xrange(encoder_test.T):
-    EexpX[:, t] = np.exp(np.sum(vpl.comp_log_exp(encoder_test.a[t, :, np.newaxis], encoder_test.b[t, :, np.newaxis], U), axis=0))
+    EexpX[:, t] = np.exp(np.sum(vpl.comp_log_exp(encoder_test.a[t, :, np.newaxis], encoder_test.b[t, :, np.newaxis], -U), axis=0))
 
 # <codecell>
 
-K = 150
+EX_test = EexpX
+EX_test[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
+EX_test[EX_test > np.amax(tmpX)] = np.amax(tmpX)
+specshow(logspec(EexpX))
+colorbar()
+pass
+
+# <codecell>
+
+K = 100
+d = 50
 
 # <codecell>
 
 reload(beta_nmf)
-W_train_kl, _ = beta_nmf.NMF_beta(X_train, K, maxiter=500, beta=1)
+W_train_kl, _ = beta_nmf.NMF_beta(X_train, K, maxiter=500, beta=1, criterion=0.0001)
 
 # <codecell>
 
-def train(nmf, updateW=True, criterion=0.0005, maxiter=1000, verbose=False):
-    score = nmf.bound()
-    objs = []
-    for i in xrange(maxiter):
-        start_t = time.time()
-        nmf.update(updateW=updateW, disp=1)
-        t = time.time() - start_t
+SF_NMF = False
 
-        lastscore = score
-        score = nmf.bound()
-        objs.append(score)
-        improvement = (score - lastscore) / abs(lastscore)
-        if verbose:
-            print ('iteration {}: bound = {:.2f} ({:.5f} improvement) time = {:.2f}'.format(i, score, improvement, t))
-        if i >= 10 and improvement < criterion:
-            break
-    return objs
-
-# <codecell>
-
-d = 50
-nmf = kl_nmf.KL_NMF(X_train, K=K, d=d, seed=98765, U=U.T, alpha=alpha, gamma=gamma)
-train(nmf, criterion=0.0001, verbose=True)
-pass
-
-# <codecell>
-
-c = nmf.X.sum() / nmf._xbar().sum()
-print c
-fig()
-specshow(logspec(c * nmf._xbar()))
-colorbar()
-fig()
-specshow(logspec(X_train))
-colorbar()
-pass
+if SF_NMF:
+    dict_mat = sio.loadmat('SF_dict/porkpie/SF_BWE_K{}_d{}.mat'.format(K, d))
+    nuw = dict_mat['W_nu']
+    rhow = dict_mat['W_rho']
+    Ew = nuw / rhow
+else:
+    nmf = kl_nmf.KL_NMF(X_train, K=K, d=d, seed=98765)
+    train(nmf, criterion=0.0001, verbose=True)
+    nuw, rhow = nmf.nuw, nmf.rhow
+    Ew = nmf.Ew
 
 # <codecell>
 
 fig()
 subplot(121)
-specshow(logspec(nmf.Ew))
+specshow(logspec(Ew))
 colorbar()
 subplot(122)
 specshow(logspec(W_train_kl))
@@ -233,7 +241,7 @@ pass
 # <codecell>
 
 xnmf_sf = kl_nmf.KL_NMF(np.abs(X_cutoff_test), K=K, d=d, seed=98765)
-xnmf_sf.nuw, xnmf_sf.rhow = nmf.nuw[bin_low:(bin_high+1)], nmf.rhow[bin_low:(bin_high+1)]
+xnmf_sf.nuw, xnmf_sf.rhow = nuw[bin_low:(bin_high+1)], rhow[bin_low:(bin_high+1)]
 xnmf_sf.compute_expectations()
 train(xnmf_sf, updateW=False, criterion=0.0001, verbose=True)
 pass
@@ -241,23 +249,8 @@ pass
 # <codecell>
 
 c = xnmf_sf.X.sum() / xnmf_sf._xbar().sum()
-print c
-
-fig()
-specshow(logspec(c * xnmf_sf._xbar()))
-colorbar()
-
-fig()
-specshow(logspec(xnmf_sf.X))
-colorbar()
-
-pass
-
-# <codecell>
-
-c = xnmf_sf.X.sum() / xnmf_sf._xbar().sum()
-print c
-EX_SF_NMF = c * np.dot(nmf.Ew, xnmf_sf.Eh)
+EX_SF_NMF = c * np.dot(Ew, xnmf_sf.Eh)
+EX_SF_NMF[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
 
 # <codecell>
 
@@ -268,9 +261,11 @@ pass
 
 # <codecell>
 
-reload(beta_nmf)
-_, H_test_kl = beta_nmf.NMF_beta(np.abs(X_cutoff_test), K, W=W_train_kl[bin_low:(bin_high+1), :], beta=1)
+#reload(beta_nmf)
+_, H_test_kl = beta_nmf.NMF_beta(np.abs(X_cutoff_test), K, maxiter=100, 
+                                 W=W_train_kl[bin_low:(bin_high+1), :], beta=1, criterion=0.0001)
 EX_KL = np.dot(W_train_kl, H_test_kl)
+EX_KL[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
 
 # <codecell>
 
@@ -281,9 +276,9 @@ specshow(logspec(np.abs(X_complex_test)))
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
 ylabel('Frequency (Hz)')
-#yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
 xlabel('Time (sec)')
-#xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+#xticks(arange(0, 150, 30), (float(hop_length) / sr * arange(0, 150, 30)))
 colorbar()
 tight_layout()
 #savefig('bwe_org.eps')
@@ -303,9 +298,9 @@ specshow(logspec(EX_test))
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
 ylabel('Frequency (Hz)')
-#yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
 xlabel('Time (sec)')
-#xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+#xticks(arange(0, 400, 50), (float(hop_length) / sr * arange(0, 400, 50)))
 colorbar()
 tight_layout()
 #savefig('bwe_rec.eps')
@@ -315,9 +310,9 @@ specshow(logspec(EX_KL))
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
 ylabel('Frequency (Hz)')
-#yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
 xlabel('Time (sec)')
-#xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+#xticks(arange(0, 400, 50), (float(hop_length) / sr * arange(0, 400, 50)))
 colorbar()
 tight_layout()
 #savefig('bwe_kl_rec.eps')
@@ -327,12 +322,57 @@ specshow(logspec(EX_SF_NMF))
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
 ylabel('Frequency (Hz)')
-#yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
 xlabel('Time (sec)')
-#xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
+#xticks(arange(0, 400, 50), (float(hop_length) / sr * arange(0, 400, 50)))
 colorbar()
 tight_layout()
 pass
+
+# <codecell>
+
+freq_res = sr / n_fft
+
+X_test_sub = np.abs(X_complex_test[:, 1600:1750])
+EX_test_sub = EX_test[:, 1600:1750]
+EX_KL_sub = EX_KL[:, 1600:1750]
+
+EX_test_sub[EX_test_sub > np.amax(X_test_sub)] = np.amax(X_test_sub)
+EX_KL_sub[EX_KL_sub > np.amax(X_test_sub)] = np.amax(X_test_sub)
+
+fig(figsize=(12, 3))
+subplot(131)
+specshow(logspec(X_test_sub))
+axhline(y=(bin_low+1), color='black')
+axhline(y=(bin_high+1), color='black')
+ylabel('Frequency (Hz)')
+yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+xlabel('Time (sec)')
+xticks(arange(0, 150, 40), (float(hop_length) / sr * arange(0, 150, 40)))
+tight_layout()
+#savefig('bwe_org.eps')
+
+subplot(132)
+specshow(logspec(EX_test_sub))
+axhline(y=(bin_low+1), color='black')
+axhline(y=(bin_high+1), color='black')
+ylabel('Frequency (Hz)')
+yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+xlabel('Time (sec)')
+xticks(arange(0, 150, 40), (float(hop_length) / sr * arange(0, 150, 40)))
+tight_layout()
+#savefig('bwe_rec.eps')
+
+subplot(133)
+specshow(logspec(EX_KL_sub))
+axhline(y=(bin_low+1), color='black')
+axhline(y=(bin_high+1), color='black')
+ylabel('Frequency (Hz)')
+yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
+xlabel('Time (sec)')
+xticks(arange(0, 150, 40), (float(hop_length) / sr * arange(0, 150, 40)))
+tight_layout()
+#savefig('bwe_kl_rec.eps')
 
 # <codecell>
 
@@ -410,10 +450,11 @@ print SNR_SFNMF_all
 write_wav(x_test_rec, 'bwe_demo_rec.wav')
 write_wav(x_test_org, 'bwe_demo_org.wav')
 write_wav(x_test_rec_kl, 'bwe_demo_rec_kl.wav')
+write_wav(x_test_rec_sfnmf, 'bwe_demo_rec_sfnmf.wav')
 
 # <codecell>
 
-save_object(encoder_test, 'bwe_encoder_gamma')
+save_object(encoder_test, 'bwe_encoder_gamma_L{}'.format(L))
 
 # <codecell>
 

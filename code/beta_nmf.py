@@ -11,7 +11,7 @@ import numpy as np
 
 eps = np.spacing(1)
 
-def NMF_beta(X, K, maxiter=100, criterion=0.0001, W=None, beta=1, seed=None,
+def NMF_beta(X, K, maxiter=500, criterion=0.0001, W=None, beta=1, seed=None,
              normalize=False, verbose=True):
     ''' Beta-divergence NMF
     '''
@@ -37,10 +37,10 @@ def NMF_beta(X, K, maxiter=100, criterion=0.0001, W=None, beta=1, seed=None,
         # EUC-NMF
         for i in xrange(maxiter):
             if updateW:
+                X_bar = np.dot(W, H)
                 W = W * np.dot(X, H.T)
-                W = W / (np.dot(np.dot(W, H), H.T) + eps)
-            H = H * np.dot(W.T, X)
-            H = H / (np.dot(np.dot(W.T, W), H) + eps)
+                W = W / (np.dot(X_bar, H.T) + eps)
+            H = H * np.dot(W.T, X) / (np.dot(np.dot(W.T, W), H) + eps)
             if normalize:
                 _normalize(W, H)
 
@@ -57,40 +57,44 @@ def NMF_beta(X, K, maxiter=100, criterion=0.0001, W=None, beta=1, seed=None,
         # KL-NMF
         for i in xrange(maxiter):
             if updateW:
-                W = W * np.dot(X / (np.dot(W, H) + eps), H.T)
+                X_bar = np.dot(W, H)
+                W = W * np.dot(X / (X_bar + eps), H.T)
                 W = W / (np.dot(np.ones((f, t)), H.T) + eps)
-            H = H * np.dot(W.T, X / (np.dot(W, H) + eps))
+            X_bar = np.dot(W, H)
+            H = H * np.dot(W.T, X / (X_bar + eps))
             H = H / (np.dot(W.T, np.ones((f, t))) + eps)
             if normalize:
-                _normalize(W, H)
+                (W, H) = _normalize(W, H)
 
             lastscore = score
             X_bar = np.dot(W, H)
-            score = np.sum(X * (np.log(X) - np.log(X_bar)) - np.log(X) + np.log(X_bar))
+            score = np.sum(X * (np.log(X) - np.log(X_bar)) - X + X_bar)
             improvement = (lastscore - score) / abs(lastscore)
             if verbose:
                 print ('iteration {}: obj = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
-            if i >= 10 and improvement < criterion:
+            if improvement < criterion:
                 break
 
     elif beta == 0:
         # IS-NMF
         for i in xrange(maxiter):
             if updateW:
-                W = W * np.dot(X / (np.dot(W, H) + eps)**2, H.T)
-                W = W / (np.dot((np.dot(W, H) + eps)**(-1), H.T) + eps)
-            H = H * np.dot(W.T, X / (np.dot(W, H) + eps)**2)
-            H = H / (np.dot(W.T, (np.dot(W, H) + eps)**(-1)) + eps)
+                X_bar = np.dot(W, H)
+                W = W * np.dot(X / (X_bar + eps)**2, H.T)
+                W = W / (np.dot((X_bar + eps)**(-1), H.T) + eps)
+            X_bar = np.dot(W, H)
+            H = H * np.dot(W.T, X / (X_bar + eps)**2)
+            H = H / (np.dot(W.T, (X_bar + eps)**(-1)) + eps)
             if normalize:
-                _normalize(W, H)
+                (W, H) = _normalize(W, H)
 
             lastscore = score
             X_bar = np.dot(W, H)
-            score = np.sum(X / X_bar + np.log(X) - np.log(X_bar) - 1)
+            score = np.sum(X / X_bar - np.log(X) + np.log(X_bar)) - f * t
             improvement = (lastscore - score) / abs(lastscore)
             if verbose:
                 print ('iteration {}: obj = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
-            if i >= 10 and improvement < criterion:
+            if improvement < criterion:
                 break
     else:
         raise ValueError('beta can only be 0, 1, or 2')
@@ -101,3 +105,4 @@ def _normalize(W, H):
     scale = np.sqrt(np.sum(W**2, axis=0, keepdims=True))
     W = W / scale
     H = H * scale.T
+    return (W, H)
