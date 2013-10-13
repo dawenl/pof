@@ -123,7 +123,7 @@ pass
 # <codecell>
 
 # load the prior learned from training data
-prior_mat = sio.loadmat('priors/sf_L10_TIMIT_spk20.mat')
+prior_mat = sio.loadmat('priors/sf_L60_TIMIT_spk20.mat')
 U = prior_mat['U']
 gamma = prior_mat['gamma'].ravel()
 alpha = prior_mat['alpha'].ravel()
@@ -204,7 +204,7 @@ pass
 
 # <codecell>
 
-K = 100
+K = 50
 d = 50
 
 # <codecell>
@@ -428,10 +428,36 @@ SNR_cutoff = np.zeros((pos.size, ))
 start_pos = 0
 for (i, p) in enumerate(pos):
     x_org, x_rec, SNR_cutoff[i] = compute_SNR(X_complex_test[:, start_pos:p], tmpX_complex[:, start_pos:p], n_fft, hop_length)
-    write_wav(x_rec, 'bwe/{}_cutoff.wav'.format(i+1))
+    #write_wav(x_rec, 'bwe/{}_cutoff.wav'.format(i+1))
     start_pos = p
 print 'SNR = {:.3f} +- {:.3f}'.format(np.mean(SNR_cutoff), 2*np.std(SNR_cutoff)/sqrt(pos.size))
 print SNR_cutoff
+
+# <codecell>
+
+specshow(logspec(EX_rand))
+colorbar()
+print tmpX.max()
+
+# <codecell>
+
+EX_rand = tmpX.copy()
+EX_rand[:bin_low] = tmpX.max() * np.random.rand(bin_low, tmpX.shape[1])
+EX_rand[bin_high+1:] = tmpX.max() * np.random.rand(tmpX.shape[0] - bin_high-1 ,tmpX.shape[1])
+
+# <codecell>
+
+SNR_rand = np.zeros((pos.size, ))
+start_pos = 0
+for (i, p) in enumerate(pos):
+    x_org, x_rec, SNR_rand[i] = compute_SNR(X_complex_test[:, start_pos:p], 
+                                  EX_rand[:, start_pos:p] * (X_complex_test[:, start_pos:p] / np.abs(X_complex_test[:, start_pos:p])), 
+                                  n_fft, hop_length)
+    #write_wav(x_org, 'bwe/{}_org.wav'.format(i+1))
+    write_wav(x_rec, 'bwe/{}_rand.wav'.format(i+1))
+    start_pos = p
+print 'SNR = {:.3f} +- {:.3f}'.format(np.mean(SNR_rand), 2*np.std(SNR_rand)/sqrt(pos.size))
+print SNR_rand
 
 # <codecell>
 

@@ -38,9 +38,9 @@ class KL_NMF (object):
         self._init(smoothness)
 
     def _parse_args(self, **kwargs):
-        self.a = float(kwargs['a']) if 'a' in kwargs else 0.1
-        self.b = float(kwargs['b']) if 'b' in kwargs else 0.1
-        self.beta = float(kwargs['beta']) if 'beta' in kwargs else 1.
+        self.a = float(kwargs.get('a', 0.1))
+        self.b = float(kwargs.get('b', 0.1))
+        self.beta = float(kwargs.get('beta', 1.))
         self._parse_hyperparameter(**kwargs)
 
     def _parse_hyperparameter(self, **kwargs):

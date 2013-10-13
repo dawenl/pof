@@ -107,6 +107,8 @@ X_test_mfcc = None
 y_train = None
 y_test = None
 
+mfcc_d = 13
+
 loc_test = np.zeros((2 * n_spk * (10 - N_train), 2))
 
 for (i, spk_dir) in enumerate(files):
@@ -115,10 +117,10 @@ for (i, spk_dir) in enumerate(files):
         S = librosa.feature.melspectrogram(wav, sr=sr, n_fft=n_fft, hop_length=hop_length)
         log_S = librosa.logamplitude(S)
         if X_train_mfcc is None:
-            X_train_mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=13)
+            X_train_mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=mfcc_d)
             y_train = i * np.ones((X_train_mfcc.shape[1], ))
         else:
-            mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=13)
+            mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=mfcc_d)
             X_train_mfcc = np.hstack((X_train_mfcc, mfcc))
             y_train = np.hstack((y_train, i * np.ones((mfcc.shape[1], ))))
                       
@@ -127,12 +129,12 @@ for (i, spk_dir) in enumerate(files):
         S = librosa.feature.melspectrogram(wav, sr=sr, n_fft=n_fft, hop_length=hop_length)
         log_S = librosa.logamplitude(S)
         if X_test_mfcc is None:
-            X_test_mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=13)
+            X_test_mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=mfcc_d)
             y_test = i * np.ones((X_test_mfcc.shape[1], )) 
             loc_test[i * (10 - N_train) + j, 0] = 0
             loc_test[i * (10 - N_train) + j, 1] = X_test_mfcc.shape[1]
         else:
-            mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=13)
+            mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=mfcc_d)
             loc_test[i * (10 - N_train) + j, 0] = X_test_mfcc.shape[1]
             X_test_mfcc = np.hstack((X_test_mfcc, mfcc))
             y_test = np.hstack((y_test, i * np.ones((mfcc.shape[1], ))))
@@ -173,7 +175,7 @@ print X_train_mfcc.shape, X_test_mfcc.shape
 
 # <codecell>
 
-d = sio.loadmat('feat_sf_L50_TIMIT_spk20_spkID_Train{}.mat'.format(N_train))
+d = sio.loadmat('feat_sf_L60_TIMIT_spk20_spkID_Train{}.mat'.format(N_train))
 X_train_sf = d['A_train']
 X_test_sf = d['A_test']
 
