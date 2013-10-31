@@ -175,7 +175,7 @@ print X_train_mfcc.shape, X_test_mfcc.shape
 
 # <codecell>
 
-d = sio.loadmat('feat_sf_L60_TIMIT_spk20_spkID_Train{}.mat'.format(N_train))
+d = sio.loadmat('feat_sf_L80_TIMIT_spk20_spkID_Train{}.mat'.format(N_train))
 X_train_sf = d['A_train']
 X_test_sf = d['A_test']
 

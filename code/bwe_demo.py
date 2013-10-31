@@ -123,7 +123,7 @@ pass
 # <codecell>
 
 # load the prior learned from training data
-prior_mat = sio.loadmat('priors/sf_L60_TIMIT_spk20.mat')
+prior_mat = sio.loadmat('priors/sf_L80_TIMIT_spk20.mat')
 U = prior_mat['U']
 gamma = prior_mat['gamma'].ravel()
 alpha = prior_mat['alpha'].ravel()
