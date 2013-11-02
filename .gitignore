@@ -38,6 +38,7 @@ nosetests.xml
 .pydevproject
 *.swp
 *.mat
+*.m~
 *.ipynb
 *.wav
 *.csv

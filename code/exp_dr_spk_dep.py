@@ -75,6 +75,8 @@ plot(h)
 H = np.abs(np.fft.fft(h, n_fft)[:n_fft/2+1])
 fig()
 plot(20 * np.log10(H))
+fig()
+plot(20 * np.log10(np.abs(np.fft.fft(h)))[:h.size/2+1])
 pass
 
 # <codecell>
@@ -101,8 +103,7 @@ def learn_reverb(encoder, threshold=0.0001, maxiter=200, flat_init=True):
 
 reload(vpl)
 
-#reverbs_em = np.zeros((len(files), n_fft/2+1))
-reverbs_me = np.zeros((len(files), n_fft/2+1))
+reverbs_em = np.zeros((len(files), n_fft/2+1))
 
 for (i, spk_dir) in enumerate(files, 1):
     for (j, wav_dir) in enumerate(spk_dir, 1):
@@ -111,35 +112,29 @@ for (i, spk_dir) in enumerate(files, 1):
         X = librosa.stft(wav, n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
         X_rev = librosa.stft(wav_rev, n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
         
-        prior_mat = sio.loadmat('spk_dep_dr/sf_L30_spk%s.mat' % i)
+        prior_mat = sio.loadmat('spk_dep_dr/sf_L5_spk%s.mat' % i)
         print 'Loading prior for spk%s...' % i
         U = prior_mat['U']
         gamma = prior_mat['gamma'].ravel()
         alpha = prior_mat['alpha'].ravel()
         L = alpha.size
         
-        encoder = vpl.SF_Dict(np.abs(X_rev.T), U, alpha, gamma, L=L, seed=98765, flat_init=False)
+        encoder = vpl.SF_Dict(np.abs(X_rev.T), U, alpha, gamma, L=L, seed=98765)
         print 'Learning spk%s for sent%s' % (i, j)
-        learn_reverb(encoder, flat_init=False)
+        learn_reverb(encoder)
             
-        EX_me = np.abs(X_rev) / np.exp(encoder.reverb[:, np.newaxis])
-        reverbs_me[i-1] = encoder.reverb.copy()
+        EX_em = np.abs(X_rev) / np.exp(encoder.reverb[:, np.newaxis])
+        reverbs_em[i-1] = encoder.reverb.copy()
 
-        #x_dr_em_np = librosa.istft(X_rev * (EX_em / np.abs(X_rev)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
-        #write_wav(x_dr_em_np, 'spk_dep_reverb_%s/spk%s_sent%s_dr_np_em.wav' % (rir_type, i, j))
-        #x_dr_em_op = librosa.istft(X * (EX_em / np.abs(X)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
-        #write_wav(x_dr_em_op, 'spk_dep_reverb_%s/spk%s_sent%s_dr_op_em.wav' % (rir_type, i, j))
-        
-        x_dr_me_np = librosa.istft(X_rev * (EX_me / np.abs(X_rev)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
-        write_wav(x_dr_me_np, 'spk_dep_reverb_%s/spk%s_sent%s_dr_np_me.wav' % (rir_type, i, j))
-        x_dr_me_op = librosa.istft(X * (EX_me / np.abs(X)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
-        write_wav(x_dr_me_op, 'spk_dep_reverb_%s/spk%s_sent%s_dr_op_me.wav' % (rir_type, i, j))
+        x_dr_em_np = librosa.istft(X_rev * (EX_em / np.abs(X_rev)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
+        write_wav(x_dr_em_np, 'reverb_%s_dep/spk%s_sent%s_dr_np_em.wav' % (rir_type, i, j))
+        x_dr_em_op = librosa.istft(X * (EX_em / np.abs(X)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
+        write_wav(x_dr_em_op, 'reverb_%s_dep/spk%s_sent%s_dr_op_em.wav' % (rir_type, i, j))
 pass
 
 # <codecell>
 
-#sio.savemat('rir_%s_em_spk_dep.mat' % rir_type, {'rir':reverbs_em})
-sio.savemat('rir_%s_me_spk_dep.mat' % rir_type, {'rir':reverbs_me})
+sio.savemat('rir_%s_em_spk_dep_L%s.mat' % (rir_type, L), {'rir':reverbs_em})
 
 # <codecell>
 
@@ -147,30 +142,6 @@ fig()
 plot(LOG_TO_DB * reverbs.mean(axis=0))
 plot(20 * np.log10(H))
 legend(['EM', 'ground truth'])
-pass
-
-# <codecell>
-
-rir_mat = sio.loadmat('rir_meeting.mat')
-reverbs = rir_mat['rir']
-
-# <codecell>
-
-rir_mat = sio.loadmat('air_binaural_meeting_0_1_1.mat')
-h = rir_mat['h_air'].ravel()
-h = samplerate.resample(h, 1./3, 'sinc_best')
-plot(h)
-H = np.abs(np.fft.fft(h, n_fft)[:n_fft/2+1])
-fig()
-plot(20 * np.log10(H))
-pass
-
-# <codecell>
-
-fig()
-plot(LOG_TO_DB * reverbs[0])
-plot(20 * np.log10(H))
-plot(LOG_TO_DB * (reverbs[0] - spk_color.mean(axis=0)))
 pass
 
 # <codecell>
@@ -191,27 +162,61 @@ pass
 
 # <codecell>
 
-fig()
-plot(reverbs.mean(axis=0))
-plot(np.log(H))
+# load the prior learned from training data
+prior_mat = sio.loadmat('priors/sf_L30_TIMIT_spk20.mat')
+U = prior_mat['U']
+gamma = prior_mat['gamma'].ravel()
+alpha = prior_mat['alpha'].ravel()
+L = alpha.size
 
 # <codecell>
 
-def ceps_dist(X, Y, order=24, cmn=True):
-    X_sym = np.vstack((X, X[1:-1]))
-    Y_sym = np.vstack((Y, Y[1:-1]))
-    ceps_X = realceps(X_sym)[:order+1]
-    ceps_Y = realceps(Y_sym)[:order+1]
-    if cmn:
-        ceps_X = ceps_X - np.mean(ceps_X, axis=1, keepdims=True)
-        ceps_Y = ceps_Y = np.mean(ceps_Y, axis=1, keepdims=True)
-    err = (ceps_X - ceps_Y)**2
-    #return err
-    ds = 10 / log(10) * np.sqrt(2 * np.sum(err[1:], axis=0) + err[0, :])
-    return np.mean(ds), np.median(ds)
+spk_color = np.zeros((len(files), n_fft/2+1))
 
-def realceps(X, flr=-100):
-    flr = np.amax(X) * 10**(flr/20)
-    X = np.maximum(X, flr)
-    return np.real(np.fft.ifft(np.log(X), axis=0))
+for i in [1,4]:
+    train_data = sio.loadmat('spk_dep_dr/spk%s.mat' % i)
+    W = train_data['W']
+            
+    print 'Learning coloration for spk%s' % i
+    encoder = vpl.SF_Dict(W.T, U, alpha, gamma, L=L, seed=98765, flat_init=False)
+    learn_reverb(encoder, flat_init=False)
+    spk_color[i-1] = encoder.reverb.copy()
+
+# <codecell>
+
+rir_type
+
+# <codecell>
+
+reload(vpl)
+
+reverbs_me = np.zeros((len(files), n_fft/2+1))
+
+for (i, spk_dir) in enumerate(files, 1):
+    for (j, wav_dir) in enumerate(spk_dir, 1):
+        wav, sr = load_timit(wav_dir)
+        wav_rev = np.convolve(wav, h)[:wav.size]
+        X = librosa.stft(wav, n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
+        X_rev = librosa.stft(wav_rev, n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
+        
+        encoder = vpl.SF_Dict(np.abs(X_rev.T), U, alpha, gamma, L=L, seed=98765, flat_init=False)
+        print 'Learning spk%s for sent%s' % (i, j)
+        learn_reverb(encoder, flat_init=False)
+        reverbs_me[i-1] = encoder.reverb.copy()
+
+        reverb = reverbs_me[i-1] - spk_color[i-1]
+        EX_me = np.abs(X_rev) / np.exp(reverb[:, np.newaxis])
+
+        x_dr_me_np = librosa.istft(X_rev * (EX_me / np.abs(X_rev)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
+        write_wav(x_dr_me_np, 'reverb_%s_dep/spk%s_sent%s_dr_np_me.wav' % (rir_type, i, j))
+        x_dr_me_op = librosa.istft(X * (EX_me / np.abs(X)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
+        write_wav(x_dr_me_op, 'reverb_%s_dep/spk%s_sent%s_dr_op_me.wav' % (rir_type, i, j))
+pass
+
+# <codecell>
+
+sio.savemat('rir_%s_me_spk_dep.mat' % rir_type, {'rir':reverbs_me})
+
+# <codecell>
+
 

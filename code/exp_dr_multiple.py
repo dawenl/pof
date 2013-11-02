@@ -65,8 +65,8 @@ hop_length = 256
 
 # <codecell>
 
-rir_type = 'meeting'
-rir_param = '0_1_1'
+rir_type = 'lecture'
+rir_param = '1_1_5'
 
 rir_mat = sio.loadmat('air_binaural_%s_%s.mat' % (rir_type, rir_param))
 h = rir_mat['h_air'].ravel()
@@ -75,6 +75,8 @@ plot(h)
 H = np.abs(np.fft.fft(h, n_fft)[:n_fft/2+1])
 fig()
 plot(20 * np.log10(H))
+fig()
+plot(20 * np.log10(np.abs(np.fft.fft(h)))[:h.size/2+1])
 pass
 
 # <codecell>
@@ -103,7 +105,7 @@ print U.shape, gamma.shape
 
 # <codecell>
 
-def learn_reverb(encoder, threshold=0.0001, maxiter=200, flat_init=False):
+def learn_reverb(encoder, threshold=0.0001, maxiter=200, flat_init=True):
     old_obj = -np.inf
     for i in xrange(maxiter):
         if flat_init:
@@ -130,10 +132,12 @@ reverbs_me = tmp['rir']
 tmp = sio.loadmat('rir_%s_em.mat' % rir_type)
 reverbs_em = tmp['rir']
 
+spk_color = sio.loadmat('spk_color_global.mat')['spk_color']
+
 # <codecell>
 
 fig()
-plot(LOG_TO_DB * reverbs_me.mean(axis=0))
+plot(LOG_TO_DB * (reverbs_me.T - spk_color).mean(axis=1))
 plot(LOG_TO_DB * reverbs_em.mean(axis=0))
 plot(20 * np.log10(H))
 legend(['ME', 'EM', 'ground truth'])
@@ -158,7 +162,7 @@ for (i, spk_dir) in enumerate(files, 1):
         write_wav(x_rev, 'reverb_%s/spk%s_sent%s_rev.wav' % (rir_type, i, j))
 
         EX_em = np.abs(X_rev) / np.exp(reverbs_em[i-1, :, np.newaxis])
-        EX_me = np.abs(X_rev) / np.exp(reverbs_me[i-1, :, np.newaxis])
+        EX_me = np.abs(X_rev) / np.exp(reverbs_me[i-1, :, np.newaxis] - spk_color)
         
         x_dr_em_np = librosa.istft(X_rev * (EX_em / np.abs(X_rev)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
         write_wav(x_dr_em_np, 'reverb_%s/spk%s_sent%s_dr_np_em.wav' % (rir_type, i, j))
@@ -180,13 +184,22 @@ for (i, spk_dir) in enumerate(files, 1):
         X = librosa.stft(wav, n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
         X_rev = librosa.stft(wav_rev, n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
         
-        #logX_diff = np.log(np.abs(X_rev)) - np.log(np.abs(X))   
-        #EX_emp = X_rev / np.exp(np.mean(logX_diff, axis=1, keepdims=True))
-        EX_emp = X_rev / H[:, np.newaxis]
+        logX_diff = np.log(np.abs(X_rev)) - np.log(np.abs(X))   
+        EX_emp = np.abs(X_rev) / np.exp(np.mean(logX_diff, axis=1, keepdims=True))
+        #EX_emp = np.abs(X_rev) / H[:, np.newaxis]
         
-        x_dr_emp = librosa.istft(X * (EX_emp / np.abs(X)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
+        x_dr_emp = librosa.istft(X_rev * (EX_emp / np.abs(X_rev)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
         write_wav(x_dr_emp, 'reverb_%s/spk%s_sent%s_dr_emp.wav' % (rir_type, i, j))
 pass
+
+# <codecell>
+
+X_train = sio.loadmat('TIMIT_spk20.mat')['W']
+mean_spk = X_train.mean(axis=1, keepdims=True)
+
+# <codecell>
+
+plot(20 * log10(mean_spk))
 
 # <codecell>
 
@@ -194,15 +207,17 @@ for (i, spk_dir) in enumerate(files, 1):
     for (j, wav_dir) in enumerate(spk_dir, 1):
         wav, sr = load_timit(wav_dir)
         wav_rev = np.convolve(wav, h)[:wav.size]
-        X = librosa.stft(wav, n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
         X_rev = librosa.stft(wav_rev, n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
         
-        CX_rev = np.log(np.abs(X_rev))
-        CX_rev = CX_rev - CX_rev.mean(axis=1, keepdims=True)
-        EX_cmn = np.exp(CX_rev)
+        #mean_spk = np.mean(sio.loadmat('spk_dep_dr/spk%s.mat' % i)['W'], axis=1, keepdims=True)
+        EX_cmn = np.abs(X_rev) / np.mean(np.abs(X_rev), axis=1, keepdims=True) * mean_spk
         
-        x_cmn = librosa.istft(X_rev * (EX_cmn / np.abs(X_rev)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
-        write_wav(x_cmn, 'reverb_%s/spk%s_sent%s_cmn.wav' % (rir_type, i, j))
+        fig()
+        plot(20 * log10(np.mean(np.abs(X_rev), axis=1, keepdims=True) / mean_spk))
+        plot(20 * log10(H))
+        
+        x_dr_cmn = librosa.istft(X_rev * (EX_cmn / np.abs(X_rev)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
+        write_wav(x_dr_cmn, 'reverb_%s/spk%s_sent%s_dr_cmn.wav' % (rir_type, i, j))
 pass
 
 # <codecell>
