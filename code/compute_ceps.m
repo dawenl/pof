@@ -1,8 +1,8 @@
 clear all
 
-%rir = 'booth';
-dep = '_dep_600';
-%dep = '';
+%rir = 'lecture';
+%dep = '_dep_900';
+dep = '';
 
 %data_dir = strcat('reverb_', rir);
 data_dir = strcat('iPhone');
@@ -113,4 +113,6 @@ fprintf('Dereverb with noisy phase (EM)\t%.2f / %.2f / %.2f\n', mean(ds_dr_em_np
 fprintf('Dereverb with noisy phase (ME)\t%.2f / %.2f / %.2f\n', mean(ds_dr_me_np), median(ds_dr_me_np), std(ds_dr_me_np)/sqrt(n));
 fprintf('Dereverb with emp filter\t%.2f / %.2f / %.2f\n', mean(ds_dr_emp), median(ds_dr_emp), std(ds_dr_emp)/sqrt(n));
 
-fprintf('p-value = %.3f\n', signrank(ds_dr_me_np, ds_dr_cnm));
+fprintf('p-value = %.3f\n', signrank(ceps_dr_me_np_mean, ceps_cmn_mean));
+fprintf('p-value = %.3f\n', signrank(ceps_dr_me_np_mean, ceps_dr_emp_mean));
+fprintf('p-value = %.3f\n', signrank(ceps_cmn_mean, ceps_dr_emp_mean));

@@ -65,8 +65,8 @@ hop_length = 256
 
 # <codecell>
 
-rir_type = 'lecture'
-rir_param = '1_1_5'
+rir_type = 'booth'
+rir_param = '0_1_3'
 
 rir_mat = sio.loadmat('air_binaural_%s_%s.mat' % (rir_type, rir_param))
 h = rir_mat['h_air'].ravel()
@@ -87,21 +87,6 @@ U = prior_mat['U']
 gamma = prior_mat['gamma'].ravel()
 alpha = prior_mat['alpha'].ravel()
 L = alpha.size
-
-# <codecell>
-
-def upsample_filters(U, gamma):
-    L, F = U.shape
-    full_U = np.hstack((U, np.fliplr(U[:, 1:-1])))
-    U_pad = np.zeros((L, 2 * F - 1))
-    for l in xrange(L):
-        tmp = samplerate.resample(full_U[l], 2, 'sinc_best')
-        U_pad[l] = tmp[: 2 * F - 1]
-    gamma_pad = samplerate.resample(gamma, 2, 'sinc_best')
-    return (U_pad, gamma_pad)
-
-U, gamma = upsample_filters(U, gamma)
-print U.shape, gamma.shape
 
 # <codecell>
 
@@ -132,15 +117,22 @@ reverbs_me = tmp['rir']
 tmp = sio.loadmat('rir_%s_em.mat' % rir_type)
 reverbs_em = tmp['rir']
 
-spk_color = sio.loadmat('spk_color_global.mat')['spk_color']
+spk_color = sio.loadmat('spk_color_global_1.mat')['spk_color']
 
 # <codecell>
 
-fig()
-plot(LOG_TO_DB * (reverbs_me.T - spk_color).mean(axis=1))
-plot(LOG_TO_DB * reverbs_em.mean(axis=0))
-plot(20 * np.log10(H))
-legend(['ME', 'EM', 'ground truth'])
+fig(figsize=(16, 4))
+plot(LOG_TO_DB * (reverbs_me.T - spk_color).mean(axis=1), linewidth=2.5)
+plot(LOG_TO_DB * (np.log(np.abs(X_rev)) - np.log(np.abs(X))).mean(axis=1), 'r--', linewidth=2.5)
+legend(['learned filter', 'average coloration'], loc=3, fontsize=20)
+xlabel('Frequency (Hz)', fontsize=20)
+ylabel('Magnitude (dB)', fontsize=20)
+xticks(np.arange(0, 513, 514/4), np.int32(np.arange(0, 513, 514/4) * (16000 / 1024.)), fontsize=20)
+yticks(fontsize=20)
+xlim([0, 513])
+grid('on')
+tight_layout()
+#savefig('%s.eps' % rir_type)
 pass
 
 # <codecell>
@@ -186,7 +178,6 @@ for (i, spk_dir) in enumerate(files, 1):
         
         logX_diff = np.log(np.abs(X_rev)) - np.log(np.abs(X))   
         EX_emp = np.abs(X_rev) / np.exp(np.mean(logX_diff, axis=1, keepdims=True))
-        #EX_emp = np.abs(X_rev) / H[:, np.newaxis]
         
         x_dr_emp = librosa.istft(X_rev * (EX_emp / np.abs(X_rev)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
         write_wav(x_dr_emp, 'reverb_%s/spk%s_sent%s_dr_emp.wav' % (rir_type, i, j))
@@ -194,12 +185,14 @@ pass
 
 # <codecell>
 
-X_train = sio.loadmat('TIMIT_spk20.mat')['W']
-mean_spk = X_train.mean(axis=1, keepdims=True)
+W = sio.loadmat('TIMIT_spk20.mat')['W']
+mean_spk = W.mean(axis=1, keepdims=True)
 
 # <codecell>
 
+fig()
 plot(20 * log10(mean_spk))
+pass
 
 # <codecell>
 
@@ -209,12 +202,7 @@ for (i, spk_dir) in enumerate(files, 1):
         wav_rev = np.convolve(wav, h)[:wav.size]
         X_rev = librosa.stft(wav_rev, n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
         
-        #mean_spk = np.mean(sio.loadmat('spk_dep_dr/spk%s.mat' % i)['W'], axis=1, keepdims=True)
         EX_cmn = np.abs(X_rev) / np.mean(np.abs(X_rev), axis=1, keepdims=True) * mean_spk
-        
-        fig()
-        plot(20 * log10(np.mean(np.abs(X_rev), axis=1, keepdims=True) / mean_spk))
-        plot(20 * log10(H))
         
         x_dr_cmn = librosa.istft(X_rev * (EX_cmn / np.abs(X_rev)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
         write_wav(x_dr_cmn, 'reverb_%s/spk%s_sent%s_dr_cmn.wav' % (rir_type, i, j))

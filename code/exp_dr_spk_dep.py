@@ -173,7 +173,7 @@ L = alpha.size
 
 spk_color = np.zeros((len(files), n_fft/2+1))
 
-for i in [1,4]:
+for i in xrange(1, n_spk+1):
     train_data = sio.loadmat('spk_dep_dr/spk%s.mat' % i)
     W = train_data['W']
             
@@ -181,10 +181,6 @@ for i in [1,4]:
     encoder = vpl.SF_Dict(W.T, U, alpha, gamma, L=L, seed=98765, flat_init=False)
     learn_reverb(encoder, flat_init=False)
     spk_color[i-1] = encoder.reverb.copy()
-
-# <codecell>
-
-rir_type
 
 # <codecell>
 
@@ -219,4 +215,20 @@ sio.savemat('rir_%s_me_spk_dep.mat' % rir_type, {'rir':reverbs_me})
 
 # <codecell>
 
+for (i, spk_dir) in enumerate(files, 1):
+    for (j, wav_dir) in enumerate(spk_dir, 1):
+        wav, sr = load_timit(wav_dir)
+        wav_rev = np.convolve(wav, h)[:wav.size]
+        X_rev = librosa.stft(wav_rev, n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
+        
+        mean_spk = np.mean(sio.loadmat('spk_dep_dr/spk%s.mat' % i)['W'], axis=1, keepdims=True)
+        EX_cmn = np.abs(X_rev) / np.mean(np.abs(X_rev), axis=1, keepdims=True) * mean_spk
+        
+        fig()
+        plot(20 * log10(np.mean(np.abs(X_rev), axis=1, keepdims=True) / mean_spk))
+        plot(20 * log10(H))
+        
+        x_dr_cmn = librosa.istft(X_rev * (EX_cmn / np.abs(X_rev)), n_fft=n_fft, hann_w=hann_w, hop_length=hop_length)
+        write_wav(x_dr_cmn, 'reverb_%s_sep/spk%s_sent%s_dr_cmn.wav' % (rir_type, i, j))
+pass
 
