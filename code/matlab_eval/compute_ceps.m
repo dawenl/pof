@@ -1,11 +1,11 @@
 clear all
 
 %rir = 'lecture';
-%dep = '_dep_900';
+%dep = '_dep';
 dep = '';
 
 %data_dir = strcat('reverb_', rir);
-data_dir = strcat('iPhone');
+data_dir = strcat('../iPhone');
 
 n_spk = 6;
 n_sent = 1;
