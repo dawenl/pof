@@ -1,6 +1,6 @@
 """
 
-Source-filter dictionary prior learning for gamma noise model
+Decoloration model based PoF
 
 CREATED: 2013-07-12 11:09:44 by Dawen Liang <daliang@adobe.com>
 
@@ -210,42 +210,6 @@ class SF_Dict(object):
                                        self.U[l])
         Eres = np.exp(Eres)
         self.reverb = np.log(np.mean(self.W * Eres, axis=0))
-
-    #def update_u(self, l, maxiter, disp):
-    #    def f(u):
-    #        Eexp = np.exp(comp_log_exp(self.a[:, l, np.newaxis],
-    #                                   self.b[:, l, np.newaxis], u))
-    #        return np.sum(np.outer(self.EA[:, l], u) + self.W * Eexp * Eres)
-
-    #    def df(u):
-    #        tmp = np.exp(comp_log_exp(self.a[:, l, np.newaxis] + 1.,
-    #                                  self.b[:, l, np.newaxis], u))
-    #        return np.sum(self.EA[:, l, np.newaxis] *
-    #                      (1 - self.W * Eres * tmp), axis=0)
-
-    #    k_idx = np.delete(np.arange(self.L), l)
-    #    Eres = 0.
-    #    for k in k_idx:
-    #        Eres = Eres + comp_log_exp(self.a[:, k, np.newaxis],
-    #                                   self.b[:, k, np.newaxis],
-    #                                   self.U[k])
-    #    Eres = np.exp(Eres)
-
-    #    u0 = self.U[l]
-    #    self.U[l], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df,
-    #                                             maxiter=maxiter, disp=0)
-    #    if disp and d['warnflag']:
-    #        if d['warnflag'] == 2:
-    #            print 'U[{}, :]: {}, f={}'.format(l, d['task'],
-    #                                              f(self.U[l]))
-    #        else:
-    #            print 'U[{}, :]: {}, f={}'.format(l, d['warnflag'],
-    #                                              f(self.U[l]))
-    #        app_grad = approx_grad(f, self.U[l])
-    #        ana_grad = df(self.U[l])
-    #        for fr in xrange(self.F):
-    #            print_gradient('U[{}, {:3d}]'.format(l, fr), self.U[l, fr],
-    #                           ana_grad[fr], app_grad[fr])
 
     def bound(self):
         Eexp = 0.
