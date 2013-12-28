@@ -339,7 +339,7 @@ def _comp_logEexp(a, b, U, update_U=True):
                 if (U[l] / b[(t*L) + l] > -1) {
                     log_exp[(t*L) + l] = -a[(t*L) + l] * log1p(U[l] / b[(t*L) + l]);
                 } else {
-                    log_exp[(t*L) + l] = std::numeric_limits<float>::infinity();
+                    log_exp[(t*L) + l] = INFINITY;
                 }
             }
         }
@@ -359,7 +359,7 @@ def _comp_logEexp(a, b, U, update_U=True):
                 if (U[(l*F) + f] / b[l] > -1) {
                     log_exp[(l*F) + f] = -a[l] * log1p(U[(l*F) + f]/b[l]);
                 } else {
-                    log_exp[(l*F) + f] = std::numeric_limits<float>::infinity();
+                    log_exp[(l*F) + f] = INFINITY;
                 }
             }
         }
@@ -384,7 +384,7 @@ def comp_logEexp(a, b, U):
                     if (U[(l*F) + f] / b[(t*L) + l] > -1) {
                         log_exp[(t*F) + f] += -a[(t*L) + l] * log1p(U[(l*F) + f] / b[(t*L) + l]);
                     } else {
-                        log_exp[(t*F) + f] = std::numeric_limits<float>::infinity();
+                        log_exp[(t*F) + f] = INFINITY;
                     }
                  }
              }
