@@ -13,6 +13,7 @@ import numpy as np
 import scipy.optimize as optimize
 import scipy.special as special
 
+
 class SF_Dict(object):
     def __init__(self, W, L=10, smoothness=100, seed=None):
         self.W = W.copy()
@@ -161,15 +162,15 @@ class SF_Dict(object):
         assert(np.all(self.b[t] > 0))
         self.EA[t], self.ElogA[t] = comp_expect(self.a[t], self.b[t])
 
-    def vb_m(self, batch=False, maxiter=15000, verbose=True, disp=0):
+    def vb_m(self, maxiter=15000, verbose=True, disp=0):
         """ Perform one M-step, update the model parameters with A fixed
         from E-step
 
         Parameters
-        ----------
         batch: bool
             Update U as a whole optimization if true. Otherwise, update U
             across different basis.
+        verbose: bool
         verbose: bool
             Output log if ture.
         disp: int
@@ -187,21 +188,13 @@ class SF_Dict(object):
             last_score = self.bound()
             print('Update (initial)\tObj: {:.2f}'.format(last_score))
             start_t = time.time()
-        if batch:
-            for f in xrange(self.F):
-                self.update_u_batch(f, maxiter, disp)
-                #score = self.bound()
-                #if score < last_score:
-                #    print('Oops, before: {}\tafter: {}\tf={}'.format(
-                #        last_score, score, f))
-                #last_score = score
-        else:
-            for l in xrange(self.L):
-                self.update_u(l, maxiter, disp)
-                if verbose:
-                    score = self.bound()
-                    print_increment('U[{}]'.format(l), last_score, score)
-                    last_score = score
+        for f in xrange(self.F):
+            self.update_u_batch(f, maxiter, disp)
+            #score = self.bound()
+            #if score < last_score:
+            #    print('Oops, before: {}\tafter: {}\tf={}'.format(
+            #        last_score, score, f))
+            #last_score = score
         self.update_gamma(disp)
         if verbose:
             score = self.bound()
@@ -252,42 +245,41 @@ class SF_Dict(object):
             for l in xrange(self.L):
                 print_gradient('U[{}, {:3d}]'.format(l, f), self.U[l, f],
                                ana_grad[l], app_grad[l])
+    #def update_u(self, l, maxiter, disp):
+    #    def f(u):
+    #        Eexp = np.exp(comp_log_exp(self.a[:, l, np.newaxis],
+    #                                   self.b[:, l, np.newaxis], u))
+    #        return np.sum(np.outer(self.EA[:, l], u) + self.W * Eexp * Eres)
 
-    def update_u(self, l, maxiter, disp):
-        def f(u):
-            Eexp = np.exp(comp_log_exp(self.a[:, l, np.newaxis],
-                                       self.b[:, l, np.newaxis], u))
-            return np.sum(np.outer(self.EA[:, l], u) + self.W * Eexp * Eres)
+    #    def df(u):
+    #        tmp = np.exp(comp_log_exp(self.a[:, l, np.newaxis] + 1.,
+    #                                  self.b[:, l, np.newaxis], u))
+    #        return np.sum(self.EA[:, l, np.newaxis] *
+    #                      (1 - self.W * Eres * tmp), axis=0)
 
-        def df(u):
-            tmp = np.exp(comp_log_exp(self.a[:, l, np.newaxis] + 1.,
-                                      self.b[:, l, np.newaxis], u))
-            return np.sum(self.EA[:, l, np.newaxis] *
-                          (1 - self.W * Eres * tmp), axis=0)
+    #    k_idx = np.delete(np.arange(self.L), l)
+    #    Eres = 0.
+    #    for k in k_idx:
+    #        Eres = Eres + comp_log_exp(self.a[:, k, np.newaxis],
+    #                                   self.b[:, k, np.newaxis],
+    #                                   self.U[k])
+    #    Eres = np.exp(Eres)
 
-        k_idx = np.delete(np.arange(self.L), l)
-        Eres = 0.
-        for k in k_idx:
-            Eres = Eres + comp_log_exp(self.a[:, k, np.newaxis],
-                                       self.b[:, k, np.newaxis],
-                                       self.U[k])
-        Eres = np.exp(Eres)
-
-        u0 = self.U[l]
-        self.U[l], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df,
-                                                 maxiter=maxiter, disp=0)
-        if disp and d['warnflag']:
-            if d['warnflag'] == 2:
-                print 'U[{}, :]: {}, f={}'.format(l, d['task'],
-                                                  f(self.U[l]))
-            else:
-                print 'U[{}, :]: {}, f={}'.format(l, d['warnflag'],
-                                                  f(self.U[l]))
-            app_grad = approx_grad(f, self.U[l])
-            ana_grad = df(self.U[l])
-            for fr in xrange(self.F):
-                print_gradient('U[{}, {:3d}]'.format(l, fr), self.U[l, fr],
-                               ana_grad[fr], app_grad[fr])
+    #    u0 = self.U[l]
+    #    self.U[l], _, d = optimize.fmin_l_bfgs_b(f, u0, fprime=df,
+    #                                             maxiter=maxiter, disp=0)
+    #    if disp and d['warnflag']:
+    #        if d['warnflag'] == 2:
+    #            print 'U[{}, :]: {}, f={}'.format(l, d['task'],
+    #                                              f(self.U[l]))
+    #        else:
+    #            print 'U[{}, :]: {}, f={}'.format(l, d['warnflag'],
+    #                                              f(self.U[l]))
+    #        app_grad = approx_grad(f, self.U[l])
+    #        ana_grad = df(self.U[l])
+    #        for fr in xrange(self.F):
+    #            print_gradient('U[{}, {:3d}]'.format(l, fr), self.U[l, fr],
+    #                           ana_grad[fr], app_grad[fr])
 
     def update_gamma(self, disp):
         def f(eta):
@@ -374,7 +366,6 @@ class SF_Dict(object):
         bound = bound + np.sum(entropy(self.a, self.b))
         print bound
         return bound
-
     ## This function is deprecated
     #def comp_exp_expect(self, alpha, beta, U):
     #    ''' Compute E[exp(-au)] where a ~ Gamma(alpha, beta) and u constant
@@ -401,6 +392,7 @@ class SF_Dict(object):
     #        raise ValueError('wrong dimension')
     #    expect[U <= -beta] = np.inf
     #    return expect
+
 
 
 def print_gradient(name, val, grad, approx):
