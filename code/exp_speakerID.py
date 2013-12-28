@@ -13,6 +13,7 @@ from matplotlib.pyplot import *
 import scipy.io as sio
 
 import librosa
+import librosa.filters
 
 # <codecell>
 
@@ -115,26 +116,30 @@ for (i, spk_dir) in enumerate(files):
     for wav_dir in spk_dir[:N_train]:
         wav, sr = load_timit(wav_dir)
         S = librosa.feature.melspectrogram(wav, sr=sr, n_fft=n_fft, hop_length=hop_length)
-        log_S = librosa.logamplitude(S)
+        #log_S = np.log(np.abs(librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
         if X_train_mfcc is None:
-            X_train_mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=mfcc_d)
+            X_train_mfcc = librosa.feature.mfcc(librosa.logamplitude(S), n_mfcc=mfcc_d)
+            #X_train_mfcc = np.dot(librosa.filters.dct(mfcc_d, log_S.shape[0]), log_S)
             y_train = i * np.ones((X_train_mfcc.shape[1], ))
         else:
-            mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=mfcc_d)
+            mfcc = librosa.feature.mfcc(librosa.logamplitude(S), n_mfcc=mfcc_d)
+            #mfcc = np.dot(librosa.filters.dct(mfcc_d, log_S.shape[0]), log_S)
             X_train_mfcc = np.hstack((X_train_mfcc, mfcc))
             y_train = np.hstack((y_train, i * np.ones((mfcc.shape[1], ))))
                       
     for (j, wav_dir) in enumerate(spk_dir[N_train:]):
         wav, sr = load_timit(wav_dir)
         S = librosa.feature.melspectrogram(wav, sr=sr, n_fft=n_fft, hop_length=hop_length)
-        log_S = librosa.logamplitude(S)
+        #log_S = np.log(np.abs(librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
         if X_test_mfcc is None:
-            X_test_mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=mfcc_d)
+            X_test_mfcc = librosa.feature.mfcc(librosa.logamplitude(S), n_mfcc=mfcc_d)
+            #X_test_mfcc = np.dot(librosa.filters.dct(mfcc_d, log_S.shape[0]), log_S)
             y_test = i * np.ones((X_test_mfcc.shape[1], )) 
             loc_test[i * (10 - N_train) + j, 0] = 0
             loc_test[i * (10 - N_train) + j, 1] = X_test_mfcc.shape[1]
         else:
-            mfcc = librosa.feature.mfcc(librosa.logamplitude(S), d=mfcc_d)
+            mfcc = librosa.feature.mfcc(librosa.logamplitude(S), n_mfcc=mfcc_d)
+            #mfcc = np.dot(librosa.filters.dct(mfcc_d, log_S.shape[0]), log_S)
             loc_test[i * (10 - N_train) + j, 0] = X_test_mfcc.shape[1]
             X_test_mfcc = np.hstack((X_test_mfcc, mfcc))
             y_test = np.hstack((y_test, i * np.ones((mfcc.shape[1], ))))
@@ -175,7 +180,7 @@ print X_train_mfcc.shape, X_test_mfcc.shape
 
 # <codecell>
 
-d = sio.loadmat('feat_sf_L80_TIMIT_spk20_spkID_Train{}.mat'.format(N_train))
+d = sio.loadmat('feats/feat_sf_L50_TIMIT_spk20_spkID_Train{}.mat'.format(N_train))
 X_train_sf = d['A_train']
 X_test_sf = d['A_test']
 
@@ -226,6 +231,17 @@ def smooth(y_test, y_pred, max_k = 200):
     plot(y_test)
     print 'Raw acc: {:.3f}'.format(np.sum(y_test == y_pred) / float(y_test.size))
     print 'Smoothed acc (k = {}): {:.3f}'.format(best_k, max_acc_med)
+    
+def majority_voting(y_test, y_pred, loc):
+    acc = 0
+    y_test = y_test.astype(int)
+    y_pred = y_pred.astype(int)
+    loc = loc.astype(int)
+    for (i, idx) in enumerate(loc):    
+        major = np.argmax(np.bincount(y_pred[idx[0]: idx[1]], minlength=10))
+        print i/2, major
+        acc += (i/2 == major)
+    return acc
 
 # <codecell>
 
@@ -233,11 +249,19 @@ y_pred_mfcc = spk_id(clf, X_train_mfcc, X_test_mfcc, y_train)
 
 # <codecell>
 
-smooth(y_test, y_pred_mfcc, max_k=26)
+majority_voting(y_test, y_pred_mfcc, loc_test)
+
+# <codecell>
+
+smooth(y_test, y_pred_mfcc, max_k=30)
 
 # <codecell>
 
 y_pred_sf = spk_id(clf, X_train_sf, X_test_sf, y_train)
+
+# <codecell>
+
+majority_voting(y_test, y_pred_sf, loc_test)
 
 # <codecell>
 
@@ -267,28 +291,35 @@ y_train = None
 X_test = None
 y_test = None
 
+len_train = []
+len_test = []
+
 for (i, spk_dir) in enumerate(files):
     for wav_dir in spk_dir[:N_train]:
         wav, sr = load_timit(wav_dir)
+        stft = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+        len_train.append(stft.shape[1])
         if X_train is None:
-            X_train = np.abs(librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))
+            X_train = stft
             y_train = i * np.ones((X_train.shape[1], ))
         else:
-            stft = np.abs(librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))
             X_train = np.hstack((X_train, stft))
             y_train = np.hstack((y_train, i * np.ones((stft.shape[1], ))))
             
     for wav_dir in spk_dir[N_train:]:
         wav, sr = load_timit(wav_dir)
+        stft = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+        len_test.append(stft.shape[1])
         if X_test is None:
-            X_test = np.abs(librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))
+            X_test = stft
             y_test = i * np.ones((X_test.shape[1], ))
         else:
-            stft = np.abs(librosa.stft(wav, n_fft=n_fft, hop_length=hop_length))
             X_test = np.hstack((X_test, stft))
             y_test = np.hstack((y_test, i * np.ones((stft.shape[1], ))))
 
-sio.savemat('spkID_Train{}.mat'.format(N_train), {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test})
+#sio.savemat('spkID_Train%s.mat' % N_train, {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test})
+sio.savemat('bwe_spk_dep%s.mat' % N_train, {'X_train': X_train, 'y_train': y_train, 'len_train': len_train,
+                                            'X_test': X_test, 'y_test': y_test, 'len_test': len_test})
 
 # <codecell>
 

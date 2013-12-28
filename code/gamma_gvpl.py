@@ -358,16 +358,21 @@ class SF_Dict(object):
         # E[log P(w|a)]
         bound = self.T * np.sum(self.gamma * np.log(self.gamma) -
                                 special.gammaln(self.gamma))
+        print bound
         bound = bound + np.sum(-self.gamma * np.dot(self.EA, self.U) +
                                (self.gamma - 1) * np.log(self.W) -
                                self.W * Eexp * self.gamma)
+        print bound
         # E[log P(a)]
         bound = bound + self.T * np.sum(self.alpha * np.log(self.alpha) -
                                         special.gammaln(self.alpha))
+        print bound
         bound = bound + np.sum(self.ElogA * (self.alpha - 1) -
                                self.EA * self.alpha)
+        print bound
         # E[loq q(a)]
         bound = bound + np.sum(entropy(self.a, self.b))
+        print bound
         return bound
 
     ## This function is deprecated
@@ -436,12 +441,7 @@ def comp_log_exp(alpha, beta, U):
     tmp = U / beta
     log_exp = np.empty_like(tmp)
     idx = (tmp > -1)
-    # log(1 + x) is better approximated as x if x is sufficiently small
-    # otherwise, it can be directly computed
-    idx_dir = np.logical_and(idx, np.abs(tmp) > 1e-12)
-    idx_app = (np.abs(tmp) <= 1e-12)
-    log_exp[idx_dir] = (-alpha * np.log(1. + tmp))[idx_dir]
-    log_exp[idx_app] = (-alpha * tmp)[idx_app]
+    log_exp[idx] = (-alpha * np.log1p(tmp))[idx]
     log_exp[-idx] = np.inf
     return log_exp
 

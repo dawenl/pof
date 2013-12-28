@@ -11,9 +11,11 @@ import scipy.stats as stats
 
 import librosa
 import gap_nmf as nmf
+#import gig_nmf as nmf
 import sf_gap_nmf as sf_nmf
+#import sf_gig_nmf as sf_nmf
 
-import _gap
+#import _gap
 
 # <codecell>
 
@@ -69,12 +71,20 @@ for file_dir in files[:N_train]:
 
 X_complex = None
 for file_dir in files[N_train:]:
-    for wav_dir in file_dir:
-        wav, sr = load_timit(wav_dir)
-        if X_complex is None:
-            X_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
-        else:
-            X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
+    #for wav_dir in file_dir:
+    #    wav, sr = load_timit(wav_dir)
+    #    if X_complex is None:
+    #        X_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+    #    else:
+    #        X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
+    
+    ## randomly pick one sentence from each speaker
+    n_wav = len(file_dir)
+    wav, sr = load_timit(file_dir[np.random.choice(n_wav)])
+    if X_complex is None:
+        X_complex = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+    else:
+        X_complex = np.hstack((X_complex, librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)))
 
 # <codecell>
 
@@ -88,7 +98,8 @@ pass
 
 # <codecell>
 
-freq_threshold = 6000.
+# cut-off above 3000Hz
+freq_threshold = 3000.
 bin_cutoff = n_fft * freq_threshold / sr
 X_cutoff = X_complex[:(bin_cutoff+1)]
 
@@ -108,32 +119,6 @@ alpha = d['alpha'].ravel()
 plot(gamma)
 pass
 
-# <codecell>
-
-def fit_nmf(nmf, criterion=0.0005):
-    score = nmf.bound()
-    objs = []
-    for i in xrange(1000):
-        start_t = time.time()
-        nmf.update()
-        t = time.time() - start_t
-        
-        lastscore = score
-        score = nmf.bound()
-        objs.append(score)
-        improvement = (score - lastscore) / abs(lastscore)
-        print ('iteration {}: bound = {:.2f} ({:.5f} improvement) time = {:.2f}'.format(i, score, improvement, t))
-        if improvement < criterion:
-            break
-    return (nmf, objs)
-
-def compute_SNR(X_complex_org, X_complex_rec, n_fft, hop_length):
-    x_org = librosa.istft(X_complex_org, n_fft=n_fft, hann_w=0, hop_length=hop_length)
-    x_rec = librosa.istft(X_complex_rec, n_fft=n_fft, hann_w=0, hop_length=hop_length)
-    length = min(x_rec.size, x_org.size)
-    snr = 10 * np.log10(np.sum( x_org[:length] ** 2) / np.sum( (x_org[:length] - x_rec[:length])**2))
-    return (x_org, x_rec, snr)
-
 # <headingcell level=1>
 
 # Source-filter NMF
@@ -141,16 +126,14 @@ def compute_SNR(X_complex_org, X_complex_rec, n_fft, hop_length):
 # <codecell>
 
 reload(sf_nmf)
-#sfnmf = sf_nmf.SF_GaP_NMF(np.abs(X_cutoff), U[:(bin_cutoff+1)], gamma[:(bin_cutoff+1)], alpha, K=100, seed=98765)
-#sf_nmf, objs = fit_nmf(sf_nmf)
-#plot(objs)
-#pass
-
 sfnmf = sf_nmf.SF_GaP_NMF(np.abs(X_cutoff), U[:(bin_cutoff+1)], gamma[:(bin_cutoff+1)], alpha, K=100, seed=98765)
+#sfnmf = sf_nmf.SF_GIG_NMF(np.abs(X_cutoff), U[:(bin_cutoff+1)], gamma[:(bin_cutoff+1)], alpha, K=100, seed=98765)
+
+# <codecell>
+
 score = sfnmf.bound()
 criterion = 0.0005
 objs = []
-snrs = []
 for i in xrange(1000):
     start_t = time.time()
     sfnmf.update(disp=1)
@@ -159,16 +142,6 @@ for i in xrange(1000):
     lastscore = score
     score = sfnmf.bound()
     objs.append(score)
-    
-    #******* for SNR only ********
-    goodk = sfnmf.goodk()
-    c = np.mean(sfnmf.X / sfnmf._xtwid(goodk))
-    Ew = np.exp(np.dot(U, sfnmf.Ea[:, goodk]))
-    X_bar = c * np.dot(Ew * sfnmf.Et[goodk], sfnmf.Eh[goodk])
-    _, _, snr = compute_SNR(X_complex, X_bar * (X_complex / np.abs(X_complex)), n_fft, hop_length)
-    snrs.append(snr)
-    #*****************************
-    
     improvement = (score - lastscore) / abs(lastscore)
     print ('iteration {}: bound = {:.2f} ({:.5f} improvement) time = {:.2f}'.format(i, score, improvement, t))
     if improvement < criterion:
@@ -176,16 +149,13 @@ for i in xrange(1000):
 
 # <codecell>
 
-fig()
-subplot(121)
 plot(objs)
-subplot(122)
-plot(snrs)
 pass
 
 # <codecell>
 
 goodk = sfnmf.goodk()
+#goodk = np.arange(100)
 fig()
 subplot(121)
 specshow(sfnmf.Ea[:, goodk])
@@ -204,36 +174,53 @@ sfnmf.figures()
 
 # <codecell>
 
-#K = goodk.size
-#fig(figsize=(16, 20))
-#for i, k in enumerate(goodk):
-#    subplot(K, 1, i+1)
-#    plot(np.log(sfnmf.Ew[:, k]))
+K = goodk.size
+fig(figsize=(16, 20))
+for i, k in enumerate(goodk):
+    subplot(K, 1, i+1)
+    plot(np.log(sfnmf.Ew[:, k]))
+
+# <codecell>
 
 ## Infer the high-frequency contents
 Ew = np.zeros((U.shape[0], goodk.size))
 for (i, k) in enumerate(goodk):
     Ew[:, i] = np.exp(np.sum(_gap.comp_log_exp(sfnmf.nua[:, k], sfnmf.rhoa[:, k], -U), axis=1))
-#Ew =  np.exp(np.dot(U, sfnmf.Ea[:, goodk]))
+Ew1 =  np.exp(np.dot(U, sfnmf.Ea[:, goodk]))
 
 # <codecell>
 
-subplot(211)
+subplot(311)
 specshow(20 * np.log10(Ew[:(bin_cutoff+1)]))
 colorbar()
-subplot(212)
+subplot(312)
+specshow(20 * np.log10(Ew1[:(bin_cutoff+1)]))
+colorbar()
+subplot(313)
 specshow(20 * np.log10(sfnmf.Ew[:, goodk]))
 colorbar()
 pass
 
 # <codecell>
 
+subplot(211)
+specshow(20 * log10(Ew))
+colorbar()
+subplot(212)
+specshow(20 * log10(Ew1))
+colorbar()
+pass
+
+# <codecell>
+
+#c = np.mean(sfnmf.X / sfnmf._xtwid())
 c = np.mean(sfnmf.X / sfnmf._xtwid(goodk))
 X_bar = c * np.dot(Ew * sfnmf.Et[goodk], sfnmf.Eh[goodk])
+#X_bar = c * np.dot(Ew, sfnmf.Eh[goodk])
 
 fig()
 subplot(121)
-specshow(logspec(X_bar, dbdown=90))
+specshow(logspec(X_bar))
 axhline(y=(bin_cutoff+1), color='black')
 colorbar()
 subplot(122)
@@ -245,13 +232,8 @@ pass
 # <codecell>
 
 ## mean of predictive log-likelihood
-pred_likeli = stats.expon.logpdf(np.abs(X_complex[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):])
-print 'Mean = {}; std = {}'.format(np.mean(pred_likeli), np.std(pred_likeli))
-
-# <codecell>
-
-hist(pred_likeli.ravel(), bins=50)
-pass
+pred_likeli = np.mean(stats.expon.logpdf(np.abs(X_complex[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):]))
+print pred_likeli
 
 # <codecell>
 
@@ -266,49 +248,12 @@ write_wav(x_rec, 'be_sf_infer.wav')
 
 reload(nmf)
 rnmf = nmf.GaP_NMF(np.abs(X_complex_train), K=100, seed=98765)
-rnmf, _ = fit_nmf(rnmf)
-
-# <codecell>
-
-rnmf.figures()
-
-# <codecell>
-
-#encoder = nmf.GaP_NMF(np.abs(X_cutoff), K=100, seed=98765)
-#encoder.rhow = rnmf.rhow[:(bin_cutoff+1)]
-#encoder.tauw = rnmf.tauw[:(bin_cutoff+1)]
-#
-#score = -np.inf
-#criterion = 0.0005
-#for i in xrange(1000):
-#    encoder.update(update_w=False)
-#    lastscore = score
-#    score = encoder.bound()
-#    improvement = (score - lastscore) / abs(lastscore)
-#    print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
-#    if improvement < criterion:
-#        break
-        
-encoder = nmf.GaP_NMF(np.abs(X_cutoff), K=100, seed=98765)
-encoder.rhow = rnmf.rhow[:(bin_cutoff+1)]
-encoder.tauw = rnmf.tauw[:(bin_cutoff+1)]
-
 score = -np.inf
 criterion = 0.0005
-snrs = []
 for i in xrange(1000):
-    encoder.update(update_w=False)
-    
+    rnmf.update()
     lastscore = score
-    score = encoder.bound()
-    
-    #******* for SNR only ********
-    goodk = encoder.goodk()
-    X_bar = np.mean(np.abs(X_cutoff)) * np.dot(rnmf.Ew[:, goodk] * encoder.Et[goodk], encoder.Eh[goodk])
-    _, _, snr = compute_SNR(X_complex, X_bar * (X_complex / np.abs(X_complex)), n_fft, hop_length)
-    snrs.append(snr)
-    #*****************************
-    
+    score = rnmf.bound()
     improvement = (score - lastscore) / abs(lastscore)
     print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
     if improvement < criterion:
@@ -316,8 +261,24 @@ for i in xrange(1000):
 
 # <codecell>
 
-plot(snrs)
-pass
+rnmf.figures()
+
+# <codecell>
+
+encoder = nmf.GaP_NMF(np.abs(X_cutoff), K=100, seed=98765, alpha=10.0)
+encoder.rhow = rnmf.rhow[:(bin_cutoff+1)]
+encoder.tauw = rnmf.tauw[:(bin_cutoff+1)]
+
+score = -np.inf
+criterion = 0.0005
+for i in xrange(1000):
+    encoder.update(update_w=False)
+    lastscore = score
+    score = encoder.bound()
+    improvement = (score - lastscore) / abs(lastscore)
+    print ('iteration {}: bound = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
+    if improvement < criterion:
+        break
 
 # <codecell>
 
@@ -344,40 +305,13 @@ pass
 # <codecell>
 
 ## mean of predictive log-likelihood
-pred_likeli = stats.expon.logpdf(np.abs(X_complex[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):])
-print 'Mean = {}; std = {}'.format(np.mean(pred_likeli), np.std(pred_likeli))
-
-# <codecell>
-
-hist(pred_likeli.ravel(), bins=50)
-pass
+pred_likeli = np.mean(stats.expon.logpdf(np.abs(X_complex[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):]))
+print pred_likeli
 
 # <codecell>
 
 x_rec = librosa.istft(X_bar * (X_complex / np.abs(X_complex)), n_fft=n_fft, hann_w=0, hop_length=hop_length)
 write_wav(x_rec, 'be_nmf_infer.wav')
-
-# <headingcell level=1>
-
-# Obtaining a upper bound of predictive likelihood
-
-# <codecell>
-
-X_full = np.hstack((X_complex_train, X_complex)) 
-
-full_nmf = nmf.GaP_NMF(np.abs(X_full), K=100, seed=98765)
-full_nmf, _ = fit_nmf(full_nmf)
-
-# <codecell>
-
-goodk = full_nmf.goodk()
-X_bar = np.mean(np.abs(X_full)) * np.dot(full_nmf.Ew[:, goodk] * full_nmf.Et[goodk], full_nmf.Eh[goodk])
-
-# <codecell>
-
-## mean of predictive log-likelihood
-pred_likeli = stats.expon.logpdf(np.abs(X_full[(bin_cutoff+1):]), scale=X_bar[(bin_cutoff+1):])
-print 'Mean = {}; std = {}'.format(np.mean(pred_likeli), np.std(pred_likeli))
 
 # <codecell>
 

@@ -11,6 +11,7 @@ import scipy.stats as stats
 from scikits.audiolab import Sndfile, Format
 
 import librosa
+from librosa.display import *
 import gamma_gvpl as vpl
 
 import beta_nmf
@@ -19,7 +20,7 @@ import kl_nmf
 # <codecell>
 
 fig = functools.partial(figure, figsize=(16,4))
-specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower', interpolation='nearest')
+#specshow = functools.partial(imshow, cmap=cm.hot_r, aspect='auto', origin='lower', interpolation='nearest')
 
 def logspec(X, amin=1e-10, dbdown=80):
     logX = 20 * np.log10(np.maximum(X, amin))
@@ -95,7 +96,7 @@ n_fft = 1024
 hop_length = 512
 lengths = []
 
-train_mat = sio.loadmat('TIMIT_spk20.mat')
+train_mat = sio.loadmat('TIMIT_spk20_F1024_H512.mat')
 X_train = train_mat['W'];
 
 X_complex_test = None
@@ -113,11 +114,12 @@ for spk_dir in files:
 
 fig()
 subplot(211)
-specshow(logspec(X_train))
-colorbar()
+specshow(logspec(X_train), sr=16000, hop_length=512, x_axis='time', y_axis='linear')
+#colorbar()
 subplot(212)
-specshow(logspec(np.abs(X_complex_test)))
-colorbar()
+specshow(logspec(np.abs(X_complex_test)), sr=16000, hop_length=512, x_axis='time', y_axis='linear')
+#colorbar()
+tight_layout()
 pass
 
 # <codecell>
@@ -132,8 +134,8 @@ L = alpha.size
 # <codecell>
 
 def compute_SNR(X_complex_org, X_complex_rec, n_fft, hop_length):
-    x_org = librosa.istft(X_complex_org, n_fft=n_fft, hann_w=0, hop_length=hop_length)
-    x_rec = librosa.istft(X_complex_rec, n_fft=n_fft, hann_w=0, hop_length=hop_length)
+    x_org = librosa.istft(X_complex_org, hop_length=hop_length, window=np.ones((n_fft, )))
+    x_rec = librosa.istft(X_complex_rec, hop_length=hop_length, window=np.ones((n_fft, )))
     length = min(x_rec.size, x_org.size)
     snr = 10 * np.log10(np.sum( x_org[:length] ** 2) / np.sum( (x_org[:length] - x_rec[:length])**2))
     return (x_org, x_rec, snr)
@@ -204,7 +206,7 @@ pass
 
 # <codecell>
 
-K = 50
+K = 20
 d = 50
 
 # <codecell>
@@ -263,7 +265,7 @@ pass
 
 #reload(beta_nmf)
 _, H_test_kl = beta_nmf.NMF_beta(np.abs(X_cutoff_test), K, maxiter=100, 
-                                 W=W_train_kl[bin_low:(bin_high+1), :], beta=1, criterion=0.0001)
+                                 W=W_train_kl[bin_low:(bin_high+1), :], beta=1, criterion=0.00001)
 EX_KL = np.dot(W_train_kl, H_test_kl)
 EX_KL[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
 
@@ -381,9 +383,10 @@ pos = np.cumsum(lengths)
 SNR_KL = np.zeros((pos.size, ))
 start_pos = 0
 for (i, p) in enumerate(pos):
-    _, x_rec, SNR_KL[i] = compute_SNR(X_complex_test[:, start_pos:p], 
+    x_org, x_rec, SNR_KL[i] = compute_SNR(X_complex_test[:, start_pos:p], 
                                   EX_KL[:, start_pos:p] * (X_complex_test[:, start_pos:p] / np.abs(X_complex_test[:, start_pos:p])), 
                                   n_fft, hop_length)
+    write_wav(x_org, 'bwe/{}_org.wav'.format(i+1))
     write_wav(x_rec, 'bwe/{}_kl_rec.wav'.format(i+1))
     start_pos = p
 print 'SNR = {:.3f} +- {:.3f}'.format(np.mean(SNR_KL), 2*np.std(SNR_KL)/sqrt(pos.size))
