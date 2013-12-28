@@ -372,7 +372,8 @@ def _comp_logEexp(a, b, U, update_U=True):
 
 def comp_logEexp(a, b, U):
     # log(E(\prod_l exp(U_{fl} a_{lt})))
-    T, L, F = a.shape, U.shape[1]
+    T, L = a.shape
+    F = U.shape[1]
     log_exp = np.empty((T, F))
     comp_expectation = r"""
         int t, f, l;
