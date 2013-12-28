@@ -112,11 +112,12 @@ class SF_Dict(object):
             tmp = self.U / b[:, np.newaxis]
             log_term, inv_term = np.empty_like(tmp), np.empty_like(tmp)
             idx = (tmp > -1)
-            # log(1 + x) is better approximated as x if x is sufficiently small
-            idx_dir = np.logical_and(idx, np.abs(tmp) > 1e-12)
-            idx_app = (np.abs(tmp) <= 1e-12)
-            log_term[idx_dir] = np.log(1. + tmp[idx_dir])
-            log_term[idx_app] = tmp[idx_app]
+            ## log(1 + x) is better approximated as x if x is sufficiently small
+            #idx_dir = np.logical_and(idx, np.abs(tmp) > 1e-12)
+            #idx_app = (np.abs(tmp) <= 1e-12)
+            #log_term[idx_dir] = np.log(1. + tmp[idx_dir])
+            #log_term[idx_app] = tmp[idx_app]
+            log_term[idx] = np.log1p(tmp[idx])
             log_term[-idx] = -np.inf
             inv_term[idx], inv_term[-idx] = 1. / (1. + tmp[idx]), np.inf
 
@@ -167,10 +168,7 @@ class SF_Dict(object):
         from E-step
 
         Parameters
-        batch: bool
-            Update U as a whole optimization if true. Otherwise, update U
-            across different basis.
-        verbose: bool
+        ----------
         verbose: bool
             Output log if ture.
         disp: int
@@ -429,6 +427,8 @@ def comp_log_exp(alpha, beta, U):
             --> output: (L, F)
         2) U: (F, )     alpha, beta: (T, 1)
             --> oupput: (T, F)
+        3) U: (L, )     alpha, beta: (T, L)
+            --> output: (T, L)
     '''
     tmp = U / beta
     log_exp = np.empty_like(tmp)
