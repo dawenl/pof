@@ -114,3 +114,6 @@ W_train.shape
 
 sio.savemat('TIMIT_spk%d_F%d_H%d.mat' % ((n_mspk + n_fspk), n_fft, hop_length), {'W': W_train, 'files': files})
 
+# <codecell>
+
+

@@ -15,7 +15,7 @@ from joblib import Parallel, delayed
 import _pof
 
 
-class ProductOfFilterLearning:
+class ProductOfFiltersLearning:
     def __init__(self, X, n_filters=None, U=None, gamma=None, alpha=None,
                  max_steps=100, n_jobs=1, tol=0.0005, smoothness=100,
                  cold_start=False, random_state=None, verbose=False):
