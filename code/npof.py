@@ -2,7 +2,7 @@
 
 Non-negative Product-of-Filter model
 
-CREATED: 2013-07-12 11:09:44 by Dawen Liang <daliang@adobe.com>
+CREATED: 2013-07-12 11:09:44 by Dawen Liang <dliang@ee.columbia.edu>
 
 """
 
@@ -11,8 +11,6 @@ import numpy as np
 
 from scipy import optimize, special, weave
 from joblib import Parallel, delayed
-
-import _pof
 
 
 class ProductOfFiltersLearning:
@@ -323,10 +321,52 @@ def global_transform(x, n_filters,
                      U, gamma, alpha,
                      nu_init, rho_init,
                      verbose):
-    nu, rho = _pof.encoder(x, n_filters,
-                           U, gamma, alpha,
-                           nu_init, rho_init,
-                           verbose)
+    def f(theta):
+        nu, rho = np.exp(theta[:n_filters]), np.exp(theta[-n_filters:])
+        Ea, Eloga = comp_expect(nu, rho)
+        logEexp = _comp_logEexp(nu, rho, U, update_U=False)
+        likeli = (-x * np.exp(np.sum(logEexp, axis=0)) - Ea.dot(U)) * gamma
+        prior = (alpha - 1) * Eloga - alpha * Ea
+        ent = entropy(nu, rho)
+        return -(likeli.sum() + prior.sum() + ent.sum())
+
+    def df(theta):
+        nu, rho = np.exp(theta[:n_filters]), np.exp(theta[-n_filters:])
+        logEexp = _comp_logEexp(nu, rho, U, update_U=False)
+
+        tmp = U / rho[:, np.newaxis]
+        log_term, inv_term = np.empty_like(tmp), np.empty_like(tmp)
+        idx = (tmp > -1)
+        log_term[idx] = np.log1p(tmp[idx])
+        log_term[-idx] = -np.inf
+        inv_term[idx], inv_term[-idx] = 1. / (1. + tmp[idx]), np.inf
+
+        grad_nu = np.sum(x * log_term * np.exp(np.sum(logEexp, axis=0)) * gamma
+                         - U / rho[:, np.newaxis] * gamma, axis=1)
+        grad_nu = grad_nu + (alpha - nu) * special.polygamma(1, nu)
+        grad_nu = grad_nu + 1 - alpha / rho
+        grad_rho = nu / rho**2 * np.sum(-U * x * inv_term *
+                                        np.exp(np.sum(logEexp, axis=0)) *
+                                        gamma + U * gamma, axis=1)
+        grad_rho = grad_rho + alpha * (nu / rho**2 - 1. / rho)
+        return -np.hstack((nu * grad_nu, rho * grad_rho))
+
+    theta0 = np.hstack((np.log(nu_init), np.log(rho_init)))
+    theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
+    if verbose and d['warnflag']:
+        if d['warnflag'] == 2:
+            print 'A[]: {}, f={}'.format(d['task'], f(theta_hat))
+        else:
+            print 'A[, :]: {}, f={}'.format(d['warnflag'], f(theta_hat))
+        app_grad = approx_grad(f, theta_hat)
+        ana_grad = df(theta_hat)
+        for l in xrange(n_filters):
+            print_gradient('log_a[, %:3d]' % l, theta_hat[l], ana_grad[l],
+                           app_grad[l])
+            print_gradient('log_b[, %:3d]' % l, theta_hat[l + n_filters],
+                           ana_grad[l + n_filters], app_grad[l + n_filters])
+
+    nu, rho = np.exp(theta_hat[:n_filters]), np.exp(theta_hat[-n_filters:])
     return (nu, rho)
 
 
@@ -334,8 +374,17 @@ def global_update_U(x,
                     u_init, gamma, alpha,
                     nu, rho,
                     EA, ElogA):
-    u = _pof.update_u(x,
-                      u_init, gamma, alpha,
-                      nu, rho,
-                      EA, ElogA)
+    def fun(u):
+        Eexp = np.exp(np.sum(_comp_logEexp(nu, rho, u), axis=1))
+        return np.sum(gamma * (Eexp * x + EA.dot(u)))
+
+    def dfun(u):
+        tmp = 1 + u / rho
+        inv_term = np.empty_like(tmp)
+        idx = (tmp > 0)
+        inv_term[idx], inv_term[-idx] = 1. / tmp[idx], np.inf
+        Eexp = np.exp(np.sum(_comp_logEexp(nu, rho, u), axis=1))
+        return np.sum(EA * (1 - (x * Eexp)[:, np.newaxis] * inv_term), axis=0)
+
+    u, _, _ = optimize.fmin_l_bfgs_b(fun, u_init, fprime=dfun, disp=0)
     return u

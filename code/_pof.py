@@ -232,4 +232,3 @@ def print_increment(name, last_score, score):
     diff_str = '+' if score > last_score else '-'
     print('Update ({})\tBefore: {:.2f}\tAfter: {:.2f}\t{}'.format(
         name, last_score, score, diff_str))
-
