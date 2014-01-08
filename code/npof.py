@@ -64,12 +64,12 @@ class ProductOfFiltersLearning:
         self.EA, self.ElogA = comp_expect(self.nu, self.rho)
 
     def save_params(self, fname, save_EA=False):
-        out_data =  {'U': self.U,
-                     'gamma': self.gamma,
-                     'alpha': self.alpha}
+        out_data = {'U': self.U,
+                    'gamma': self.gamma,
+                    'alpha': self.alpha}
         if save_EA:
             out_data['EA'] = self.EA
-        io.savemat('fname', out_data)
+        io.savemat(fname, out_data)
         pass
 
     def fit(self):
