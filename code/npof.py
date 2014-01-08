@@ -15,14 +15,16 @@ from joblib import Parallel, delayed
 
 class ProductOfFiltersLearning:
     def __init__(self, X, n_filters=None, U=None, gamma=None, alpha=None,
-                 max_steps=100, n_jobs=1, tol=0.0005, smoothness=100,
-                 cold_start=False, random_state=None, verbose=False):
+                 max_steps=100, n_jobs=1, tol=0.0005, save_params=False,
+                 smoothness=100, cold_start=False, random_state=None,
+                 verbose=False):
         self.X = X.copy()
         self.n, self.m = X.shape
         self.n_filters = n_filters
         self.max_steps = max_steps
         self.n_jobs = n_jobs
         self.tol = tol
+        self.save_params = save_params
         self.random_state = random_state
         self.verbose = verbose
         self.smoothness = smoothness
@@ -63,20 +65,22 @@ class ProductOfFiltersLearning:
                                                            self.n_filters))
         self.EA, self.ElogA = comp_expect(self.nu, self.rho)
 
-    def save_params(self, fname, save_EA=False):
+    def _save_params(self, fname, save_EA=False):
         out_data = {'U': self.U,
                     'gamma': self.gamma,
                     'alpha': self.alpha}
         if save_EA:
             out_data['EA'] = self.EA
         io.savemat(fname, out_data)
-        pass
 
     def fit(self):
         old_obj = -np.inf
         for i in xrange(self.max_steps):
             self.transform()
             self._update_params()
+            if self.save_params:
+                self._save_params('sf_inter_L%d.iter%d.mat' % (self.n_filters,
+                                                               i))
             score = self._bound()
             improvement = (score - old_obj) / abs(old_obj)
             if self.verbose:
