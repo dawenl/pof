@@ -9,7 +9,7 @@ CREATED: 2013-07-12 11:09:44 by Dawen Liang <dliang@ee.columbia.edu>
 import time
 import numpy as np
 
-from scipy import optimize, special, weave
+from scipy import io, optimize, special, weave
 from joblib import Parallel, delayed
 
 
@@ -62,6 +62,15 @@ class ProductOfFiltersLearning:
                                                      size=(self.n,
                                                            self.n_filters))
         self.EA, self.ElogA = comp_expect(self.nu, self.rho)
+
+    def save_params(self, fname, save_EA=False):
+        out_data =  {'U': self.U,
+                     'gamma': self.gamma,
+                     'alpha': self.alpha}
+        if save_EA:
+            out_data['EA'] = self.EA
+        io.savemat('fname', out_data)
+        pass
 
     def fit(self):
         old_obj = -np.inf
