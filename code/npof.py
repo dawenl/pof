@@ -40,7 +40,6 @@ class ProductOfFiltersLearning:
             self.alpha = alpha.copy()
         else:
             self._init_params()
-        #self._init_variational()
 
     def _init_params(self):
         # model parameters
@@ -95,8 +94,8 @@ class ProductOfFiltersLearning:
         return self
 
     def transform(self, X, cold_start=True):
+        n_samples = X.shape[0]
         if cold_start:
-            n_samples = X.shape[0]
             self._init_variational(n_samples)
 
         if self.verbose:
@@ -111,7 +110,7 @@ class ProductOfFiltersLearning:
                 self.nu[i], self.rho[i],
                 self.verbose
             )
-            for i in xrange(X.shape[0])
+            for i in xrange(n_samples)
         )
         nu_and_rho = np.array(results)
         self.nu, self.rho = nu_and_rho[:, 0, :].copy(), nu_and_rho[:, 1, :].copy()
