@@ -14,12 +14,11 @@ from joblib import Parallel, delayed
 
 
 class ProductOfFiltersLearning:
-    def __init__(self, X, n_filters=None, U=None, gamma=None, alpha=None,
-                 max_steps=100, n_jobs=1, tol=0.0005, save_params=False,
-                 smoothness=100, cold_start=False, random_state=None,
+    def __init__(self, n_feats=None, n_filters=None, U=None, gamma=None,
+                 alpha=None, max_steps=100, n_jobs=1, tol=0.0005,
+                 save_params=False, smoothness=100, random_state=None,
                  verbose=False):
-        self.X = X.copy()
-        self.n, self.m = X.shape
+        self.n_feats = n_feats
         self.n_filters = n_filters
         self.max_steps = max_steps
         self.n_jobs = n_jobs
@@ -28,7 +27,6 @@ class ProductOfFiltersLearning:
         self.random_state = random_state
         self.verbose = verbose
         self.smoothness = smoothness
-        self.cold_start = cold_start
 
         if type(self.random_state) is int:
             np.random.seed(self.random_state)
@@ -42,26 +40,26 @@ class ProductOfFiltersLearning:
             self.alpha = alpha.copy()
         else:
             self._init_params()
-        self._init_variational()
+        #self._init_variational()
 
     def _init_params(self):
         # model parameters
-        self.U = np.random.randn(self.n_filters, self.m)
+        self.U = np.random.randn(self.n_filters, self.n_feats)
         self.alpha = np.random.gamma(self.smoothness,
                                      1. / self.smoothness,
                                      size=(self.n_filters,))
         self.gamma = np.random.gamma(self.smoothness,
                                      1. / self.smoothness,
-                                     size=(self.m,))
+                                     size=(self.n_feats,))
 
-    def _init_variational(self):
+    def _init_variational(self, n_samples):
         self.nu = self.smoothness * np.random.gamma(self.smoothness,
                                                     1. / self.smoothness,
-                                                    size=(self.n,
+                                                    size=(n_samples,
                                                           self.n_filters))
         self.rho = self.smoothness * np.random.gamma(self.smoothness,
                                                      1. / self.smoothness,
-                                                     size=(self.n,
+                                                     size=(n_samples,
                                                            self.n_filters))
         self.EA, self.ElogA = comp_expect(self.nu, self.rho)
 
@@ -73,15 +71,18 @@ class ProductOfFiltersLearning:
             out_data['EA'] = self.EA
         io.savemat(fname, out_data)
 
-    def fit(self):
+    def fit(self, X):
         old_obj = -np.inf
         for i in xrange(self.max_steps):
-            self.transform()
-            self._update_params()
+            if not i:
+                self.transform(X)
+            else:
+                self.transform(X, cold_start=False)
+            self._update_params(X)
             if self.save_params:
                 self._save_params('sf_inter_L%d.iter%d.mat' % (self.n_filters,
                                                                i))
-            score = self._bound()
+            score = self._bound(X)
             improvement = (score - old_obj) / abs(old_obj)
             if self.verbose:
                 print('After ITERATION: %d\tObjective: %.2f\t'
@@ -93,24 +94,24 @@ class ProductOfFiltersLearning:
             old_obj = score
         return self
 
-    def transform(self):
-        if self.cold_start:
-            # re-initialize all the variational parameters
-            self._init_variational()
+    def transform(self, X, cold_start=True):
+        if cold_start:
+            n_samples = X.shape[0]
+            self._init_variational(n_samples)
 
         if self.verbose:
-            last_score = self._bound()
+            last_score = self._bound(X)
             print('Update (initial)\tObj: {:.2f}'.format(last_score))
             start_t = time.time()
 
         results = Parallel(n_jobs=self.n_jobs)(
             delayed(global_transform)(
-                self.X[i], self.n_filters,
+                X[i], self.n_filters,
                 self.U, self.gamma, self.alpha,
                 self.nu[i], self.rho[i],
                 self.verbose
             )
-            for i in xrange(self.n)
+            for i in xrange(X.shape[0])
         )
         nu_and_rho = np.array(results)
         self.nu, self.rho = nu_and_rho[:, 0, :].copy(), nu_and_rho[:, 1, :].copy()
@@ -118,57 +119,58 @@ class ProductOfFiltersLearning:
 
         if self.verbose:
             t = time.time() - start_t
-            score = self._bound()
+            score = self._bound(X)
             print_increment('A', last_score, score)
             print 'Batch update A\ttime: {:.2f}'.format(t)
 
-    def _update_params(self):
+    def _update_params(self, X):
         if self.verbose:
-            last_score = self._bound()
+            last_score = self._bound(X)
             start_t = time.time()
 
         U = Parallel(n_jobs=self.n_jobs)(
             delayed(global_update_U)(
-                self.X[:, j], self.U[:, j], self.gamma[j], self.alpha,
+                X[:, j], self.U[:, j], self.gamma[j], self.alpha,
                 self.nu, self.rho, self.EA, self.ElogA
             )
-            for j in xrange(self.m)
+            for j in xrange(self.n_feats)
         )
         U = np.vstack(U).T
         self.U = U.copy()
         if self.verbose:
-            score = self._bound()
+            score = self._bound(X)
             print_increment('U', last_score, score)
             last_score = score
 
-        self._update_gamma()
+        self._update_gamma(X)
         if self.verbose:
-            score = self._bound()
+            score = self._bound(X)
             print_increment('gamma', last_score, score)
             last_score = score
 
-        self._update_alpha()
+        self._update_alpha(X)
         if self.verbose:
-            score = self._bound()
+            score = self._bound(X)
             print_increment('alpha', last_score, score)
 
         if self.verbose:
             t = time.time() - start_t
             print('Update free parameters\ttime: %.2f' % t)
 
-    def _update_gamma(self):
+    def _update_gamma(self, X):
         def f(eta):
             gamma = np.exp(eta)
-            return -(self.n * np.sum(gamma * eta - special.gammaln(gamma)) +
-                     np.sum(gamma * np.log(self.X) - gamma *
-                            np.dot(self.EA, self.U) - gamma * self.X * Eexp))
+            return -(n_samples * np.sum(gamma * eta - special.gammaln(gamma)) +
+                     np.sum(gamma * np.log(X) - gamma *
+                            np.dot(self.EA, self.U) - gamma * X * Eexp))
 
         def df(eta):
             gamma = np.exp(eta)
-            return -gamma * (self.n * (eta + 1 - special.psi(gamma)) +
+            return -gamma * (n_samples * (eta + 1 - special.psi(gamma)) +
                              np.sum(-np.dot(self.EA, self.U) +
-                                    np.log(self.X) - self.X * Eexp, axis=0))
+                                    np.log(X) - X * Eexp, axis=0))
 
+        n_samples = X.shape[0]
         Eexp = np.exp(comp_logEexp(self.nu, self.rho, self.U))
 
         eta0 = np.log(self.gamma)
@@ -181,21 +183,22 @@ class ProductOfFiltersLearning:
                 print 'f={}, {}'.format(f(eta_hat), d['warnflag'])
             app_grad = approx_grad(f, eta_hat)
             ana_grad = df(eta_hat)
-            for idx in xrange(self.m):
+            for idx in xrange(self.n_feats):
                 print_gradient('Gamma[{:3d}]'.format(idx), self.gamma[idx],
                                ana_grad[idx], app_grad[idx])
 
-    def _update_alpha(self):
+    def _update_alpha(self, X):
         def f(eta):
             tmp1 = np.exp(eta) * eta - special.gammaln(np.exp(eta))
             tmp2 = self.ElogA * (np.exp(eta) - 1) - self.EA * np.exp(eta)
-            return -(self.n * tmp1.sum() + tmp2.sum())
+            return -(n_samples * tmp1.sum() + tmp2.sum())
 
         def df(eta):
-            return -np.exp(eta) * (self.n * (eta + 1 -
+            return -np.exp(eta) * (n_samples * (eta + 1 -
                                              special.psi(np.exp(eta)))
                                    + np.sum(self.ElogA - self.EA, axis=0))
 
+        n_samples = X.shape[0]
         eta0 = np.log(self.alpha)
         eta_hat, _, d = optimize.fmin_l_bfgs_b(f, eta0, fprime=df, disp=0)
         self.alpha = np.exp(eta_hat)
@@ -210,16 +213,17 @@ class ProductOfFiltersLearning:
                 print_gradient('Alpha[{:3d}]'.format(l), self.alpha[l],
                                ana_grad[l], app_grad[l])
 
-    def _bound(self):
+    def _bound(self, X):
+        n_samples = X.shape[0]
         Eexp = np.exp(comp_logEexp(self.nu, self.rho, self.U))
         # E[log P(w|a)]
-        bound = self.n * np.sum(self.gamma * np.log(self.gamma) -
+        bound = n_samples * np.sum(self.gamma * np.log(self.gamma) -
                                 special.gammaln(self.gamma))
         bound = bound + np.sum(-self.gamma * np.dot(self.EA, self.U) +
-                               (self.gamma - 1) * np.log(self.X) -
-                               self.X * Eexp * self.gamma)
+                               (self.gamma - 1) * np.log(X) -
+                               X * Eexp * self.gamma)
         # E[log P(a)]
-        bound = bound + self.n * np.sum(self.alpha * np.log(self.alpha) -
+        bound = bound + n_samples * np.sum(self.alpha * np.log(self.alpha) -
                                         special.gammaln(self.alpha))
         bound = bound + np.sum(self.ElogA * (self.alpha - 1) -
                                self.EA * self.alpha)
