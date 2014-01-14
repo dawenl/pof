@@ -12,18 +12,57 @@ import numpy as np
 from scipy import io, optimize, special, weave
 from joblib import Parallel, delayed
 
+from sklearn.base import BaseEstimator, TransformerMixin
 
-class ProductOfFiltersLearning:
+
+class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
+    '''Product-of-Filters learning'''
+
     def __init__(self, n_feats=None, n_filters=None, U=None, gamma=None,
                  alpha=None, max_steps=100, n_jobs=1, tol=0.0005,
-                 save_params=False, smoothness=100, random_state=None,
+                 save_filters=False, smoothness=100, random_state=None,
                  verbose=False):
+        '''Product-of-Filters learning
+
+        Arguments
+        ---------
+        n_feats : int
+            The dimension of the data to be modeled
+
+        n_filters : int
+            Number of filters to to extract
+
+        U, gamma, alpha : numpy-array
+            Filter parameters
+
+        max_steps : int
+            Maximal number of iterations to perform
+
+        n_jobs : int
+            Number of parallel jobs to run
+
+        tol : float
+            The threshold on the increase of the objective to stop the
+            iteration
+
+        save_filters : bool
+            Save the intermediate filter parameters after each iteration or not?
+
+        smoothness : int
+            Smoothness on the initialization variational parameters
+
+        random_state : int or RandomState
+            Pseudo random number generator used for sampling
+
+        verbose : bool
+            Whether to show progress during training
+        '''
         self.n_feats = n_feats
         self.n_filters = n_filters
         self.max_steps = max_steps
         self.n_jobs = n_jobs
         self.tol = tol
-        self.save_params = save_params
+        self.save_filters = save_filters
         self.random_state = random_state
         self.verbose = verbose
         self.smoothness = smoothness
@@ -34,14 +73,11 @@ class ProductOfFiltersLearning:
             np.random.setstate(self.random_state)
 
         if U is not None:
-            self.n_filters = U.shape[0]
-            self.U = U.copy()
-            self.gamma = gamma.copy()
-            self.alpha = alpha.copy()
+            self.set_filters(U, gamma, alpha)
         else:
-            self._init_params()
+            self._init_filters()
 
-    def _init_params(self):
+    def _init_filters(self):
         # model parameters
         self.U = np.random.randn(self.n_filters, self.n_feats)
         self.alpha = np.random.gamma(self.smoothness,
@@ -62,7 +98,7 @@ class ProductOfFiltersLearning:
                                                            self.n_filters))
         self.EA, self.ElogA = comp_expect(self.nu, self.rho)
 
-    def _save_params(self, fname, save_EA=False):
+    def _save_filters(self, fname, save_EA=False):
         out_data = {'U': self.U,
                     'gamma': self.gamma,
                     'alpha': self.alpha}
@@ -70,7 +106,44 @@ class ProductOfFiltersLearning:
             out_data['EA'] = self.EA
         io.savemat(fname, out_data)
 
+    def set_filters(self, U, gamma, alpha):
+        '''Set the filter parameters.
+
+        Parameters
+        ----------
+        U : numpy-array, shape (n_filters, n_feats)
+            Filters
+
+        gamma : numpy-array, shape (n_feats, )
+            Frequency-dependent noise level
+
+        alpha : numpy-array, shape (n_filters, )
+            Filter-specific sparsity
+
+        Returns
+        -------
+        self : object
+            Return the instance itself.
+        '''
+        self.n_filters, self.n_feats = U.shape
+        self.U = U.copy()
+        self.gamma = gamma.copy()
+        self.alpha = alpha.copy()
+        return self
+
     def fit(self, X):
+        '''Fit the model to the data in X.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, n_feats)
+            Training data.
+
+        Returns
+        -------
+        self: object
+            Returns the instance itself.
+        '''
         if X.shape[1] != self.n_feats:
             raise ValueError('The number of dimension of data does not match.')
 
@@ -80,10 +153,10 @@ class ProductOfFiltersLearning:
                 self.transform(X)
             else:
                 self.transform(X, cold_start=False)
-            self._update_params(X)
-            if self.save_params:
-                self._save_params('sf_inter_L%d.iter%d.mat' % (self.n_filters,
-                                                               i))
+            self._update_filters(X)
+            if self.save_filters:
+                self._save_filters('sf_inter_L%d.iter%d.mat' % (self.n_filters,
+                                                                i))
             score = self._bound(X)
             improvement = (score - old_obj) / abs(old_obj)
             if self.verbose:
@@ -97,6 +170,23 @@ class ProductOfFiltersLearning:
         return self
 
     def transform(self, X, cold_start=True):
+        '''Encode the data as a sparse linear combination of the filters in the
+        log-spectral domain.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, n_feats)
+
+        cold_start: bool
+            reinitilize the variational parameters if true
+
+        Returns
+        -------
+        self: object
+            Returns the instance itself, the transformed data can be obtained
+            as the expected sufficient statistics from the variational
+            parameters.
+        '''
         n_samples = X.shape[0]
         if cold_start:
             self._init_variational(n_samples)
@@ -125,7 +215,9 @@ class ProductOfFiltersLearning:
             print_increment('A', last_score, score)
             print 'Batch update A\ttime: {:.2f}'.format(t)
 
-    def _update_params(self, X):
+        return self
+
+    def _update_filters(self, X):
         if self.verbose:
             last_score = self._bound(X)
             start_t = time.time()
@@ -196,8 +288,8 @@ class ProductOfFiltersLearning:
             return -(n_samples * tmp1.sum() + tmp2.sum())
 
         def df(eta):
-            return -np.exp(eta) * (n_samples * (eta + 1 -
-                                             special.psi(np.exp(eta)))
+            return -np.exp(eta) * (n_samples *
+                                   (eta + 1 - special.psi(np.exp(eta)))
                                    + np.sum(self.ElogA - self.EA, axis=0))
 
         n_samples = X.shape[0]
@@ -220,13 +312,13 @@ class ProductOfFiltersLearning:
         Eexp = np.exp(comp_logEexp(self.nu, self.rho, self.U))
         # E[log P(w|a)]
         bound = n_samples * np.sum(self.gamma * np.log(self.gamma) -
-                                special.gammaln(self.gamma))
+                                   special.gammaln(self.gamma))
         bound = bound + np.sum(-self.gamma * self.EA.dot(self.U) +
                                (self.gamma - 1) * np.log(X) -
                                X * Eexp * self.gamma)
         # E[log P(a)]
         bound = bound + n_samples * np.sum(self.alpha * np.log(self.alpha) -
-                                        special.gammaln(self.alpha))
+                                           special.gammaln(self.alpha))
         bound = bound + np.sum(self.ElogA * (self.alpha - 1) -
                                self.EA * self.alpha)
         # E[loq q(a)]
