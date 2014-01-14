@@ -71,6 +71,9 @@ class ProductOfFiltersLearning:
         io.savemat(fname, out_data)
 
     def fit(self, X):
+        if X.shape[1] != self.n_feats:
+            raise ValueError('The number of dimension of data does not match.')
+
         old_obj = -np.inf
         for i in xrange(self.max_steps):
             if not i:
@@ -161,12 +164,12 @@ class ProductOfFiltersLearning:
             gamma = np.exp(eta)
             return -(n_samples * np.sum(gamma * eta - special.gammaln(gamma)) +
                      np.sum(gamma * np.log(X) - gamma *
-                            np.dot(self.EA, self.U) - gamma * X * Eexp))
+                            self.EA.dot(self.U) - gamma * X * Eexp))
 
         def df(eta):
             gamma = np.exp(eta)
             return -gamma * (n_samples * (eta + 1 - special.psi(gamma)) +
-                             np.sum(-np.dot(self.EA, self.U) +
+                             np.sum(-self.EA.dot(self.U) +
                                     np.log(X) - X * Eexp, axis=0))
 
         n_samples = X.shape[0]
@@ -218,7 +221,7 @@ class ProductOfFiltersLearning:
         # E[log P(w|a)]
         bound = n_samples * np.sum(self.gamma * np.log(self.gamma) -
                                 special.gammaln(self.gamma))
-        bound = bound + np.sum(-self.gamma * np.dot(self.EA, self.U) +
+        bound = bound + np.sum(-self.gamma * self.EA.dot(self.U) +
                                (self.gamma - 1) * np.log(X) -
                                X * Eexp * self.gamma)
         # E[log P(a)]
