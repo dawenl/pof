@@ -407,7 +407,6 @@ def comp_logEexp(a, b, U):
                     if (U[(l*F) + f] / b[(t*L) + l] > -1) {
                         log_exp[(t*F) + f] += -a[(t*L) + l] * log1p(U[(l*F) + f] / b[(t*L) + l]);
                     } else {
-                        printf("U=%.2f\tb=%.2f", U[(l*F) + f], b[(t*L) + l]);
                         log_exp[(t*F) + f] = INFINITY;
                     }
                  }
