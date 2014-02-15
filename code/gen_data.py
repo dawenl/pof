@@ -5,9 +5,10 @@
 
 import numpy as np
 import glob
+import itertools
+
 import librosa
 import scipy.io as sio
-
 from scikits.audiolab import Sndfile
 
 # <codecell>
@@ -19,8 +20,8 @@ def load_timit(wav_dir):
 
 TIMIT_DIR = '../../timit/'
 
-n_mspk = 15
-n_fspk = 15
+n_mspk = 40
+n_fspk = 40
 
 # <codecell>
 
@@ -31,10 +32,10 @@ fspk_dict = dict.fromkeys(drs, n_fspk/n_dr)
 mspk_dict=  dict.fromkeys(drs, n_mspk/n_dr)
 
 np.random.seed(12345)
-for key in np.random.choice(drs, size=n_mspk % n_dr, replace=False):
-    fspk_dict[key] += 1
-for key in np.random.choice(drs, size=n_fspk % n_dr, replace=False):
-    mspk_dict[key] += 1
+for (mk, fk) in zip(np.random.choice(drs, size=n_mspk % n_dr, replace=False), 
+                    np.random.choice(drs, size=n_fspk % n_dr, replace=False)):
+    mspk_dict[mk] += 1
+    fspk_dict[fk] += 1
 
 # <codecell>
 
@@ -54,13 +55,9 @@ for dr in drs:
 
 files, phones = [], []
 
-for spk_dir in f_dirs:
-    files.extend(glob.glob(spk_dir + '/s[i|x]*.wav'))
-    phones.extend(glob.glob(spk_dir + '/s[i|x]*.phn'))
-
-for spk_dir in m_dirs:
-    files.extend(glob.glob(spk_dir + '/s[i|x]*.wav'))
-    phones.extend(glob.glob(spk_dir + '/s[i|x]*.phn'))
+for spk_dir in itertools.chain(f_dirs, m_dirs):
+    files.extend(glob.glob(spk_dir + '/s[a|i|x]*.wav'))
+    phones.extend(glob.glob(spk_dir + '/s[a|i|x]*.phn'))
 
 # <codecell>
 
@@ -69,7 +66,7 @@ print m_dirs
 
 # <codecell>
 
-files
+len(files)
 
 # <codecell>
 
@@ -95,8 +92,8 @@ for (k, v) in map_64to48.items():
 # <codecell>
 
 fs = 16000
-n_fft = int(0.025 * fs)
-hop_length = int(0.010 * fs)
+n_fft = 1024
+hop_length = 512
 
 W_train = None
 for wav_dir in files:
@@ -112,5 +109,8 @@ W_train.shape
 
 # <codecell>
 
-sio.savemat('TIMIT_spk%d_F%d_H%d.mat' % ((n_mspk + n_fspk), n_fft, hop_length), {'W': W_train, 'files': files})
+sio.savemat('TIMIT_fspk%d_mspk%d_F%d_H%d.mat' % (n_fspk, n_mspk, n_fft, hop_length), {'W': W_train, 'files': files})
+
+# <codecell>
+
 
