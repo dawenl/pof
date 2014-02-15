@@ -1,6 +1,8 @@
 '''
-Load in the pre-generated MFCC or PoFC from cPickle file and learn 
-Random Forest with different train/test split
+Load in the pre-generated MFCC or PoFC from cPickle file and learn Random
+Forest with different train/test split
+
+CREATED: 2014-02-15 02:50:39 by Dawen Liang <dliang@ee.columbia.edu>
 
 '''
 
@@ -67,7 +69,7 @@ def smooth(y_test, y_pred, max_k=200):
 
 
 def majority_voting(y_test, y_pred, loc, n_class):
-    """Aggregate the frame-level predictions to a sentence-level prediction 
+    """Aggregate the frame-level predictions to a sentence-level prediction
     by majority voting
     """
     acc = 0
