@@ -19,7 +19,7 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
     '''Product-of-Filters learning'''
 
     def __init__(self, n_feats=None, n_filters=None, U=None, gamma=None,
-                 alpha=None, max_steps=100, n_jobs=1, tol=0.0005,
+                 alpha=None, max_steps=50, n_jobs=1, tol=0.0005,
                  save_filters=False, smoothness=100, random_state=None,
                  verbose=False):
         '''Product-of-Filters learning

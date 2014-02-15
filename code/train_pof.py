@@ -15,7 +15,7 @@ def train_pof(data_file, n_filters, n_jobs):
     coder = npof.ProductOfFiltersLearning(n_feats=W.shape[0],
                                           n_filters=n_filters,
                                           n_jobs=n_jobs,
-                                          save_params=True,
+                                          save_filters=True,
                                           random_state=98765,
                                           verbose=True)
     coder.fit(W.T)
