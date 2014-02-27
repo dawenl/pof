@@ -169,23 +169,19 @@ tmpX[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
 encoder = pof.ProductOfFiltersLearning(n_feats=F, n_filters=L, 
                                        U=U[:, bin_low:(bin_high+1)], gamma=gamma[bin_low:(bin_high+1)], alpha=alpha, 
                                        n_jobs=5, random_state=98765, verbose=True)
-encoder.transform(np.abs(X_cutoff_test.T))
-
-# <codecell>
-
-encoder = load_object('bwe_encoder_gamma_L{}'.format(L))
+EA = encoder.transform(np.abs(X_cutoff_test.T))
 
 # <codecell>
 
 fig(figsize=(10, 6))
-specshow(encoder.EA.T)
+specshow(EA.T)
 colorbar()
 pass
 
 # <codecell>
 
 # plot the correlation
-A_test = encoder.EA.copy()
+A_test = EA.copy()
 A_test = A_test - np.mean(A_test, axis=0, keepdims=True)
 A_test = A_test / np.sqrt(np.sum(A_test ** 2, axis=0, keepdims=True))
 specshow(np.dot(A_test.T, A_test))
@@ -194,7 +190,7 @@ pass
 
 # <codecell>
 
-EX_test = np.exp(np.dot(encoder.EA, U)).T
+EX_test = np.exp(np.dot(EA, U)).T
 EX_test[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
 EX_test[EX_test > tmpX.max()] = tmpX.max()
 
@@ -358,8 +354,4 @@ for (i, p) in enumerate(pos):
     start_pos = p
 print 'SNR = {:.3f} +- {:.3f}'.format(np.mean(SNR_rand), 2*np.std(SNR_rand)/sqrt(pos.size))
 print SNR_rand
-
-# <codecell>
-
-save_object(encoder, 'bwe_encoder_gamma_L{}'.format(L))
 
