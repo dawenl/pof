@@ -126,9 +126,7 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
             Return the instance itself.
         '''
         self.n_filters, self.n_feats = U.shape
-        self.U = U.copy()
-        self.gamma = gamma.copy()
-        self.alpha = alpha.copy()
+        self.U, self.gamma, self.alpha = U, gamma, alpha
         return self
 
     def fit(self, X):

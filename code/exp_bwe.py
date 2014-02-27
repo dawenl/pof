@@ -181,8 +181,7 @@ pass
 # <codecell>
 
 # plot the correlation
-A_test = EA.copy()
-A_test = A_test - np.mean(A_test, axis=0, keepdims=True)
+A_test = EA - np.mean(EA, axis=0, keepdims=True)
 A_test = A_test / np.sqrt(np.sum(A_test ** 2, axis=0, keepdims=True))
 specshow(np.dot(A_test.T, A_test))
 colorbar()
