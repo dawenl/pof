@@ -1,9 +1,9 @@
 """
 
-Beta-divergence NMF
+Beta-divergence NMF with multiplicative updates
 
 Translate from MATLAB code by Minje Kim <minje@illinois.edu>
-CREATED: 2013-09-16 03:04:33 by Dawen Liang <dl2771@columbia.edu>
+CREATED: 2013-09-16 03:04:33 by Dawen Liang <dliang@columbia.edu>
 
 """
 
@@ -11,8 +11,9 @@ import numpy as np
 
 eps = np.spacing(1)
 
-def NMF_beta(X, K, maxiter=500, criterion=0.0001, W=None, beta=1, seed=None,
-             normalize=False, verbose=True):
+
+def NMF_beta(X, K, W=None, beta=None, maxiter=500, tol=None, seed=None,
+             normalize=False, verbose=False):
     ''' Beta-divergence NMF
     '''
     f, t = X.shape
@@ -33,76 +34,87 @@ def NMF_beta(X, K, maxiter=500, criterion=0.0001, W=None, beta=1, seed=None,
     H = np.random.rand(K, t)
     score = -np.inf
 
-    if beta == 2:
+    if not beta in [0, 1, 2]:
+        raise ValueError('beta has to be 0, 1 or 2')
+    elif beta == 2:
         # EUC-NMF
         for i in xrange(maxiter):
             if updateW:
-                X_bar = np.dot(W, H)
-                W = W * np.dot(X, H.T)
-                W = W / (np.dot(X_bar, H.T) + eps)
-            H = H * np.dot(W.T, X) / (np.dot(np.dot(W.T, W), H) + eps)
+                X_bar = W.dot(H)
+                W = W * X.dot(H.T)
+                W = W / (X_bar.dot(H.T) + eps)
+            H = H * W.T.dot(X) / (W.T.dot(W).dot(H) + eps)
             if normalize:
                 _normalize(W, H)
 
             lastscore = score
-            X_bar = np.dot(W, H)
-            score = np.sum((X - X_bar)**2)
+            score = _compute_loss(X, W, H, beta)
             improvement = (lastscore - score) / abs(lastscore)
             if verbose:
-                print ('iteration {}: obj = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
-            if i >= 10 and improvement < criterion:
+                print ('Iteration %d: obj = %.2f (%.5f improvement)' %
+                       (i, score, improvement))
+            if i >= 10 and improvement < tol:
                 break
-
     elif beta == 1:
         # KL-NMF
         for i in xrange(maxiter):
             if updateW:
-                X_bar = np.dot(W, H)
+                X_bar = W.dot(H)
                 W = W * np.dot(X / (X_bar + eps), H.T)
                 W = W / (np.dot(np.ones((f, t)), H.T) + eps)
-            X_bar = np.dot(W, H)
-            H = H * np.dot(W.T, X / (X_bar + eps))
-            H = H / (np.dot(W.T, np.ones((f, t))) + eps)
+            X_bar = W.dot(H)
+            H = H * W.T.dot(X / (X_bar + eps))
+            H = H / (W.T.dot(np.ones((f, t))) + eps)
             if normalize:
                 (W, H) = _normalize(W, H)
 
             lastscore = score
-            X_bar = np.dot(W, H)
-            score = np.sum(X * (np.log(X) - np.log(X_bar)) - X + X_bar)
+            score = _compute_loss(X, W, H, beta)
             improvement = (lastscore - score) / abs(lastscore)
             if verbose:
-                print ('iteration {}: obj = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
-            if improvement < criterion:
+                print ('Iteration %d: obj = %.2f (%.5f improvement)' %
+                       (i, score, improvement))
+            if improvement < tol:
                 break
-
     elif beta == 0:
         # IS-NMF
         for i in xrange(maxiter):
             if updateW:
-                X_bar = np.dot(W, H)
+                X_bar = W.dot(H)
                 W = W * np.dot(X / (X_bar + eps)**2, H.T)
                 W = W / (np.dot((X_bar + eps)**(-1), H.T) + eps)
-            X_bar = np.dot(W, H)
-            H = H * np.dot(W.T, X / (X_bar + eps)**2)
-            H = H / (np.dot(W.T, (X_bar + eps)**(-1)) + eps)
+            X_bar = W.dot(H)
+            H = H * W.T.dot(X / (X_bar + eps)**2)
+            H = H / (W.T.dot((X_bar + eps)**(-1)) + eps)
             if normalize:
                 (W, H) = _normalize(W, H)
 
             lastscore = score
-            X_bar = np.dot(W, H)
-            score = np.sum(X / X_bar - np.log(X) + np.log(X_bar)) - f * t
+            score = _compute_loss(X, W, H, beta)
             improvement = (lastscore - score) / abs(lastscore)
             if verbose:
-                print ('iteration {}: obj = {:.2f} ({:.5f} improvement)'.format(i, score, improvement))
-            if improvement < criterion:
+                print ('Iteration %d: obj = %.2f (%.5f improvement)' %
+                       (i, score, improvement))
+            if improvement < tol:
                 break
-    else:
-        raise ValueError('beta can only be 0, 1, or 2')
-
     return (W, H)
+
 
 def _normalize(W, H):
     scale = np.sqrt(np.sum(W**2, axis=0, keepdims=True))
     W = W / scale
     H = H * scale.T
     return (W, H)
+
+
+def _compute_loss(X, W, H, beta):
+    loss = np.inf
+    f, t = X.shape
+    X_bar = W.dot(H)
+    if beta == 0:
+        loss = np.sum(X / X_bar - np.log(X) + np.log(X_bar)) - f * t
+    elif beta == 1:
+        loss = np.sum(X * (np.log(X) - np.log(X_bar)) - X + X_bar)
+    elif beta == 2:
+        loss = np.sum((X - X_bar)**2)
+    return loss

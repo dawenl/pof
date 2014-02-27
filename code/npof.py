@@ -46,7 +46,7 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
             iteration
 
         save_filters : bool
-            Save the intermediate filter parameters after each iteration or not?
+            Save the intermediate filter parameters after each iteration or not
 
         smoothness : int
             Smoothness on the initialization variational parameters
@@ -149,10 +149,7 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
 
         old_obj = -np.inf
         for i in xrange(self.max_steps):
-            if not i:
-                self.transform(X)
-            else:
-                self.transform(X, cold_start=False)
+            self.transform(X)
             self._update_filters(X)
             if self.save_filters:
                 self._save_filters('sf_inter_L%d.iter%d.mat' % (self.n_filters,
@@ -169,7 +166,7 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
             old_obj = score
         return self
 
-    def transform(self, X, cold_start=True):
+    def transform(self, X, attr=None):
         '''Encode the data as a sparse linear combination of the filters in the
         log-spectral domain.
 
@@ -177,18 +174,20 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
         ----------
         X : array-like, shape (n_samples, n_feats)
 
-        cold_start: bool
-            reinitilize the variational parameters if true
+        attr: string
+            The name of attribute, default 'EA'. Can be changed to ElogA to
+            obtain E_q[log A] as transformed data.
 
         Returns
         -------
-        self: object
-            Returns the instance itself, the transformed data can be obtained
-            as the expected sufficient statistics from the variational
-            parameters.
+        X_new : array-like, shape(n_samples, n_filters)
+            Transformed data, as specified by attr.
         '''
+        if attr is None:
+            attr = 'EA'
+
         n_samples = X.shape[0]
-        if cold_start:
+        if not hasattr(self, 'nu'):     # or equivalently, rho
             self._init_variational(n_samples)
 
         if self.verbose:
@@ -206,7 +205,8 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
             for i in xrange(n_samples)
         )
         nu_and_rho = np.array(results)
-        self.nu, self.rho = nu_and_rho[:, 0, :].copy(), nu_and_rho[:, 1, :].copy()
+        self.nu = nu_and_rho[:, 0, :].copy()
+        self.rho = nu_and_rho[:, 1, :].copy()
         self.EA, self.ElogA = comp_expect(self.nu, self.rho)
 
         if self.verbose:
@@ -215,7 +215,7 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
             print_increment('A', last_score, score)
             print 'Batch update A\ttime: {:.2f}'.format(t)
 
-        return self
+        return getattr(self, attr)
 
     def _update_filters(self, X):
         if self.verbose:

@@ -91,7 +91,7 @@ for dr in drs:
 files = []
 
 for spk_dir in itertools.chain(f_dirs, m_dirs):
-    files.extend(glob.glob(spk_dir + '/s[a|i|x]*.wav'))
+    files.extend(sorted(glob.glob(spk_dir + '/*.wav'))[:3])
 
 # <codecell>
 
@@ -99,47 +99,41 @@ print len(files)
 
 # <codecell>
 
-files
-
-# <codecell>
-
 n_fft = 1024
 hop_length = 512
 lengths = []
 
-train_mat = sio.loadmat('TIMIT_spk20_F1024_H512.mat')
+train_mat = sio.loadmat('TIMIT_fspk50_mspk50_F1024_H512.mat')
 X_train = train_mat['W'];
 
 X_complex_test = None
-for spk_dir in files:
-    for wav_dir in spk_dir:
-        wav, sr = load_timit(wav_dir)
-        stft = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
-        lengths.append(stft.shape[1])
-        if X_complex_test is None:
-            X_complex_test = stft
-        else:
-            X_complex_test = np.hstack((X_complex_test, stft))
+for wav_dir in files:
+    wav, sr = load_timit(wav_dir)
+    stft = librosa.stft(wav, n_fft=n_fft, hop_length=hop_length)
+    lengths.append(stft.shape[1])
+    if X_complex_test is None:
+        X_complex_test = stft
+    else:
+        X_complex_test = np.hstack((X_complex_test, stft))
 
 # <codecell>
 
 fig()
 subplot(211)
-specshow(logspec(X_train), sr=16000, hop_length=512, x_axis='time', y_axis='linear')
-#colorbar()
+specshow(logspec(X_train), sr=sr, hop_length=hop_length, x_axis='time', y_axis='linear')
+colorbar()
 subplot(212)
-specshow(logspec(np.abs(X_complex_test)), sr=16000, hop_length=512, x_axis='time', y_axis='linear')
-#colorbar()
+specshow(logspec(np.abs(X_complex_test)), sr=sr, hop_length=hop_length, x_axis='time', y_axis='linear')
+colorbar()
 tight_layout()
 pass
 
 # <codecell>
 
-# load the prior learned from training data
-prior_mat = sio.loadmat('priors/sf_L80_TIMIT_spk20.mat')
-U = prior_mat['U']
-gamma = prior_mat['gamma'].ravel()
-alpha = prior_mat['alpha'].ravel()
+pof_params = sio.loadmat('priors/sf_L50_TIMIT_spk100_F1024_H512.mat')
+U = pof_params['U']
+gamma = pof_params['gamma'].ravel()
+alpha = pof_params['alpha'].ravel()
 L = alpha.size
 
 # <codecell>
@@ -166,28 +160,32 @@ F, T = X_complex_test.shape
 tmpX = np.zeros((F, T))
 tmpX[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
 
-# <codecell>
+# <headingcell level=1>
 
-encoder_test = vpl.SF_Dict(np.abs(X_cutoff_test.T), L=L, seed=98765)
-encoder_test.U, encoder_test.gamma, encoder_test.alpha = U[:, bin_low:(bin_high+1)], gamma[bin_low:(bin_high+1)], alpha
-
-encoder_test.vb_e(cold_start = False)
+# BWE with PoF
 
 # <codecell>
 
-encoder_test = load_object('bwe_encoder_gamma_L{}'.format(L))
+encoder = pof.ProductOfFiltersLearning(n_feats=F, n_filters=L, 
+                                       U=U[:, bin_low:(bin_high+1)], gamma=gamma[bin_low:(bin_high+1)], alpha=alpha, 
+                                       n_jobs=5, random_state=98765, verbose=True)
+encoder.transform(np.abs(X_cutoff_test.T))
+
+# <codecell>
+
+encoder = load_object('bwe_encoder_gamma_L{}'.format(L))
 
 # <codecell>
 
 fig(figsize=(10, 6))
-specshow(encoder_test.EA.T)
+specshow(encoder.EA.T)
 colorbar()
 pass
 
 # <codecell>
 
 # plot the correlation
-A_test = encoder_test.EA.copy()
+A_test = encoder.EA.copy()
 A_test = A_test - np.mean(A_test, axis=0, keepdims=True)
 A_test = A_test / np.sqrt(np.sum(A_test ** 2, axis=0, keepdims=True))
 specshow(np.dot(A_test.T, A_test))
@@ -196,37 +194,26 @@ pass
 
 # <codecell>
 
-EX_test = np.exp(np.dot(encoder_test.EA, U)).T
+EX_test = np.exp(np.dot(encoder.EA, U)).T
 EX_test[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
-EX_test[EX_test > np.amax(tmpX)] = np.amax(tmpX)
+EX_test[EX_test > tmpX.max()] = tmpX.max()
+
+# <headingcell level=1>
+
+# BWE with NMF
 
 # <codecell>
 
-EexpX = np.zeros_like(np.abs(X_complex_test))
-for t in xrange(encoder_test.T):
-    EexpX[:, t] = np.exp(np.sum(vpl.comp_log_exp(encoder_test.a[t, :, np.newaxis], encoder_test.b[t, :, np.newaxis], -U), axis=0))
-
-# <codecell>
-
-EX_test = EexpX
-EX_test[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
-EX_test[EX_test > np.amax(tmpX)] = np.amax(tmpX)
-specshow(logspec(EexpX))
-colorbar()
-pass
-
-# <codecell>
-
-K = 20
-d = 50
+K = 10
 
 # <codecell>
 
 reload(beta_nmf)
-W_train_kl, _ = beta_nmf.NMF_beta(X_train, K, maxiter=500, beta=1, criterion=0.0001)
+W_train_kl, _ = beta_nmf.NMF_beta(X_train, K, maxiter=500, beta=1, criterion=0)
 
 # <codecell>
 
+d = 50
 SF_NMF = False
 
 if SF_NMF:
@@ -275,8 +262,8 @@ pass
 # <codecell>
 
 #reload(beta_nmf)
-_, H_test_kl = beta_nmf.NMF_beta(np.abs(X_cutoff_test), K, maxiter=100, 
-                                 W=W_train_kl[bin_low:(bin_high+1), :], beta=1, criterion=0.00001)
+_, H_test_kl = beta_nmf.NMF_beta(np.abs(X_cutoff_test), K, maxiter=50, 
+                                 W=W_train_kl[bin_low:(bin_high+1), :], beta=1, criterion=0)
 EX_KL = np.dot(W_train_kl, H_test_kl)
 EX_KL[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
 
@@ -285,107 +272,25 @@ EX_KL[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
 freq_res = sr / n_fft
 
 fig(figsize=(12, 3))
-specshow(logspec(np.abs(X_complex_test)))
+specshow(logspec(np.abs(X_complex_test)), cmap=cm.hot_r, sr=sr, hop_length=hop_length, x_axis='time', y_axis='linear')
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
-ylabel('Frequency (Hz)')
-yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
-xlabel('Time (sec)')
-#xticks(arange(0, 150, 30), (float(hop_length) / sr * arange(0, 150, 30)))
 colorbar()
 tight_layout()
-#savefig('bwe_org.eps')
-
-#fig(figsize=(12, 3))
-#specshow(logspec(tmpX))
-#ylabel('Frequency (Hz)')
-#yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
-#xlabel('Time (sec)')
-#xticks(arange(0, 2600, 500), (float(hop_length) / sr * arange(0, 2600, 500)))
-#colorbar()
-#tight_layout()
-#savefig('bwe_cutoff.eps')
 
 fig(figsize=(12, 3))
-specshow(logspec(EX_test))
+specshow(logspec(EX_test), cmap=cm.hot_r, sr=sr, hop_length=hop_length, x_axis='time', y_axis='linear')
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
-ylabel('Frequency (Hz)')
-yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
-xlabel('Time (sec)')
-#xticks(arange(0, 400, 50), (float(hop_length) / sr * arange(0, 400, 50)))
 colorbar()
 tight_layout()
-#savefig('bwe_rec.eps')
 
 fig(figsize=(12, 3))
-specshow(logspec(EX_KL))
+specshow(logspec(EX_KL), cmap=cm.hot_r, sr=sr, hop_length=hop_length, x_axis='time', y_axis='linear')
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
-ylabel('Frequency (Hz)')
-yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
-xlabel('Time (sec)')
-#xticks(arange(0, 400, 50), (float(hop_length) / sr * arange(0, 400, 50)))
 colorbar()
 tight_layout()
-#savefig('bwe_kl_rec.eps')
-
-fig(figsize=(12, 3))
-specshow(logspec(EX_SF_NMF))
-axhline(y=(bin_low+1), color='black')
-axhline(y=(bin_high+1), color='black')
-ylabel('Frequency (Hz)')
-yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
-xlabel('Time (sec)')
-#xticks(arange(0, 400, 50), (float(hop_length) / sr * arange(0, 400, 50)))
-colorbar()
-tight_layout()
-pass
-
-# <codecell>
-
-freq_res = sr / n_fft
-
-X_test_sub = np.abs(X_complex_test[:, 1600:1750])
-EX_test_sub = EX_test[:, 1600:1750]
-EX_KL_sub = EX_KL[:, 1600:1750]
-
-EX_test_sub[EX_test_sub > np.amax(X_test_sub)] = np.amax(X_test_sub)
-EX_KL_sub[EX_KL_sub > np.amax(X_test_sub)] = np.amax(X_test_sub)
-
-fig(figsize=(12, 3))
-subplot(131)
-specshow(logspec(X_test_sub))
-axhline(y=(bin_low+1), color='black')
-axhline(y=(bin_high+1), color='black')
-ylabel('Frequency (Hz)')
-yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
-xlabel('Time (sec)')
-xticks(arange(0, 150, 40), (float(hop_length) / sr * arange(0, 150, 40)))
-tight_layout()
-#savefig('bwe_org.eps')
-
-subplot(132)
-specshow(logspec(EX_test_sub))
-axhline(y=(bin_low+1), color='black')
-axhline(y=(bin_high+1), color='black')
-ylabel('Frequency (Hz)')
-yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
-xlabel('Time (sec)')
-xticks(arange(0, 150, 40), (float(hop_length) / sr * arange(0, 150, 40)))
-tight_layout()
-#savefig('bwe_rec.eps')
-
-subplot(133)
-specshow(logspec(EX_KL_sub))
-axhline(y=(bin_low+1), color='black')
-axhline(y=(bin_high+1), color='black')
-ylabel('Frequency (Hz)')
-yticks(arange(0, 513, 100), freq_res * arange(0, 513, 100))
-xlabel('Time (sec)')
-xticks(arange(0, 150, 40), (float(hop_length) / sr * arange(0, 150, 40)))
-tight_layout()
-#savefig('bwe_kl_rec.eps')
 
 # <codecell>
 
@@ -402,19 +307,6 @@ for (i, p) in enumerate(pos):
     start_pos = p
 print 'SNR = {:.3f} +- {:.3f}'.format(np.mean(SNR_KL), 2*np.std(SNR_KL)/sqrt(pos.size))
 print SNR_KL
-
-# <codecell>
-
-SNR_SF_NMF = np.zeros((pos.size, ))
-start_pos = 0
-for (i, p) in enumerate(pos):
-    _, x_rec, SNR_SF_NMF[i] = compute_SNR(X_complex_test[:, start_pos:p], 
-                                  EX_SF_NMF[:, start_pos:p] * (X_complex_test[:, start_pos:p] / np.abs(X_complex_test[:, start_pos:p])), 
-                                  n_fft, hop_length)
-    write_wav(x_rec, 'bwe/{}_sfnmf_rec.wav'.format(i+1))
-    start_pos = p
-print 'SNR = {:.3f} +- {:.3f}'.format(np.mean(SNR_SF_NMF), 2*np.std(SNR_SF_NMF)/sqrt(pos.size))
-print SNR_SF_NMF
 
 # <codecell>
 
@@ -442,16 +334,10 @@ SNR_cutoff = np.zeros((pos.size, ))
 start_pos = 0
 for (i, p) in enumerate(pos):
     x_org, x_rec, SNR_cutoff[i] = compute_SNR(X_complex_test[:, start_pos:p], tmpX_complex[:, start_pos:p], n_fft, hop_length)
-    #write_wav(x_rec, 'bwe/{}_cutoff.wav'.format(i+1))
+    write_wav(x_rec, 'bwe/{}_cutoff.wav'.format(i+1))
     start_pos = p
 print 'SNR = {:.3f} +- {:.3f}'.format(np.mean(SNR_cutoff), 2*np.std(SNR_cutoff)/sqrt(pos.size))
 print SNR_cutoff
-
-# <codecell>
-
-specshow(logspec(EX_rand))
-colorbar()
-print tmpX.max()
 
 # <codecell>
 
@@ -475,51 +361,5 @@ print SNR_rand
 
 # <codecell>
 
-x_test_org, x_test_rec, SNR_SF_all = compute_SNR(X_complex_test, EX_test * (X_complex_test / np.abs(X_complex_test)), 
-                                                 n_fft, hop_length)
-_, x_test_rec_kl, SNR_KL_all = compute_SNR(X_complex_test, EX_KL * (X_complex_test / np.abs(X_complex_test)), 
-                                                 n_fft, hop_length)
-_, x_test_rec_sfnmf, SNR_SFNMF_all = compute_SNR(X_complex_test, EX_SF_NMF * (X_complex_test / np.abs(X_complex_test)), 
-                                                 n_fft, hop_length)
-print SNR_SF_all
-print SNR_KL_all
-print SNR_SFNMF_all
-
-# <codecell>
-
-write_wav(x_test_rec, 'bwe_demo_rec.wav')
-write_wav(x_test_org, 'bwe_demo_org.wav')
-write_wav(x_test_rec_kl, 'bwe_demo_rec_kl.wav')
-write_wav(x_test_rec_sfnmf, 'bwe_demo_rec_sfnmf.wav')
-
-# <codecell>
-
-save_object(encoder_test, 'bwe_encoder_gamma_L{}'.format(L))
-
-# <codecell>
-
-ovl_mat = sio.loadmat('bwe_ovl.mat')
-sig_sf = ovl_mat['Csig_sf']
-ovl_sf = ovl_mat['Covl_sf']
-
-sig_kl = ovl_mat['Csig_kl']
-ovl_kl = ovl_mat['Covl_kl']
-
-sig_cutoff = ovl_mat['Csig_cutoff']
-ovl_cutoff = ovl_mat['Covl_cutoff']
-
-# <codecell>
-
-print np.mean(sig_sf), 2 * np.std(sig_sf) / sqrt(pos.size)
-print np.mean(sig_kl), 2 * np.std(sig_kl) / sqrt(pos.size)
-print np.mean(sig_cutoff), 2 * np.std(sig_cutoff) / sqrt(pos.size)
-
-# <codecell>
-
-print np.mean(ovl_sf), 2 * np.std(ovl_sf) / sqrt(pos.size)
-print np.mean(ovl_kl), 2 * np.std(ovl_kl) / sqrt(pos.size)
-print np.mean(ovl_cutoff), 2 * np.std(ovl_cutoff) / sqrt(pos.size)
-
-# <codecell>
-
+save_object(encoder, 'bwe_encoder_gamma_L{}'.format(L))
 

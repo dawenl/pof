@@ -20,8 +20,8 @@ def load_timit(wav_dir):
 
 TIMIT_DIR = '../../timit/'
 
-n_mspk = 40
-n_fspk = 40
+n_mspk = 70
+n_fspk = 70
 
 # <codecell>
 
