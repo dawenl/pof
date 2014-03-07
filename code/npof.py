@@ -126,7 +126,7 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
             Return the instance itself.
         '''
         self.n_filters, self.n_feats = U.shape
-        #self.U, self.gamma, self.alpha = U, gamma, alpha
+        # these copies are essential for scipy.weave to work
         self.U = U.copy()
         self.gamma = gamma.copy()
         self.alpha = alpha.copy()

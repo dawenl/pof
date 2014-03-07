@@ -172,7 +172,6 @@ tmpX[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
 
 # <codecell>
 
-reload(pof)
 encoder = pof.ProductOfFiltersLearning(n_feats=F, n_filters=L, 
                                        U=U[:, bin_low:(bin_high+1)], gamma=gamma[bin_low:(bin_high+1)], alpha=alpha, 
                                        n_jobs=5, random_state=98765, verbose=True)
