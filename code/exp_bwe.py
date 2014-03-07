@@ -103,9 +103,15 @@ n_fft = 1024
 hop_length = 512
 lengths = []
 
-train_mat = sio.loadmat('TIMIT_fspk50_mspk50_F1024_H512.mat')
+# <codecell>
+
+# Load training data for NMF
+train_mat = sio.loadmat('TIMIT_fspk80_mspk80_F1024_H512.mat')
 X_train = train_mat['W'];
 
+# <codecell>
+
+# Generate test data
 X_complex_test = None
 for wav_dir in files:
     wav, sr = load_timit(wav_dir)
@@ -130,7 +136,7 @@ pass
 
 # <codecell>
 
-pof_params = sio.loadmat('priors/sf_L50_TIMIT_spk100_F1024_H512.mat')
+pof_params = sio.loadmat('priors/sf_L50_TIMIT_spk160_F1024_H512.mat')
 U = pof_params['U']
 gamma = pof_params['gamma'].ravel()
 alpha = pof_params['alpha'].ravel()
@@ -166,6 +172,7 @@ tmpX[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
 
 # <codecell>
 
+reload(pof)
 encoder = pof.ProductOfFiltersLearning(n_feats=F, n_filters=L, 
                                        U=U[:, bin_low:(bin_high+1)], gamma=gamma[bin_low:(bin_high+1)], alpha=alpha, 
                                        n_jobs=5, random_state=98765, verbose=True)

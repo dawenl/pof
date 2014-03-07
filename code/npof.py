@@ -126,7 +126,10 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
             Return the instance itself.
         '''
         self.n_filters, self.n_feats = U.shape
-        self.U, self.gamma, self.alpha = U, gamma, alpha
+        #self.U, self.gamma, self.alpha = U, gamma, alpha
+        self.U = U.copy()
+        self.gamma = gamma.copy()
+        self.alpha = alpha.copy()
         return self
 
     def fit(self, X):
@@ -190,7 +193,7 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
 
         if self.verbose:
             last_score = self._bound(X)
-            print('Update (initial)\tObj: {:.2f}'.format(last_score))
+            print('Update (initial)\tObj: %.2f' % last_score)
             start_t = time.time()
 
         results = Parallel(n_jobs=self.n_jobs)(
@@ -211,7 +214,7 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
             t = time.time() - start_t
             score = self._bound(X)
             print_increment('A', last_score, score)
-            print 'Batch update A\ttime: {:.2f}'.format(t)
+            print 'Batch update A\ttime: %.2f' % t
 
         return getattr(self, attr)
 
@@ -270,13 +273,13 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
         self.gamma = np.exp(eta_hat)
         if self.verbose and d['warnflag']:
             if d['warnflag'] == 2:
-                print 'f={}, {}'.format(f(eta_hat), d['task'])
+                print 'f=%.3f, %s' % (f(eta_hat), d['task'])
             else:
-                print 'f={}, {}'.format(f(eta_hat), d['warnflag'])
+                print 'f=%.3f, %d' % (f(eta_hat), d['warnflag'])
             app_grad = approx_grad(f, eta_hat)
             ana_grad = df(eta_hat)
             for idx in xrange(self.n_feats):
-                print_gradient('Gamma[{:3d}]'.format(idx), self.gamma[idx],
+                print_gradient('Gamma[%3d]' % idx, self.gamma[idx],
                                ana_grad[idx], app_grad[idx])
 
     def _update_alpha(self, X):
@@ -296,13 +299,13 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
         self.alpha = np.exp(eta_hat)
         if self.verbose and d['warnflag']:
             if d['warnflag'] == 2:
-                print 'f={}, {}'.format(f(eta_hat), d['task'])
+                print 'f=%.3f, %s' % (f(eta_hat), d['task'])
             else:
-                print 'f={}, {}'.format(f(eta_hat), d['warnflag'])
+                print 'f=%.3f, %d' % (f(eta_hat), d['warnflag'])
             app_grad = approx_grad(f, eta_hat)
             ana_grad = df(eta_hat)
             for l in xrange(self.n_filters):
-                print_gradient('Alpha[{:3d}]'.format(l), self.alpha[l],
+                print_gradient('Alpha[%3d]' % l, self.alpha[l],
                                ana_grad[l], app_grad[l])
 
     def _bound(self, X):
@@ -325,14 +328,14 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
 
 
 def print_gradient(name, val, grad, approx):
-    print('{} = {:.2f}\tGradient: {:.2f}\tApprox: {:.2f}\t'
-          '| Diff |: {:.3f}'.format(name, val, grad, approx,
-                                    np.abs(grad - approx)))
+    print('%s = %.2f\tGradient: %.2f\tApprox: %.2f\t'
+          '| Diff |: %.3f' % (name, val, grad, approx,
+                              np.abs(grad - approx)))
 
 
 def print_increment(name, last_score, score):
     diff_str = '+' if score > last_score else '-'
-    print('Update ({})\tBefore: {:.2f}\tAfter: {:.2f}\t{}'.format(
+    print('Update (%s)\tBefore: %.2f\tAfter: %.2f\t%s' % (
         name, last_score, score, diff_str))
 
 
@@ -463,15 +466,15 @@ def global_transform(x, n_filters,
     theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
     if verbose and d['warnflag']:
         if d['warnflag'] == 2:
-            print 'A[]: {}, f={}'.format(d['task'], f(theta_hat))
+            print 'A[]: %s, f=%.3f' % (d['task'], f(theta_hat))
         else:
-            print 'A[, :]: {}, f={}'.format(d['warnflag'], f(theta_hat))
+            print 'A[, :]: %d, f=%.3f' % (d['warnflag'], f(theta_hat))
         app_grad = approx_grad(f, theta_hat)
         ana_grad = df(theta_hat)
         for l in xrange(n_filters):
-            print_gradient('log_a[, %:3d]' % l, theta_hat[l], ana_grad[l],
+            print_gradient('log_a[, %.3d]' % l, theta_hat[l], ana_grad[l],
                            app_grad[l])
-            print_gradient('log_b[, %:3d]' % l, theta_hat[l + n_filters],
+            print_gradient('log_b[, %.3d]' % l, theta_hat[l + n_filters],
                            ana_grad[l + n_filters], app_grad[l + n_filters])
 
     nu, rho = np.exp(theta_hat[:n_filters]), np.exp(theta_hat[-n_filters:])

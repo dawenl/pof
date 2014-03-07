@@ -20,8 +20,8 @@ def load_timit(wav_dir):
 
 TIMIT_DIR = '../../timit/'
 
-n_mspk = 70
-n_fspk = 70
+n_mspk = 80
+n_fspk = 80
 
 # <codecell>
 
@@ -67,27 +67,6 @@ print m_dirs
 # <codecell>
 
 len(files)
-
-# <codecell>
-
-map_64to48 = {}
-with open(TIMIT_DIR + '64to48.map', 'r') as outfile:
-    for line in outfile:
-        k, v = line.strip().split()
-        map_64to48[k] = v
-        
-map_48to39 = {}
-with open(TIMIT_DIR + '48to39.map', 'r') as outfile:
-    for line in outfile:
-        k, v = line.strip().split()
-        map_48to39[k] = v
-
-# <codecell>
-
-map_64to39 = {}
-for (k, v) in map_64to48.items():
-    print 'map "%s" to "%s" then to "%s"' % (k, v, map_48to39[v]) 
-    map_64to39[k] = map_48to39[v]
 
 # <codecell>
 
