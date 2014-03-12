@@ -226,7 +226,7 @@ class ProductOfFiltersLearning(BaseEstimator, TransformerMixin):
         U = Parallel(n_jobs=self.n_jobs)(
             delayed(global_update_U)(
                 X[:, j], self.U[:, j], self.gamma[j], self.alpha,
-                self.nu, self.rho, self.EA, self.ElogA
+                self.nu, self.rho, self.EA, self.ElogA, self.verbose
             )
             for j in xrange(self.n_feats)
         )
@@ -465,17 +465,17 @@ def global_transform(x, n_filters,
     theta0 = np.hstack((np.log(nu_init), np.log(rho_init)))
     theta_hat, _, d = optimize.fmin_l_bfgs_b(f, theta0, fprime=df, disp=0)
     if verbose and d['warnflag']:
+        # this should not happen under normal circumstance
+        # we will still return the result if it does happen, but the results
+        # may not be reliable
+        # it's better to diagnose with single-threaded mode (n_jobs=1) and
+        # print out the analytical and approximate gradient (by calling method
+        # approx_grad)
+        print '-----LBFGS WARNING-----'
         if d['warnflag'] == 2:
-            print 'A[]: %s, f=%.3f' % (d['task'], f(theta_hat))
+            print 'WARN MSG: %s, f(x)=%.3f' % (d['task'], f(theta_hat))
         else:
-            print 'A[, :]: %d, f=%.3f' % (d['warnflag'], f(theta_hat))
-        app_grad = approx_grad(f, theta_hat)
-        ana_grad = df(theta_hat)
-        for l in xrange(n_filters):
-            print_gradient('log_a[, %.3d]' % l, theta_hat[l], ana_grad[l],
-                           app_grad[l])
-            print_gradient('log_b[, %.3d]' % l, theta_hat[l + n_filters],
-                           ana_grad[l + n_filters], app_grad[l + n_filters])
+            print 'WARN FLG: %d, f(x)=%.3f' % (d['warnflag'], f(theta_hat))
 
     nu, rho = np.exp(theta_hat[:n_filters]), np.exp(theta_hat[-n_filters:])
     return (nu, rho)
@@ -484,7 +484,8 @@ def global_transform(x, n_filters,
 def global_update_U(x,
                     u_init, gamma, alpha,
                     nu, rho,
-                    EA, ElogA):
+                    EA, ElogA,
+                    verbose):
     def fun(u):
         Eexp = np.exp(np.sum(_comp_logEexp(nu, rho, u), axis=1))
         return np.sum(gamma * (Eexp * x + EA.dot(u)))
@@ -497,5 +498,18 @@ def global_update_U(x,
         Eexp = np.exp(np.sum(_comp_logEexp(nu, rho, u), axis=1))
         return np.sum(EA * (1 - (x * Eexp)[:, np.newaxis] * inv_term), axis=0)
 
-    u, _, _ = optimize.fmin_l_bfgs_b(fun, u_init, fprime=dfun, disp=0)
+    u, _, d = optimize.fmin_l_bfgs_b(fun, u_init, fprime=dfun, disp=0)
+    if verbose and d['warnflag']:
+        # this should not happen under normal circumstance
+        # we will still return the result if it does happen, but the results
+        # may not be reliable
+        # it's better to diagnose with single-threaded mode (n_jobs=1) and
+        # print out the analytical and approximate gradient (by calling method
+        # approx_grad)
+        print '-----LBFGS WARNING-----'
+        if d['warnflag'] == 2:
+            print 'WARN MSG: %s, f(x)=%.3f' % (d['task'], fun(u))
+        else:
+            print 'WARN FLG: %d, f(x)=%.3f' % (d['warnflag'], fun(u))
+
     return u
