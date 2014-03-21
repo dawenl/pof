@@ -16,22 +16,18 @@
 
   % Define nodes
   \node[obs] 			(w) {$\bm{w}_t$};
-  \node[const, right=of w] (s) {${\gamma}_f$};
   \node[latent, left=of w] (a) {$\bm{a}_t$};
-  \node[const, above=of w] (u) {$\bm{u}_l$};
-  \node[const, above=of a] (alpha) {$\alpha_l$};
+  \node[const, below=.8cm of w] (u) {$\mathbf{U}, \bm{\gamma}$};
+  \node[const, below=.8cm of a] (alpha) {$\bm{\alpha}$};
 
   % Connect the nodes
   \edge {a} {w} ; %
-  \edge {s} {w};
   \edge {u} {w};
   \edge {alpha}{a};
 
   % Plates
   %\plate {yx} {(x)(y)} {$N$} ;
   \plate {wa} {(w)(a)} {$T$};
-  \plate {au} {(alpha)(u)} {$L$};
-  \plate {sigma} {(s)} {$F$};
   %\plate {} {(d)(y)(yx.north west)(yx.south west)} {$T$} ;
 
 \end{tikzpicture}
