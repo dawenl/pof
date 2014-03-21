@@ -136,7 +136,7 @@ pass
 
 # <codecell>
 
-pof_params = sio.loadmat('priors/sf_L50_TIMIT_spk160_F1024_H512.mat')
+pof_params = sio.loadmat('priors/sf_L80_TIMIT_spk160_F1024_H512.mat')
 U = pof_params['U']
 gamma = pof_params['gamma'].ravel()
 alpha = pof_params['alpha'].ravel()
