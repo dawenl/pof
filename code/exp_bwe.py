@@ -3,12 +3,10 @@
 
 # <codecell>
 
-import functools, glob, itertools, time
-import cPickle as pickle
+import functools, glob, itertools
 
 import numpy as np
 import scipy.io as sio
-import scipy.stats as stats
 from scikits.audiolab import Sndfile, Format
 
 import librosa
@@ -19,7 +17,6 @@ import npof as pof
 
 %cd nmf/
 import beta_nmf
-import kl_nmf
 %cd ..
 
 # <codecell>
@@ -29,16 +26,6 @@ fig = functools.partial(figure, figsize=(16,4))
 def logspec(X, amin=1e-10, dbdown=80):
     logX = 20 * np.log10(np.maximum(X, amin))
     return np.maximum(logX, logX.max() - dbdown)
-
-def save_object(obj, filename):
-    with open(filename, 'wb') as output:
-        pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
-    pass
-
-def load_object(filename):
-    with open(filename, 'r') as output:
-        obj = pickle.load(output)
-    return obj 
 
 # <codecell>
 
@@ -56,6 +43,13 @@ def write_wav(w, filename, channels=1, samplerate=16000):
     f_out.write_frames(w)
     f_out.close()
     pass
+
+def compute_SNR(X_complex_org, X_complex_rec, n_fft, hop_length):
+    x_org = librosa.istft(X_complex_org, hop_length=hop_length, window=np.ones((n_fft, )))
+    x_rec = librosa.istft(X_complex_rec, hop_length=hop_length, window=np.ones((n_fft, )))
+    length = min(x_rec.size, x_org.size)
+    snr = 10 * np.log10(np.sum( x_org[:length] ** 2) / np.sum( (x_org[:length] - x_rec[:length])**2))
+    return (x_org, x_rec, snr)
 
 # <codecell>
 
@@ -144,15 +138,6 @@ L = alpha.size
 
 # <codecell>
 
-def compute_SNR(X_complex_org, X_complex_rec, n_fft, hop_length):
-    x_org = librosa.istft(X_complex_org, hop_length=hop_length, window=np.ones((n_fft, )))
-    x_rec = librosa.istft(X_complex_rec, hop_length=hop_length, window=np.ones((n_fft, )))
-    length = min(x_rec.size, x_org.size)
-    snr = 10 * np.log10(np.sum( x_org[:length] ** 2) / np.sum( (x_org[:length] - x_rec[:length])**2))
-    return (x_org, x_rec, snr)
-
-# <codecell>
-
 # only keep the contents between 400-3400 Hz
 freq_high = 3400
 freq_low = 400
@@ -205,75 +190,26 @@ EX_test[EX_test > tmpX.max()] = tmpX.max()
 
 # <codecell>
 
-K = 10
+K = 50
 
 # <codecell>
 
-reload(beta_nmf)
-W_train_kl, _ = beta_nmf.NMF_beta(X_train, K, maxiter=500, beta=1, criterion=0)
+W_train_kl, _ = beta_nmf.NMF_beta(X_train, K, beta=1, maxiter=500, tol=0.0001, seed=98765, verbose=True)
 
 # <codecell>
 
-d = 50
-SF_NMF = False
-
-if SF_NMF:
-    dict_mat = sio.loadmat('SF_dict/porkpie/SF_BWE_K{}_d{}.mat'.format(K, d))
-    nuw = dict_mat['W_nu']
-    rhow = dict_mat['W_rho']
-    Ew = nuw / rhow
-else:
-    nmf = kl_nmf.KL_NMF(X_train, K=K, d=d, seed=98765)
-    train(nmf, criterion=0.0001, verbose=True)
-    nuw, rhow = nmf.nuw, nmf.rhow
-    Ew = nmf.Ew
-
-# <codecell>
-
-fig()
-subplot(121)
-specshow(logspec(Ew))
-colorbar()
-subplot(122)
-specshow(logspec(W_train_kl))
-colorbar()
-pass
-
-# <codecell>
-
-xnmf_sf = kl_nmf.KL_NMF(np.abs(X_cutoff_test), K=K, d=d, seed=98765)
-xnmf_sf.nuw, xnmf_sf.rhow = nuw[bin_low:(bin_high+1)], rhow[bin_low:(bin_high+1)]
-xnmf_sf.compute_expectations()
-train(xnmf_sf, updateW=False, criterion=0.0001, verbose=True)
-pass
-
-# <codecell>
-
-c = xnmf_sf.X.sum() / xnmf_sf._xbar().sum()
-EX_SF_NMF = c * np.dot(Ew, xnmf_sf.Eh)
-EX_SF_NMF[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
-
-# <codecell>
-
-fig()
-specshow(logspec(EX_SF_NMF))
-colorbar()
-pass
-
-# <codecell>
-
-#reload(beta_nmf)
-_, H_test_kl = beta_nmf.NMF_beta(np.abs(X_cutoff_test), K, maxiter=50, 
-                                 W=W_train_kl[bin_low:(bin_high+1), :], beta=1, criterion=0)
+_, H_test_kl = beta_nmf.NMF_beta(np.abs(X_cutoff_test), K, maxiter=100, 
+                                 W=W_train_kl[bin_low:(bin_high+1), :], beta=1, tol=0.0001, seed=12345, verbose=True)
 EX_KL = np.dot(W_train_kl, H_test_kl)
 EX_KL[bin_low:(bin_high+1)] = np.abs(X_cutoff_test)
+EX_KL[EX_KL > tmpX.max()] = tmpX.max()
 
 # <codecell>
 
 freq_res = sr / n_fft
 
 fig(figsize=(12, 3))
-specshow(logspec(np.abs(X_complex_test)), cmap=cm.hot_r, sr=sr, hop_length=hop_length, x_axis='time', y_axis='linear')
+specshow(logspec(np.abs(X_complex_test)), sr=sr, hop_length=hop_length, x_axis='time', y_axis='linear')
 axhline(y=(bin_low+1), color='black')
 axhline(y=(bin_high+1), color='black')
 colorbar()
@@ -339,24 +275,4 @@ for (i, p) in enumerate(pos):
     start_pos = p
 print 'SNR = {:.3f} +- {:.3f}'.format(np.mean(SNR_cutoff), 2*np.std(SNR_cutoff)/sqrt(pos.size))
 print SNR_cutoff
-
-# <codecell>
-
-EX_rand = tmpX.copy()
-EX_rand[:bin_low] = tmpX.max() * np.random.rand(bin_low, tmpX.shape[1])
-EX_rand[bin_high+1:] = tmpX.max() * np.random.rand(tmpX.shape[0] - bin_high-1 ,tmpX.shape[1])
-
-# <codecell>
-
-SNR_rand = np.zeros((pos.size, ))
-start_pos = 0
-for (i, p) in enumerate(pos):
-    x_org, x_rec, SNR_rand[i] = compute_SNR(X_complex_test[:, start_pos:p], 
-                                  EX_rand[:, start_pos:p] * (X_complex_test[:, start_pos:p] / np.abs(X_complex_test[:, start_pos:p])), 
-                                  n_fft, hop_length)
-    #write_wav(x_org, 'bwe/{}_org.wav'.format(i+1))
-    write_wav(x_rec, 'bwe/{}_rand.wav'.format(i+1))
-    start_pos = p
-print 'SNR = {:.3f} +- {:.3f}'.format(np.mean(SNR_rand), 2*np.std(SNR_rand)/sqrt(pos.size))
-print SNR_rand
 
