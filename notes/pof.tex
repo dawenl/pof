@@ -44,14 +44,6 @@ San Francisco, CA 94103\\
 \texttt{gmysore@adobe.com} \\
 }
 
-% The \author macro works with any number of authors. There are two commands
-% used to separate the names and addresses of multiple authors: \And and \AND.
-%
-% Using \And between authors leaves it to \LaTeX{} to determine where to break
-% the lines. Using \AND forces a linebreak at that point. So, if \LaTeX{}
-% puts 3 of 4 authors names on the first line, and the last on the second
-% line, try using \AND instead of \And before the third author name.
-
 \newcommand{\fix}{\marginpar{FIX}}
 \newcommand{\new}{\marginpar{NEW}}
 
@@ -200,13 +192,6 @@ such as ours (which tries to determine how active each filter is), and
 there is some precedent for relaxing clustering models into factorial
 models \cite{ding2004k}.
 
-%Formally, we define the following terms: 
-%\begin{itemize}\vspace{-0.2cm}
-%\item The spectrogram $\mathbf{W} \equiv [\bm{w}_1| \bm{w}_2 | \cdots | \bm{w}_T]  \in \mathbb{R}_{+}^{F\times T}$. Each column $\bm{w}_t$ is the magnitude or power of the audio signal at frame $t$ across frequencies. $\mathbf{W}$ at each frame $t$ is treated independently. \vspace{-0.2cm}
-%\item A collection of filters $ \mathbf{U} \equiv [\bm{u}_1| \bm{u}_2 | \cdots | \bm{u}_L]  \in \mathbb{R}^{F\times L}$. Each column $\bm{u}_l$ is a single filter. \vspace{-0.2cm}
-%\item The linear combination coefficients $\bm{a}_t \in \mathbb{R}_{+}^{L}$ for $t \in \{1, 2, \cdots, T\}$ are restricted to be positive and parametrized by $\bm{\alpha} \in \mathbb{R}_{+}^L$. 
-%\end{itemize}\vspace{-0.2cm}
-%With all the ingredients, the product-of-filters model is formulated as:
 Formally, we define the product-of-filters model:
 \begin{equation} \label{eq:model}
 \begin{split}
@@ -219,10 +204,6 @@ the activations $\bm{a}_t$ (but not the filters
 $\bm{u}_l$) to be non-negative; if we allowed negative $a_{lt}$, then
 the the filters would be inverted, reducing the interpretability of
 the model.
-%% say
-%% $a_{lt} = -1$, then $\exp(-U_{ft}) = 1/\exp({U_{ft}})$. This would
-%% behave like an inverse filter, reducing the interpretability of the
-%% model.
 
 Under this model
 \begin{equation}
@@ -231,11 +212,6 @@ Under this model
 \mathbb{E}[W_{ft}] &= \exp(\textstyle{\sum_l} U_{fl} a_{lt}).
 \end{split}
 \end{equation}
-%so we can interpret the product-of-filters model as
-%a probabilistic matrix factorization where we are trying to decompose
-%the observed spectra so that $\log (\bm{w}_t) \approx \mathbf{U}
-%\bm{a}_t$ while imposing a sparse prior on one of the factors
-%$\bm{a}_t$. ($\log(\cdot)$ denotes the element-wise logarithm.)
 For $l \in \{1, 2, \cdots, L\}$, $\alpha_l$ controls the sparseness of
 the activations associated with filter $\bm{u}_l$; smaller values of 
 $\alpha_l$ indicate that filter $\bm{u}_l$ is used more
@@ -245,9 +221,6 @@ applying multiplicative gamma noise with expected value $1$ to the
 expected value $\exp(\sum_l U_{fl} a_{lt})$. A graphical model
 representation of the PoF model is shown in Figure
 \ref{fig:sf_prior}. 
-%Our goal in section \ref{sec:inference} will be to
-%find a way to learn the model's free parameters $\mathbf{U}$,
-%$\bm{\gamma}$, and $\bm{\alpha}$ from data.
 \begin{figure}[ht]
   \centering
      \input{pw}
@@ -377,41 +350,6 @@ problem is independent for different frequency bins $f\in \{1, 2,
 \cdots, F\}$. Therefore, we can update $\mathbf{U}$ by optimizing each
 row independently, and in parallel if desired.
 
-%\section{Integration with NMF Model}
-%Product-of-filters model can be used as a standalone model. On the other hand, it can also be used as a ``plug-in'' to naturally fit into the existing probabilistic non-negative matrix factorization (NMF) framework. 
-%
-%In NMF, we are trying to approximately decompose a non-negative matrix $\mathbf{X}\in \mathbb{R}^{F\times T}_{+}$ into the product of two non-negative matrices $\mathbf{W} \in \mathbb{R}_{+}^{F \times K}$ and $\mathbf{H} \in \mathbb{R}_{+}^{K \times T}$. If $K$ is much smaller compared to $F$, then we obtain a low-rank decomposition and still preserve the nonnegativity. 
-%\begin{figure}[ht]
-%  \centering
-%      \input{nmf}
-%  \caption{Bayesian KL-NMF with the source-filter dictionary prior.}
-%\label{fig:gap_nmf}
-%\end{figure}
-%
-%, note it also works similarly with NMF based on KL-divergence loss function under a probabilistic setting \cite{cemgil2009bayesian}. Incorporate the prior $\mathbf{U}, \bm{\alpha}, \bm{\gamma}$ into the model (a graphical model representation is shown in Figure \ref{fig:gap_nmf}):
-%\begin{align*}
-%a_{lk} &\sim \text{Gamma}(\alpha_l, \alpha_l)\\
-%W_{fk} &\sim \text{Gamma}\Big(\gamma_f, \gamma_f / \exp(\sum_l U_{fl} a_{lk})\Big)\\
-%H_{kt} &\sim \text{Gamma}(b, b)\\
-%X_{ft} &\sim \text{Poisson}\Big(c \sum_k W_{fk} H_{kt}\Big)
-%\end{align*}
-%We will only describe the update for $W_{fk}$ and $a_{lk}$, as the rest of the update remains basically unchanged from the original Bayesian NMF \cite{cemgil2009bayesian} and can be found in Appendix \ref{app:nmf}. 
-%
-%The mean-field variational distribution is chosen in the same family as its prior: $q(a_{lk}) = \text{Gamma}(\nu_{lk}^a, \rho_{lk}^a)$ and  
-%$q(W_{fk}) = \text{Gamma}(\nu_{fk}^W, \rho_{fk}^W)$. The variational lower bound we are trying to optimize is:
-%\begin{align}
-%\log p(&\mathbf{X} | b) \geq \mathbb{E}_q [\log p(\mathbf{X} | \mathbf{W, H}, c)] + \mathbb{E}_q \biggl[\log \frac{p(\mathbf{W})}{q(\mathbf{W})}\biggl] \nonumber\\
-%&+ \mathbb{E}_q \biggl[\log \frac{p(\mathbf{H})}{q(\mathbf{H})}\biggl] + \sum_{k} \mathbb{E}_q\biggl[\log \frac{p(\bm{a}_k)}{q(\bm{a}_k)}\biggl] \equiv \mathcal{L}
-%\end{align}
-%Take the derivate of $\mathcal{L}$ with respect to $\nu_{fk}^W$ and $\rho_{fk}^W$, we can obtain the closed form update for $W_{fk}$:
-%\begin{align*}
-%\nu_{fk}^W &= \gamma_f + \sum_t X_{ft} \phi_{kft}\\
-%\rho_{fk}^W &= \gamma_f \prod_l \mathbb{E}_q[\exp(-U_{fl}a_{lk})] + c \cdot \sum_t \mathbb{E}_q[H_{kt}]
-%\end{align*}
-%where $\phi_{kit}$ is an auxiliary variable to tighten the lower bound on $\mathbb{E}_q [\log p(\mathbf{X} | \mathbf{W, H}, c)]$. 
-%
-%As for updating $\bm{a}_k$, it is essentially performing posterior inference given the current belief of the dictionary $\mathbb{E}_q[W_{fk}]$, which is described in Section \ref{sec:e-step}. Although this part of the model does not have closed form update, as illustrated earlier, we can update $\bm{a}_k$ for $k\in\{1, 2, \cdots, K\}$ in parallel. Considering normally $K$ is in the order of $100$, updating $\bm{a}_k$ will not become the bottom neck. 
-
 \section{Evaluation}
 
 \begin{figure}
@@ -457,13 +395,6 @@ are used relatively rarely, tend to have the strong harmonic structure
 displayed by the log-spectra of periodic signals, while the filters in
 Figure \ref{fig:filters} tend to vary more smoothly, suggesting that
 they are being used to model the filtering induced by the vocal tract.
-%That the periodic ``excitation'' filters are associated with smaller
-%$\alpha$ values than the coarser ``vocal tract'' filters suggests that
-%the model has learned that there is normally no more than one
-%excitation signal contributing to a speaker's voice (most people
-%cannot speak at more than one pitch simultaneously), but that several
-%aspects of the vocal tract may be combined to filter that excitation
-%signal.
 The periodic ``excitation'' filters tend to be used more rarely, which is consistent with the fact that normally there is not more than one excitation signal contributing to a speaker's voice. (Very few people can speak or sing more than one pitch simultaneously.) The model has more freedom to use several of the coarser ``vocal tract'' filters per spectrum, which is consistent with the fact that several aspects of the vocal tract may be combined to filter the excitation signal generated by a speaker's vocal folds.
 
 Despite the non-convexity inherent to all dictionary-learning problems, which causes the details of the filters vary from run to run, training with multiple random restarts and different speakers produced little impact on the filters that the PoF model learned; in all cases with different model order $L$, we found the same ``excitation/filter'' structure, similar to what is shown in Figure \ref{fig:sf}.
@@ -642,58 +573,6 @@ used in a more sophisticated model (e.g. a deep neural network).
 \end{tabular}\label{tab:spk}
 \end{center}
 \end{table}
-
-%We explore PoF's potential as an unsupervised feature extractor. The PoF model seeks to represent the data in a latent filter space; given spectra $\{\bm{w}_t\}^{1:T}$, we can use the latent filter space coordinates $\{\bm{a}_t\}^{1:T}$ as features. Since we believe that inter- and intra-speaker variability is well-captured by the PoF model, we use a speaker identification problem to evaluate the effectiveness of these features.
-%
-%We compare our learned representation with mel-frequency cepstral
-%coefficients (MFCCs), which are widely used in various speech and
-%audio processing tasks including speaker identification. MFCCs are
-%computed by taking the discrete cosine transform (DCT) on mel-scale
-%log-spectra and using only the low-order coefficients. PoF can be
-%understood in similar terms; we are also trying to explain the
-%variability in log-spectra in terms of a linear combination of
-%dictionary elements. However, instead of using the fixed, orthogonal
-%DCT basis, PoF learns a filter space that is tuned to the statistics
-%of the input. Therefore, it seems reasonable to hope that the
-%coefficients $\bm{a}_t$ from the PoF model, which will be abbreviated
-%as PoFCs, might compare favorably with MFCCs as a feature
-%representation.
-%
-%We evaluated speaker identification under the following scenario: identify different speakers from recordings where each speaker may start and finish talking at random time, but at any given time there is only one speaker speaking (such as in a meeting). This is very
-%similar to speaker diarization \cite{Fox:AOAS2011}, but here we assume that 
-%we know \emph{a priori} the number of speakers and that a certain amount of training data is available for each speaker. Our goal in this experiment was to demonstrate that the PoFC
-%representation captures information that is missing or difficult to
-%extract from the MFCC representation, rather than trying to build a state-of-the-art
-%speaker identification system.
-%
-%The PoF free parameters $\mathbf{U}$, $\bm{\alpha}$, and $\bm{\gamma}$ were first learned from 40 randomly selected TIMIT speakers (20 male and 20 female). We performed a 400-point FFT (25 ms) with the Hann window and 160-point hopsize (10 ms).  To generate features, we randomly selected 200 speakers not used to learn the free parameters, which results in a total of more than 600,000 frames of data. We used the first 13 DCT coefficients which is a standard choice for computing MFCCs. We obtained the PoFCs by performing posterior inference as described in Section \ref{sec:e-step} and used $\mathbb{E}_q[\bm{a}_t]$ as a point estimate summary. 
-%
-%We treat speaker identification problem as a classification problem
-%and make predictions for each frame. Given 200 possible classes, it is unlikely that there exists a linear decision boundary which separates the classes reasonably well. We therefore trained a Random Forest classifier \cite{breiman2001random}, which can naturally handle multiclass cases.  Random forests are efficient to train and able to model nonlinear effects. They also tend to give competitive generalization performance \cite{lou2012intelligible}. 
-%
-%We conducted 9 sets of experiments using 1--9 sentences per speaker as training data. The remaining sentences are used as test data (there are 10 sentences for each speaker in TIMIT). These experiments are meant to test the performance of PoFCs and MFCCs when only limited amounts of training data are available, and how their performance changes as more data is provided. In each experiment, $10\%$ of the frames from the training data for each speaker were set aside as a validation set and used to tune the random forest hyperparameters (the number of trees in the forest and the minimum leaf size).
-%
-%The speaker identification results are shown in Figure \ref{fig:spkid}. In Figure \ref{fig:spkid_fl}, frame-level accuracy is reported as a function of the number of training sentences per speaker for both PoFCs and MFCCs. We can see that using PoFCs increases the accuracy by a large margin, regardless of the size of the training data. The margin grows as we add more data. To make use of temporal information, we used a simple median filter smoother with length 30. Figure \ref{fig:spkid_fl} shows that this yields a significant performance boost when using PoFCs and a much smaller improvement when using MFCCs.
-%
-%If we have extra knowledge about the boundaries of each sentence, we can make a sentence-level prediction by taking the majority class from the frame-level predictions, which significantly increases the accuracy. The results are shown in Figure \ref{fig:spkid_mj}. Again there is a large gap between the performance of PoFCs and MFCCs; PoFCs achieve $93\%$ accuracy, while even with 9 training sentences MFCCs only achieve about $50\%$ accuracy.
-%
-%\begin{figure}
-%        \centering
-%        \begin{subfigure}[b]{1\textwidth}
-%                \includegraphics[width=\textwidth]{spkID}		
-%		\caption{Frame-level accuracy as a function of the number of training sentences per speaker for both PoFCs and MFCCs. The accuracy after applying a median filter is also included (``PoFC + MED'' and ``MFCC + MED''), from which we can observe that the performance improvement of PoFCs is greater than that of MFCCs.}
-%		\label{fig:spkid_fl}
-%        \end{subfigure}%
-%       \\%add desired spacing between images, e. g. ~, \quad, \qquad etc.
-%          %(or a blank line to force the subfigure onto a new line)
-%        \begin{subfigure}[b]{1\textwidth}
-%                \includegraphics[width=\textwidth]{spkID_mj}
-%		\caption{Sentence-level accuracy as a function of the number of training sentences per speaker for both PoFCs and MFCCs. The sentence-level prediction is aggregated by majority voting from frame-level predictions. }
-%		\label{fig:spkid_mj}
-%        \end{subfigure}
-%        \caption{The frame- and sentence-level speaker identification results from both PoFCs and MFCCs.}\label{fig:spkid}
-%\end{figure}
-
 
 \section{Discussion and Future Work}
 In this paper, we proposed the product-of-filters (PoF) model, a
